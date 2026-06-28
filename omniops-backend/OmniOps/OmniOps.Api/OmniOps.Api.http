@@ -1,0 +1,6 @@
+@OmniOps.Api_HostAddress = http://localhost:5031
+
+GET {{OmniOps.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
