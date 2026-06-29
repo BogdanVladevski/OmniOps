@@ -9,6 +9,7 @@ using OmniOps.Core.Telemetry;
 using OmniOps.Infrastructure.BackgroundWorkers;
 using OmniOps.Infrastructure.Data;
 using OmniOps.Infrastructure.Services;
+using OmniOps.Infrastructure.Hubs;
 
 var builder = WebApplication.CreateBuilder(args);
 

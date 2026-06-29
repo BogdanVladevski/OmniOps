@@ -1,7 +1,7 @@
 using Microsoft.AspNetCore.SignalR;
 using System.Threading.Tasks;
 
-namespace OmniOps.Api.Hubs
+namespace OmniOps.Infrastructure.Hubs
 {
     public class TelemetryHub : Hub
     {

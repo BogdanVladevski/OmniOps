@@ -11,7 +11,7 @@ export default function VehicleTracker({ vehicleId = "Truck-001" }) {
   useEffect(() => {
     //connecting to my backend API
     const connection = new SignalR.HubConnectionBuilder()
-      .withUrl("http://192.168.1.11:5031/api/stream/telemetry") 
+      .withUrl("http://192.168.1.173:5031/api/stream/telemetry") 
       .withAutomaticReconnect()
       .configureLogging(SignalR.LogLevel.Information)
       .build();
