@@ -5,7 +5,7 @@ namespace OmniOps.Api.Hubs
 {
     public class TelemetryHub : Hub
     {
-        // Clients can call this to join a specific vehicle's tracking stream group
+        // Clients can call this to join a specific vehicles tracking stream group
         public async Task WatchVehicle(string vehicleId)
         {
             await Groups.AddToGroupAsync(Context.ConnectionId, vehicleId);
