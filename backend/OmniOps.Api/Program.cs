@@ -39,8 +39,23 @@ builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssemblies(
 //Background workers/daemons (the consumers dependent on MediatR)
 builder.Services.AddHostedService<KafkaTelemetryConsumer>();
 
+//SignalR for real-time telemetry streaming to clients
+builder.Services.AddSignalR();
+
 //API Documentation and Presentation
 builder.Services.AddOpenApi();
+
+//CORS configuration to allow requests from any origin (for development purposes)
+builder.Services.AddCors(options =>
+{
+    options.AddDefaultPolicy(policy =>
+    {
+        policy.AllowAnyHeader()
+              .AllowAnyMethod()
+              .SetIsOriginAllowed(origin => true)
+              .AllowCredentials();
+    });
+});
 
 var adminConfig = new AdminClientConfig { BootstrapServers = "localhost:9092" };
 using (var adminClient = new AdminClientBuilder(adminConfig).Build())
@@ -91,6 +106,10 @@ app.MapGet("/api/telemetry/{vehicleId}", async (string vehicleId, IMediator medi
 var producerConfig = new ProducerConfig { BootstrapServers = "localhost:9092", Acks = Acks.All, AllowAutoCreateTopics = true };
 
 var sharedProducer = new ProducerBuilder<Null, string>(producerConfig).Build();
+
+app.UseCors();
+
+app.MapHub<TelemetryHub>("/api/stream/telemetry");
 
 //simulate a POST endpoint to generate mock telemetry data for a given vehicle ID and send it to Kafka
 app.MapPost("/api/test/simulate/{vehicleId}", async (string vehicleId, int packets) =>
