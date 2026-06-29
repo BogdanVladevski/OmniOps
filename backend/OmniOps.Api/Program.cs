@@ -18,8 +18,10 @@ var builder = WebApplication.CreateBuilder(args);
 
 
 //Database and core infra layers
+var connectionString = Environment.GetEnvironmentVariable("DB_CONNECTION_STRING");
+
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseNpgsql(builder.Configuration.GetConnectionString("DefaultConnection")));
+    options.UseNpgsql(connectionString));
 
 //register Redis distributed cache pointing to our Docker container port
 builder.Services.AddStackExchangeRedisCache(options =>

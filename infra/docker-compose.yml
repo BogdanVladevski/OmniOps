@@ -6,7 +6,7 @@ services:
     container_name: omniops-db
     environment:
       POSTGRES_USER: admin
-      POSTGRES_PASSWORD: 123
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
       POSTGRES_DB: omniops_telemetry
     ports:
       - "5433:5432"
