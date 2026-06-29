@@ -3,6 +3,16 @@
 # dependencies
 node_modules/
 
+# Local environment variables
+.env
+.env.local
+.env.*.local
+
+# Dependency and build directories
+node_modules/
+.expo/
+dist/
+
 # Expo
 .expo/
 dist/

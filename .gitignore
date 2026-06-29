@@ -480,3 +480,90 @@ $RECYCLE.BIN/
 
 # Vim temporary swap files
 *.swp
+
+
+# ====================================================================
+# OMNIOPS MASTER GITIGNORE - SECURITY & PLATFORM PROTECTION
+# ====================================================================
+
+# --------------------------------------------------------------------
+# 1. CRITICAL SECURITY: Environment Variables, Secrets & Credentials
+# --------------------------------------------------------------------
+.env
+.env.local
+.env.*.local
+*.env
+App.config
+appsettings.Development.json
+appsettings.Local.json
+credentials.json
+*.pem
+*.key
+*.pfx
+*.pkcs12
+secrets.xml
+
+# --------------------------------------------------------------------
+# 2. FRONTEND: React Native / Expo (omniops-frontend)
+# --------------------------------------------------------------------
+**/node_modules/
+**/.expo/
+**/dist/
+**/npm-debug.log*
+**/yarn-debug.log*
+**/yarn-error.log*
+**/.env.production
+
+# --------------------------------------------------------------------
+# 3. BACKEND: .NET Core API (OmniOps.Api, Core, Infrastructure)
+# --------------------------------------------------------------------
+**/bin/
+**/obj/
+**/*.suo
+**/*.user
+**/*.userosscache
+**/*.sln.docstates
+.vs/
+_ReSharper*/
+
+# --------------------------------------------------------------------
+# 4. BACKEND: Spring Boot / Java Microservices
+# --------------------------------------------------------------------
+**/target/
+**/.gradle/
+**/build/
+**/*.class
+**/*.jar
+**/*.war
+**/*.ear
+**/.mvn/
+mvnw
+mvnw.cmd
+.metadata/
+**/.classpath
+**/.project
+**/.settings/
+**/*.launch
+
+# --------------------------------------------------------------------
+# 5. DATA STACK: Docker, Databases & Local State
+# --------------------------------------------------------------------
+# Prevents committing active local PostgreSQL, Redis, or Kafka data volumes
+**/docker/data/
+**/postgres_data/
+**/kafka_data/
+**/redis_data/
+**/*.db
+**/*.sqlite
+**/*.log
+
+# --------------------------------------------------------------------
+# 6. IDEs & SYSTEM CACHES: VS Code, JetBrains, Windows
+# --------------------------------------------------------------------
+.vscode/
+!.vscode/extensions.json
+.idea/
+*.iws
+Thumbs.db
+Desktop.ini
+.DS_Store
