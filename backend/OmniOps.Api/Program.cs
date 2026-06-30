@@ -1,39 +1,64 @@
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Confluent.Kafka;
 using Confluent.Kafka.Admin;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using OmniOps.Core.Entities;
+using OmniOps.Core.DTOs;
 using OmniOps.Core.Interfaces;
 using OmniOps.Core.Telemetry;
 using OmniOps.Infrastructure.BackgroundWorkers;
+using OmniOps.Infrastructure.Configuration;
 using OmniOps.Infrastructure.Data;
 using OmniOps.Infrastructure.Services;
 using OmniOps.Infrastructure.Hubs;
 using DotNetEnv;
 
 // -------------------------------------------------------------------------
-// 1. SECURE ENVIRONMENT INITIALIZATION
+// 1. SECURE ENVIRONMENT INITIALIZATION & STARTUP LOGGER
 // -------------------------------------------------------------------------
+using var startupLoggerFactory = LoggerFactory.Create(loggingBuilder => 
+{
+    loggingBuilder.AddConsole();
+});
+var startupLogger = startupLoggerFactory.CreateLogger("Program");
+
 var envPath = "/home/bogdan/Documents/OmniOps/.env";
 
 if (File.Exists(envPath))
 {
     DotNetEnv.Env.Load(envPath);
-    Console.WriteLine($"[STARTUP] Secure environment loaded cleanly from: {envPath}");
+    startupLogger.LogInformation("Secure environment loaded cleanly from: {EnvPath}", envPath);
 }
 else
 {
     DotNetEnv.Env.Load();
-    Console.WriteLine("[STARTUP WARNING] Target root .env not found. Using local directory fallback.");
+    startupLogger.LogWarning("Target root .env not found. Using local directory fallback.");
 }
 
 var builder = WebApplication.CreateBuilder(args);
 
+// Register Infrastructure configuration options
+builder.Services.Configure<KafkaOptions>(builder.Configuration.GetSection(KafkaOptions.SectionName));
+builder.Services.Configure<RedisOptions>(builder.Configuration.GetSection(RedisOptions.SectionName));
+
+// Resolve Redis options for configuration
+var redisOptions = new RedisOptions();
+builder.Configuration.GetSection(RedisOptions.SectionName).Bind(redisOptions);
+redisOptions.Configuration = Environment.GetEnvironmentVariable("REDIS_CONFIGURATION") ?? redisOptions.Configuration;
+redisOptions.InstanceName = Environment.GetEnvironmentVariable("REDIS_INSTANCE_NAME") ?? redisOptions.InstanceName;
+
+var kafkaOptions = new KafkaOptions();
+builder.Configuration.GetSection(KafkaOptions.SectionName).Bind(kafkaOptions);
+kafkaOptions.BootstrapServers = Environment.GetEnvironmentVariable("KAFKA_BOOTSTRAP_SERVERS") ?? kafkaOptions.BootstrapServers;
+kafkaOptions.Topic = Environment.GetEnvironmentVariable("KAFKA_TOPIC") ?? kafkaOptions.Topic;
+kafkaOptions.GroupId = Environment.GetEnvironmentVariable("KAFKA_GROUP_ID") ?? kafkaOptions.GroupId;
+
 // -------------------------------------------------------------------------
 // 2. DATABASE CONFIGURATION (FORCED DOCKER HOST PORT 5433 OVERRIDE)
 // -------------------------------------------------------------------------
-// We explicitly fall back to port 5433 matching your 'docker ps' runtime mapping
 var connectionString = Environment.GetEnvironmentVariable("DB_CONNECTION_STRING")
                        ?? "Host=127.0.0.1;Port=5433;Database=OmniOps;Username=postgres;Password=123";
 
@@ -42,7 +67,7 @@ if (connectionString.Contains("Port=5432;"))
     connectionString = connectionString.Replace("Port=5432;", "Port=5433;");
 }
 
-Console.WriteLine($"[STARTUP DIAGNOSTIC] Core EF Context routing targeted at: {connectionString}");
+startupLogger.LogInformation("Core EF Context routing targeted at: {ConnectionString}", connectionString);
 
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(connectionString));
@@ -52,8 +77,8 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 // -------------------------------------------------------------------------
 builder.Services.AddStackExchangeRedisCache(options =>
 {
-    options.Configuration = "127.0.0.1:6379";
-    options.InstanceName = "OmniOps_";
+    options.Configuration = redisOptions.Configuration;
+    options.InstanceName = redisOptions.InstanceName;
 });
 
 builder.Services.AddTransient<ITelemetryCacheService, RedisTelemetryCacheService>();
@@ -75,33 +100,64 @@ builder.Services.AddCors(options =>
     options.AddDefaultPolicy(policy =>
     {
         policy.AllowAnyHeader()
-              .AllowAnyMethod()
-              .SetIsOriginAllowed(origin => true)
-              .AllowCredentials();
+              .AllowAnyMethod();
+
+        if (builder.Environment.IsDevelopment())
+        {
+            policy.SetIsOriginAllowed(origin => true)
+                  .AllowCredentials();
+        }
+        else
+        {
+            var allowedOrigins = builder.Configuration.GetSection("Cors:AllowedOrigins").Get<string[]>() 
+                                 ?? Array.Empty<string>();
+            if (allowedOrigins.Length > 0)
+            {
+                policy.WithOrigins(allowedOrigins)
+                      .AllowCredentials();
+            }
+            else
+            {
+                // Strict fallback: no allowed origins if configuration is missing in production
+                policy.WithOrigins();
+            }
+        }
     });
+});
+
+// Register Kafka Producer as a Singleton in DI for automatic lifecycle/disposal management
+builder.Services.AddSingleton<IProducer<Null, string>>(sp =>
+{
+    var producerConfig = new ProducerConfig 
+    { 
+        BootstrapServers = kafkaOptions.BootstrapServers, 
+        Acks = Acks.All, 
+        AllowAutoCreateTopics = true 
+    };
+    return new ProducerBuilder<Null, string>(producerConfig).Build();
 });
 
 // -------------------------------------------------------------------------
 // 5. KAFKA CLUSTER TOPOLOGY INITIALIZATION
 // -------------------------------------------------------------------------
-var adminConfig = new AdminClientConfig { BootstrapServers = "127.0.0.1:9092" };
+var adminConfig = new AdminClientConfig { BootstrapServers = kafkaOptions.BootstrapServers };
 using (var adminClient = new AdminClientBuilder(adminConfig).Build())
 {
     try
     {
         adminClient.CreateTopicsAsync(new TopicSpecification[] {
-            new TopicSpecification { Name = "fleet-telemetry", NumPartitions = 1, ReplicationFactor = 1 }
+            new TopicSpecification { Name = kafkaOptions.Topic, NumPartitions = 1, ReplicationFactor = 1 }
         }).GetAwaiter().GetResult();
 
-        Console.WriteLine("[STARTUP] 'fleet-telemetry' topic verified/created successfully.");
+        startupLogger.LogInformation("Topic '{Topic}' verified/created successfully.", kafkaOptions.Topic);
     }
     catch (CreateTopicsException e) when (e.Results[0].Error.Code == ErrorCode.TopicAlreadyExists)
     {
-        Console.WriteLine("[STARTUP] 'fleet-telemetry' topic already exists. Proceeding...");
+        startupLogger.LogInformation("Topic '{Topic}' already exists. Proceeding...", kafkaOptions.Topic);
     }
     catch (Exception ex)
     {
-        Console.WriteLine($"[STARTUP WARNING] Could not auto-initialize topic: {ex.Message}");
+        startupLogger.LogWarning("Could not auto-initialize topic '{Topic}': {Message}", kafkaOptions.Topic, ex.Message);
     }
 }
 
@@ -125,6 +181,12 @@ app.UseCors();
 // GET: Fetch cached tracking profile
 app.MapGet("/api/telemetry/{vehicleId}", async (string vehicleId, IMediator mediator) =>
 {
+    // Input validation for vehicleId
+    if (string.IsNullOrWhiteSpace(vehicleId) || !Regex.IsMatch(vehicleId, "^[a-zA-Z0-9]+$"))
+    {
+        return Results.BadRequest(new { Message = "Vehicle ID must be a non-empty alphanumeric string." });
+    }
+
     var query = new GetLatestTelemetryQuery(vehicleId);
     var result = await mediator.Send(query);
 
@@ -139,11 +201,25 @@ app.MapGet("/api/telemetry/{vehicleId}", async (string vehicleId, IMediator medi
 app.MapHub<TelemetryHub>("/api/stream/telemetry");
 
 // POST: Run network simulator and send stream traffic straight into Kafka Broker
-var producerConfig = new ProducerConfig { BootstrapServers = "127.0.0.1:9092", Acks = Acks.All, AllowAutoCreateTopics = true };
-var sharedProducer = new ProducerBuilder<Null, string>(producerConfig).Build();
-
-app.MapPost("/api/test/simulate/{vehicleId}", async (string vehicleId, int packets) =>
+app.MapPost("/api/test/simulate/{vehicleId}", async (
+    string vehicleId, 
+    int packets, 
+    IProducer<Null, string> producer, 
+    ILogger<Program> logger,
+    IOptions<KafkaOptions> kOptions) =>
 {
+    // 1. Input Validation
+    if (string.IsNullOrWhiteSpace(vehicleId) || !Regex.IsMatch(vehicleId, "^[a-zA-Z0-9]+$"))
+    {
+        return Results.BadRequest(new { Message = "Vehicle ID must be a non-empty alphanumeric string." });
+    }
+
+    if (packets <= 0 || packets > 100)
+    {
+        return Results.BadRequest(new { Message = "Packets count must be between 1 and 100." });
+    }
+
+    var targetTopic = kOptions.Value.Topic;
     var random = new Random();
     int successfullySent = 0;
 
@@ -164,8 +240,8 @@ app.MapPost("/api/test/simulate/{vehicleId}", async (string vehicleId, int packe
 
         try
         {
-            var deliveryResult = sharedProducer.ProduceAsync("fleet-telemetry",
-                new Message<Null, string> { Value = jsonPayload }).GetAwaiter().GetResult();
+            var deliveryResult = await producer.ProduceAsync(targetTopic,
+                new Message<Null, string> { Value = jsonPayload });
 
             if (deliveryResult.Status == PersistenceStatus.Persisted)
             {
@@ -174,10 +250,10 @@ app.MapPost("/api/test/simulate/{vehicleId}", async (string vehicleId, int packe
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[Simulator Kafka Error]: {ex.Message}");
+            logger.LogError(ex, "Simulator Kafka Error: {Message}", ex.Message);
         }
 
-        sharedProducer.Flush(TimeSpan.FromMilliseconds(100));
+        producer.Flush(TimeSpan.FromMilliseconds(100));
     }
 
     return Results.Ok(new { Message = $"Successfully queued {successfullySent} mock telemetry packets into Kafka stream." });
@@ -194,22 +270,22 @@ using (var scope = app.Services.CreateScope())
     try
     {
         var context = services.GetRequiredService<AppDbContext>();
-        Console.WriteLine("[STARTUP] Synchronizing PostgreSQL database schema via EF Core...");
+        app.Logger.LogInformation("Synchronizing PostgreSQL database schema via EF Core...");
         await context.Database.MigrateAsync();
-        Console.WriteLine("[STARTUP] PostgreSQL database migrated successfully.");
+        app.Logger.LogInformation("PostgreSQL database migrated successfully.");
     }
     catch (Exception)
     {
-        Console.WriteLine("[STARTUP] No formal migrations found. Applying direct schema creation fallback...");
+        app.Logger.LogWarning("No formal migrations found. Applying direct schema creation fallback...");
         try
         {
             var context = services.GetRequiredService<AppDbContext>();
             await context.Database.EnsureCreatedAsync();
-            Console.WriteLine("[STARTUP] Database tables generated directly from DbContext models successfully!");
+            app.Logger.LogInformation("Database tables generated directly from DbContext models successfully!");
         }
         catch (Exception ex)
         {
-            Console.WriteLine($"[STARTUP CRITICAL ERROR] Direct creation fallback failed: {ex.Message}");
+            app.Logger.LogCritical(ex, "Direct creation fallback failed: {Message}", ex.Message);
         }
     }
 }

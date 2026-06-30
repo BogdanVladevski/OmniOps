@@ -1,6 +1,6 @@
-﻿using MediatR;
-using OmniOps.Core.Entities;
+using MediatR;
+using OmniOps.Core.DTOs;
 
 namespace OmniOps.Core.Telemetry;
 
-public record GetLatestTelemetryQuery(string VehicleId) : IRequest<VehicleTelemetry?>;
+public record GetLatestTelemetryQuery(string VehicleId) : IRequest<TelemetryDto?>;
