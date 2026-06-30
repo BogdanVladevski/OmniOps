@@ -1,12 +1,11 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using System.Text.Json.Serialization;
+using OmniOps.Core.Interfaces;
 
 namespace OmniOps.Core.Entities
 {
-    public class VehicleTelemetry
+    public class VehicleTelemetry : IHasDomainEvents
     {
         public Guid Id { get; set; }
         public string VehicleId { get; set; } = string.Empty;
@@ -16,5 +15,20 @@ namespace OmniOps.Core.Entities
         public double FuelLevel { get; set; }
         public double EngineTemperature { get; set; }
         public DateTime Timestamp { get; set; }
+
+        private readonly List<IDomainEvent> _domainEvents = new();
+
+        [JsonIgnore]
+        public IReadOnlyCollection<IDomainEvent> DomainEvents => _domainEvents.AsReadOnly();
+
+        public void AddDomainEvent(IDomainEvent domainEvent)
+        {
+            _domainEvents.Add(domainEvent);
+        }
+
+        public void ClearDomainEvents()
+        {
+            _domainEvents.Clear();
+        }
     }
 }

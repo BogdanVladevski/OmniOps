@@ -1,4 +1,5 @@
 using System;
+using System.Diagnostics;
 using System.Text.Json;
 using System.Threading;
 using System.Threading.Tasks;
@@ -20,15 +21,20 @@ public class KafkaTelemetryConsumer : BackgroundService
     private readonly IServiceProvider _serviceProvider;
     private readonly ConsumerConfig _config;
     private readonly string _topic;
+    private readonly IProducer<Null, string> _producer;
     private IConsumer<Ignore, string>? _kafkaConsumer;
+
+    private static readonly ActivitySource _activitySource = new("OmniOps.Infrastructure.TelemetryConsumer");
 
     public KafkaTelemetryConsumer(
         ILogger<KafkaTelemetryConsumer> logger, 
         IServiceProvider serviceProvider,
-        IOptions<KafkaOptions> kafkaOptions)
+        IOptions<KafkaOptions> kafkaOptions,
+        IProducer<Null, string> producer)
     {
         _logger = logger;
         _serviceProvider = serviceProvider;
+        _producer = producer;
 
         var options = kafkaOptions.Value;
         _config = new ConsumerConfig
@@ -75,20 +81,47 @@ public class KafkaTelemetryConsumer : BackgroundService
                         var consumeResult = _kafkaConsumer.Consume(stoppingToken);
                         if (consumeResult == null) continue;
 
+                        // 1. Extract W3C trace context header (traceparent)
+                        string? traceParent = null;
+                        if (consumeResult.Message.Headers != null && 
+                            consumeResult.Message.Headers.TryGetLastBytes("traceparent", out var headerBytes))
+                        {
+                            traceParent = System.Text.Encoding.UTF8.GetString(headerBytes);
+                        }
+
+                        // 2. Start a linked activity for Distributed Tracing
+                        using var activity = _activitySource.StartActivity("KafkaConsumeTelemetry", ActivityKind.Consumer, traceParent ?? string.Empty);
+                        activity?.SetTag("messaging.system", "kafka");
+                        activity?.SetTag("messaging.destination.name", _topic);
+
                         _logger.LogInformation("📥 Message received from Kafka: {Message}", consumeResult.Message.Value);
 
-                        var telemetry = JsonSerializer.Deserialize<VehicleTelemetry>(consumeResult.Message.Value, new JsonSerializerOptions
+                        VehicleTelemetry? telemetry = null;
+                        try
                         {
-                            PropertyNameCaseInsensitive = true
-                        });
-
-                        if (telemetry != null)
-                        {
-                            _logger.LogInformation("Handing off telemetry for vehicle {VehicleId} to MediatR", telemetry.VehicleId);
-                            using var scope = _serviceProvider.CreateScope();
-                            var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
-                            await mediator.Send(new ProcessTelemetryCommand(telemetry), stoppingToken);
+                            telemetry = JsonSerializer.Deserialize<VehicleTelemetry>(consumeResult.Message.Value, new JsonSerializerOptions
+                            {
+                                PropertyNameCaseInsensitive = true
+                            });
                         }
+                        catch (Exception parseEx)
+                        {
+                            _logger.LogError(parseEx, "Failed to deserialize telemetry message. Sending to DLQ. Raw payload: {Payload}", consumeResult.Message.Value);
+                            await SendToDlqAsync(consumeResult.Message.Value, parseEx.Message, stoppingToken);
+                            continue;
+                        }
+
+                        if (telemetry == null)
+                        {
+                            _logger.LogWarning("Deserialized telemetry was null. Sending to DLQ. Raw payload: {Payload}", consumeResult.Message.Value);
+                            await SendToDlqAsync(consumeResult.Message.Value, "Deserialized object was null", stoppingToken);
+                            continue;
+                        }
+
+                        _logger.LogInformation("Handing off telemetry for vehicle {VehicleId} to MediatR", telemetry.VehicleId);
+                        using var scope = _serviceProvider.CreateScope();
+                        var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
+                        await mediator.Send(new ProcessTelemetryCommand(telemetry), stoppingToken);
                     }
                     catch (ConsumeException ex)
                     {
@@ -139,6 +172,32 @@ public class KafkaTelemetryConsumer : BackgroundService
         }
 
         _logger.LogInformation("KafkaTelemetryConsumer.ExecuteAsync has finished.");
+    }
+
+    private async Task SendToDlqAsync(string rawPayload, string reason, CancellationToken cancellationToken)
+    {
+        try
+        {
+            var dlqTopic = _topic + "-dlq";
+            var headers = new Headers
+            {
+                { "dlq-reason", System.Text.Encoding.UTF8.GetBytes(reason) },
+                { "dlq-timestamp", System.Text.Encoding.UTF8.GetBytes(DateTime.UtcNow.ToString("O")) }
+            };
+
+            _logger.LogInformation("Routing poison message to DLQ topic: {DlqTopic}", dlqTopic);
+            await _producer.ProduceAsync(dlqTopic, new Message<Null, string>
+            {
+                Value = rawPayload,
+                Headers = headers
+            }, cancellationToken);
+            
+            _logger.LogInformation("Successfully routed poison message to DLQ.");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Failed to send poison message to DLQ.");
+        }
     }
 
     private void CleanupConsumer()

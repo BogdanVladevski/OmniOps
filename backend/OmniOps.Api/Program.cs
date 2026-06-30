@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Confluent.Kafka;
@@ -14,6 +15,7 @@ using OmniOps.Infrastructure.Configuration;
 using OmniOps.Infrastructure.Data;
 using OmniOps.Infrastructure.Services;
 using OmniOps.Infrastructure.Hubs;
+using StackExchange.Redis;
 using DotNetEnv;
 
 // -------------------------------------------------------------------------
@@ -81,7 +83,15 @@ builder.Services.AddStackExchangeRedisCache(options =>
     options.InstanceName = redisOptions.InstanceName;
 });
 
+// Register Singleton IConnectionMultiplexer for advanced Redis commands (dedup, sliding window)
+builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
+{
+    startupLogger.LogInformation("Connecting to Redis Multiplexer at: {Config}", redisOptions.Configuration);
+    return ConnectionMultiplexer.Connect(redisOptions.Configuration);
+});
+
 builder.Services.AddTransient<ITelemetryCacheService, RedisTelemetryCacheService>();
+builder.Services.AddTransient<IAnomalyDetectionService, RedisAnomalyDetectionService>();
 
 builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssemblies(
     typeof(OmniOps.Core.Telemetry.ProcessTelemetryCommand).Assembly,
@@ -89,8 +99,12 @@ builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssemblies(
 ));
 
 builder.Services.AddHostedService<KafkaTelemetryConsumer>();
+builder.Services.AddHostedService<OutboxPublisherWorker>();
 builder.Services.AddSignalR();
 builder.Services.AddOpenApi();
+
+// ActivitySource for simulator distributed tracing
+ActivitySource simulatorSource = new("OmniOps.Api.Simulator");
 
 // -------------------------------------------------------------------------
 // 4. SECURITY & CROSS-ORIGIN RESOURCE SHARING (CORS)
@@ -146,18 +160,19 @@ using (var adminClient = new AdminClientBuilder(adminConfig).Build())
     try
     {
         adminClient.CreateTopicsAsync(new TopicSpecification[] {
-            new TopicSpecification { Name = kafkaOptions.Topic, NumPartitions = 1, ReplicationFactor = 1 }
+            new TopicSpecification { Name = kafkaOptions.Topic, NumPartitions = 1, ReplicationFactor = 1 },
+            new TopicSpecification { Name = kafkaOptions.Topic + "-dlq", NumPartitions = 1, ReplicationFactor = 1 }
         }).GetAwaiter().GetResult();
 
-        startupLogger.LogInformation("Topic '{Topic}' verified/created successfully.", kafkaOptions.Topic);
+        startupLogger.LogInformation("Topics '{Topic}' and '{Topic}-dlq' verified/created successfully.", kafkaOptions.Topic, kafkaOptions.Topic);
     }
     catch (CreateTopicsException e) when (e.Results[0].Error.Code == ErrorCode.TopicAlreadyExists)
     {
-        startupLogger.LogInformation("Topic '{Topic}' already exists. Proceeding...", kafkaOptions.Topic);
+        startupLogger.LogInformation("Topics already exist. Proceeding...");
     }
     catch (Exception ex)
     {
-        startupLogger.LogWarning("Could not auto-initialize topic '{Topic}': {Message}", kafkaOptions.Topic, ex.Message);
+        startupLogger.LogWarning("Could not auto-initialize topics: {Message}", ex.Message);
     }
 }
 
@@ -219,6 +234,10 @@ app.MapPost("/api/test/simulate/{vehicleId}", async (
         return Results.BadRequest(new { Message = "Packets count must be between 1 and 100." });
     }
 
+    using var activity = simulatorSource.StartActivity("SimulateTelemetryStream");
+    activity?.SetTag("vehicle.id", vehicleId);
+    activity?.SetTag("packets.count", packets);
+
     var targetTopic = kOptions.Value.Topic;
     var random = new Random();
     int successfullySent = 0;
@@ -227,6 +246,7 @@ app.MapPost("/api/test/simulate/{vehicleId}", async (
     {
         var mockTelemetry = new VehicleTelemetry
         {
+            Id = Guid.NewGuid(), // Generate unique packet ID at producer side
             VehicleId = vehicleId,
             Latitude = 41.9981 + (random.NextDouble() - 0.5) * 0.05,
             Longitude = 21.4254 + (random.NextDouble() - 0.5) * 0.05,
@@ -238,10 +258,19 @@ app.MapPost("/api/test/simulate/{vehicleId}", async (
 
         var jsonPayload = JsonSerializer.Serialize(mockTelemetry);
 
+        var message = new Message<Null, string> { Value = jsonPayload };
+
+        // Inject traceparent if trace activity is active
+        var currentActivity = Activity.Current;
+        if (currentActivity != null)
+        {
+            message.Headers ??= new Headers();
+            message.Headers.Add("traceparent", System.Text.Encoding.UTF8.GetBytes(currentActivity.Id ?? string.Empty));
+        }
+
         try
         {
-            var deliveryResult = await producer.ProduceAsync(targetTopic,
-                new Message<Null, string> { Value = jsonPayload });
+            var deliveryResult = await producer.ProduceAsync(targetTopic, message);
 
             if (deliveryResult.Status == PersistenceStatus.Persisted)
             {
