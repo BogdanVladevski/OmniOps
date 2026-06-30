@@ -12,47 +12,64 @@ using OmniOps.Infrastructure.Services;
 using OmniOps.Infrastructure.Hubs;
 using DotNetEnv;
 
-DotNetEnv.Env.Load();
+// -------------------------------------------------------------------------
+// 1. SECURE ENVIRONMENT INITIALIZATION
+// -------------------------------------------------------------------------
+var envPath = "/home/bogdan/Documents/OmniOps/.env";
 
+if (File.Exists(envPath))
+{
+    DotNetEnv.Env.Load(envPath);
+    Console.WriteLine($"[STARTUP] Secure environment loaded cleanly from: {envPath}");
+}
+else
+{
+    DotNetEnv.Env.Load();
+    Console.WriteLine("[STARTUP WARNING] Target root .env not found. Using local directory fallback.");
+}
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
-// Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
+// -------------------------------------------------------------------------
+// 2. DATABASE CONFIGURATION (FORCED DOCKER HOST PORT 5433 OVERRIDE)
+// -------------------------------------------------------------------------
+// We explicitly fall back to port 5433 matching your 'docker ps' runtime mapping
+var connectionString = Environment.GetEnvironmentVariable("DB_CONNECTION_STRING")
+                       ?? "Host=127.0.0.1;Port=5433;Database=OmniOps;Username=postgres;Password=123";
 
+if (connectionString.Contains("Port=5432;"))
+{
+    connectionString = connectionString.Replace("Port=5432;", "Port=5433;");
+}
 
-//Database and core infra layers
-var connectionString = Environment.GetEnvironmentVariable("DB_CONNECTION_STRING");
+Console.WriteLine($"[STARTUP DIAGNOSTIC] Core EF Context routing targeted at: {connectionString}");
 
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseNpgsql(connectionString));
 
-//register Redis distributed cache pointing to our Docker container port
+// -------------------------------------------------------------------------
+// 3. CACHING & LAYER SUBSCRIPTIONS
+// -------------------------------------------------------------------------
 builder.Services.AddStackExchangeRedisCache(options =>
 {
-    options.Configuration = "localhost:6379";
+    options.Configuration = "127.0.0.1:6379";
     options.InstanceName = "OmniOps_";
 });
 
-//register custom interface abstractions 
 builder.Services.AddTransient<ITelemetryCacheService, RedisTelemetryCacheService>();
 
-//App logic and orchestration layers
 builder.Services.AddMediatR(cfg => cfg.RegisterServicesFromAssemblies(
     typeof(OmniOps.Core.Telemetry.ProcessTelemetryCommand).Assembly,
     typeof(OmniOps.Infrastructure.Handlers.ProcessTelemetryCommandHandler).Assembly
 ));
 
-//Background workers/daemons (the consumers dependent on MediatR)
 builder.Services.AddHostedService<KafkaTelemetryConsumer>();
-
-//SignalR for real-time telemetry streaming to clients
 builder.Services.AddSignalR();
-
-//API Documentation and Presentation
 builder.Services.AddOpenApi();
 
-//CORS configuration to allow requests from any origin (for development purposes)
+// -------------------------------------------------------------------------
+// 4. SECURITY & CROSS-ORIGIN RESOURCE SHARING (CORS)
+// -------------------------------------------------------------------------
 builder.Services.AddCors(options =>
 {
     options.AddDefaultPolicy(policy =>
@@ -64,12 +81,14 @@ builder.Services.AddCors(options =>
     });
 });
 
-var adminConfig = new AdminClientConfig { BootstrapServers = "localhost:9092" };
+// -------------------------------------------------------------------------
+// 5. KAFKA CLUSTER TOPOLOGY INITIALIZATION
+// -------------------------------------------------------------------------
+var adminConfig = new AdminClientConfig { BootstrapServers = "127.0.0.1:9092" };
 using (var adminClient = new AdminClientBuilder(adminConfig).Build())
 {
     try
     {
-        // Force-create the topic with 1 partition and a replication factor of 1 if it doesn't exist
         adminClient.CreateTopicsAsync(new TopicSpecification[] {
             new TopicSpecification { Name = "fleet-telemetry", NumPartitions = 1, ReplicationFactor = 1 }
         }).GetAwaiter().GetResult();
@@ -88,15 +107,22 @@ using (var adminClient = new AdminClientBuilder(adminConfig).Build())
 
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
+// -------------------------------------------------------------------------
+// 6. HTTP REQUEST PIPELINE MIDDLEWARE
+// -------------------------------------------------------------------------
 if (app.Environment.IsDevelopment())
 {
     app.MapOpenApi();
 }
 
 app.UseHttpsRedirection();
+app.UseCors();
 
-//map a GET endpoint to retrieve the latest telemetry for a given vehicle ID
+// -------------------------------------------------------------------------
+// 7. MINIMAL API ENDPOINT ROUTING
+// -------------------------------------------------------------------------
+
+// GET: Fetch cached tracking profile
 app.MapGet("/api/telemetry/{vehicleId}", async (string vehicleId, IMediator mediator) =>
 {
     var query = new GetLatestTelemetryQuery(vehicleId);
@@ -109,16 +135,13 @@ app.MapGet("/api/telemetry/{vehicleId}", async (string vehicleId, IMediator medi
 .WithName("GetLatestVehicleTelemetry")
 .WithOpenApi();
 
-
-var producerConfig = new ProducerConfig { BootstrapServers = "localhost:9092", Acks = Acks.All, AllowAutoCreateTopics = true };
-
-var sharedProducer = new ProducerBuilder<Null, string>(producerConfig).Build();
-
-app.UseCors();
-
+// Real-time Event Streaming Hub
 app.MapHub<TelemetryHub>("/api/stream/telemetry");
 
-//simulate a POST endpoint to generate mock telemetry data for a given vehicle ID and send it to Kafka
+// POST: Run network simulator and send stream traffic straight into Kafka Broker
+var producerConfig = new ProducerConfig { BootstrapServers = "127.0.0.1:9092", Acks = Acks.All, AllowAutoCreateTopics = true };
+var sharedProducer = new ProducerBuilder<Null, string>(producerConfig).Build();
+
 app.MapPost("/api/test/simulate/{vehicleId}", async (string vehicleId, int packets) =>
 {
     var random = new Random();
@@ -129,7 +152,7 @@ app.MapPost("/api/test/simulate/{vehicleId}", async (string vehicleId, int packe
         var mockTelemetry = new VehicleTelemetry
         {
             VehicleId = vehicleId,
-            Latitude = 41.9981 + (random.NextDouble() - 0.5) * 0.05,  //simulating a small variation in latitude (example for Skopje)
+            Latitude = 41.9981 + (random.NextDouble() - 0.5) * 0.05,
             Longitude = 21.4254 + (random.NextDouble() - 0.5) * 0.05,
             Speed = random.Next(50, 120),
             FuelLevel = Math.Round(80.0 - (i * 0.5), 2),
@@ -141,7 +164,6 @@ app.MapPost("/api/test/simulate/{vehicleId}", async (string vehicleId, int packe
 
         try
         {
-            //block synchronously to guarantee the message cuts through to Docker before continuing
             var deliveryResult = sharedProducer.ProduceAsync("fleet-telemetry",
                 new Message<Null, string> { Value = jsonPayload }).GetAwaiter().GetResult();
 
@@ -155,7 +177,6 @@ app.MapPost("/api/test/simulate/{vehicleId}", async (string vehicleId, int packe
             Console.WriteLine($"[Simulator Kafka Error]: {ex.Message}");
         }
 
-        //force network flush to ensure the message is sent to Kafka before continuing
         sharedProducer.Flush(TimeSpan.FromMilliseconds(100));
     }
 
@@ -164,21 +185,22 @@ app.MapPost("/api/test/simulate/{vehicleId}", async (string vehicleId, int packe
 .WithName("SimulateVehicleTelemetry")
 .WithOpenApi();
 
-
-
+// -------------------------------------------------------------------------
+// 8. DATA CONTEXT AUTOMIGRATION ROUTINE
+// -------------------------------------------------------------------------
 using (var scope = app.Services.CreateScope())
 {
     var services = scope.ServiceProvider;
     try
     {
         var context = services.GetRequiredService<AppDbContext>();
-        Console.WriteLine("[STARTUP] Synchronizing PostgreSQL database schema...");
+        Console.WriteLine("[STARTUP] Synchronizing PostgreSQL database schema via EF Core...");
         await context.Database.MigrateAsync();
-        Console.WriteLine(" [STARTUP] PostgreSQL database migrated successfully.");
+        Console.WriteLine("[STARTUP] PostgreSQL database migrated successfully.");
     }
     catch (Exception)
     {
-        Console.WriteLine("[STARTUP] No formal migrations found or history table missing. Applying direct schema creation fallback...");
+        Console.WriteLine("[STARTUP] No formal migrations found. Applying direct schema creation fallback...");
         try
         {
             var context = services.GetRequiredService<AppDbContext>();
@@ -193,4 +215,3 @@ using (var scope = app.Services.CreateScope())
 }
 
 app.Run();
-
