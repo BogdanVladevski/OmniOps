@@ -14,6 +14,7 @@ public static class DependencyInjection
         services.Configure<KafkaOptions>(configuration.GetSection(KafkaOptions.SectionName));
         services.Configure<RedisOptions>(configuration.GetSection(RedisOptions.SectionName));
         services.Configure<CorsOptions>(configuration.GetSection(CorsOptions.SectionName));
+        services.Configure<FleetOptions>(configuration.GetSection(FleetOptions.SectionName));
 
         return services;
     }

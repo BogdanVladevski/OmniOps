@@ -77,9 +77,9 @@ sequenceDiagram
 | Cache | Redis latest-telemetry per vehicle |
 | Anomaly detection | 30-second sliding window (fuel + engine thermal) |
 | Playbook orchestration | Simulated RAG incident response via SignalR |
-| Real-time | SignalR vehicle groups, camelCase JSON |
+| Real-time | SignalR vehicle + fleet groups, camelCase JSON |
 | Observability | Serilog structured logging, OpenTelemetry tracing, Prometheus `/metrics` |
-| Mobile | Expo map with live marker updates |
+| Mobile | Expo fleet dashboard — live map, KPIs, anomaly alerts |
 
 ---
 
@@ -87,6 +87,7 @@ sequenceDiagram
 
 | Method | Route | Description |
 |--------|-------|-------------|
+| `GET` | `/api/telemetry/fleet` | Latest cached telemetry for all configured fleet vehicles + summary KPIs |
 | `GET` | `/api/telemetry/{vehicleId}` | Latest cached telemetry (Redis) |
 | `POST` | `/api/test/simulate/{vehicleId}?packets=N` | Publish mock telemetry to Kafka (`N` = 1–100) |
 | `GET` | `/health/live` | Liveness probe (process up) |
@@ -100,10 +101,12 @@ sequenceDiagram
 |-----------|----------------|---------|
 | Client → server | `WatchVehicle(vehicleId)` | Join vehicle broadcast group |
 | Client → server | `UnwatchVehicle(vehicleId)` | Leave vehicle group |
+| Client → server | `WatchFleet()` | Join fleet-wide broadcast group |
+| Client → server | `UnwatchFleet()` | Leave fleet group |
 | Server → client | `ReceiveTelemetryUpdate` | Live telemetry payload |
 | Server → client | `ReceivePlaybookInstructions` | Anomaly playbook response |
 
-Default tracked vehicle in the mobile app: `Truck-001`.
+Default fleet vehicles: `Truck-001`, `Truck-002`, `Truck-003` (configurable via `FLEET_VEHICLE_IDS` / `EXPO_PUBLIC_FLEET_VEHICLES`).
 
 ---
 
@@ -133,7 +136,7 @@ OmniOps/
 │   ├── OmniOps.Core/             Entities, interfaces, events
 │   ├── OmniOps.Infrastructure/   Data, Kafka workers, Redis, hubs
 │   └── OmniOps.sln
-├── omniops-frontend/             Expo mobile app
+├── frontend/             Expo mobile app
 ├── infra/docker-compose.yml      Postgres, Redis, Kafka
 ├── .env.example                  Backend environment template
 └── DEV-SETUP.md                  Setup guide
@@ -165,10 +168,11 @@ Copy `.env.example` to `.env` at the **repository root** for the backend and Doc
 | `KAFKA_DLQ_TOPIC` | Dead-letter topic (`fleet-telemetry-dlq`) |
 | `ALLOWED_CORS_ORIGINS` | Comma-separated origins (production) |
 
-For the mobile app, copy `omniops-frontend/.env.example` to `omniops-frontend/.env`:
+For the mobile app, copy `frontend/.env.example` to `frontend/.env`:
 
 ```text
 EXPO_PUBLIC_API_URL=http://localhost:5031
+EXPO_PUBLIC_FLEET_VEHICLES=Truck-001,Truck-002,Truck-003
 ```
 
 Expo does **not** read the root `.env`. On a physical device, use your machine's LAN IP (e.g. `http://192.168.1.173:5031`).
@@ -182,7 +186,7 @@ Expo does **not** read the root `.env`. On a physical device, use your machine's
 ```powershell
 # Environment
 copy .env.example .env
-copy omniops-frontend\.env.example omniops-frontend\.env
+copy frontend\.env.example frontend\.env
 
 # Infrastructure
 docker compose -f infra/docker-compose.yml up -d
@@ -192,12 +196,14 @@ cd backend
 dotnet run --project OmniOps.Api
 
 # Frontend (new terminal)
-cd omniops-frontend
+cd frontend
 npm install
 npx expo start
 
-# Generate telemetry
-Invoke-RestMethod -Method POST -Uri "http://localhost:5031/api/test/simulate/Truck-001?packets=10"
+# Generate telemetry (simulate all demo trucks)
+Invoke-RestMethod -Method POST -Uri "http://localhost:5031/api/test/simulate/Truck-001?packets=20"
+Invoke-RestMethod -Method POST -Uri "http://localhost:5031/api/test/simulate/Truck-002?packets=20"
+Invoke-RestMethod -Method POST -Uri "http://localhost:5031/api/test/simulate/Truck-003?packets=20"
 ```
 
 API listens on `http://localhost:5031`. See [DEV-SETUP.md](DEV-SETUP.md) for troubleshooting.
@@ -280,9 +286,9 @@ Set `PROMETHEUS_METRICS_ENABLED=false` to disable the `/metrics` endpoint. Set `
 
 ## Roadmap
 
-**Done:** OpenTelemetry, Serilog, Prometheus/Grafana observability stack, transactional outbox, DLQ, Redis dedup, anomaly detection, simulated playbook orchestration, unit/integration test suite, JWT auth + hub authorization, simulate rate limiting, FluentValidation, Polly Kafka resilience, health checks
+**Done:** OpenTelemetry, Serilog, Prometheus/Grafana observability stack, transactional outbox, DLQ, Redis dedup, anomaly detection, simulated playbook orchestration, unit/integration test suite, JWT auth + hub authorization, simulate rate limiting, FluentValidation, Polly Kafka resilience, health checks, Expo fleet dashboard (map + KPIs + alerts)
 
-**Planned:** Dedicated worker host, CI/CD, Kubernetes, geofencing, route replay, real LangGraph/Semantic Kernel integration
+**Planned:** GitHub Actions CI, dedicated worker host, Kubernetes, geofencing, route replay, real LangGraph/Semantic Kernel integration
 
 ---
 

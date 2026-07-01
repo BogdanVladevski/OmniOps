@@ -30,6 +30,10 @@ public class SignalRTelemetryBroadcastService : ITelemetryBroadcastService
             .Group(dto.VehicleId)
             .SendAsync("ReceiveTelemetryUpdate", dto, cancellationToken);
 
+        await _hubContext.Clients
+            .Group(TelemetryHub.FleetGroupName)
+            .SendAsync("ReceiveTelemetryUpdate", dto, cancellationToken);
+
         _logger.LogInformation(
             "Broadcast telemetry update for vehicle {VehicleId} to SignalR group",
             dto.VehicleId);
@@ -40,14 +44,20 @@ public class SignalRTelemetryBroadcastService : ITelemetryBroadcastService
         string instructions,
         CancellationToken cancellationToken = default)
     {
+        var payload = new
+        {
+            VehicleId = vehicleId,
+            Instructions = instructions,
+            GeneratedAt = DateTime.UtcNow
+        };
+
         await _hubContext.Clients
             .Group(vehicleId)
-            .SendAsync("ReceivePlaybookInstructions", new
-            {
-                VehicleId = vehicleId,
-                Instructions = instructions,
-                GeneratedAt = DateTime.UtcNow
-            }, cancellationToken);
+            .SendAsync("ReceivePlaybookInstructions", payload, cancellationToken);
+
+        await _hubContext.Clients
+            .Group(TelemetryHub.FleetGroupName)
+            .SendAsync("ReceivePlaybookInstructions", payload, cancellationToken);
 
         _logger.LogInformation(
             "Broadcast playbook instructions for vehicle {VehicleId}",

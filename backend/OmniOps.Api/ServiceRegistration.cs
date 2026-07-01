@@ -65,6 +65,7 @@ public static partial class ServiceRegistration
         builder.Services.AddTransient<ITelemetryBroadcastService, SignalRTelemetryBroadcastService>();
         builder.Services.AddTransient<IPlaybookOrchestrationService, PlaybookOrchestrationService>();
         builder.Services.AddSingleton<ITelemetryMetrics, TelemetryMetrics>();
+        builder.Services.AddSingleton<IFleetVehicleRegistry, FleetVehicleRegistry>();
 
         builder.Services.AddMediatR(cfg =>
         {

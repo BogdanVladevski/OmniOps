@@ -22,7 +22,7 @@ From the repository root:
 
 ```powershell
 copy .env.example .env
-copy omniops-frontend\.env.example omniops-frontend\.env
+copy frontend\.env.example frontend\.env
 ```
 
 ### Root `.env` (backend + Docker)
@@ -102,12 +102,12 @@ The API auto-applies EF Core migrations on startup.
 In a **new terminal**:
 
 ```powershell
-cd omniops-frontend
+cd frontend
 npm install
 npx expo start
 ```
 
-After changing `omniops-frontend/.env`, restart with a clean cache:
+After changing `frontend/.env`, restart with a clean cache:
 
 ```powershell
 npx expo start -c
@@ -120,7 +120,9 @@ npx expo start -c
 With the API running:
 
 ```powershell
-Invoke-RestMethod -Method POST -Uri "http://localhost:5031/api/test/simulate/Truck-001?packets=10"
+Invoke-RestMethod -Method POST -Uri "http://localhost:5031/api/test/simulate/Truck-001?packets=20"
+Invoke-RestMethod -Method POST -Uri "http://localhost:5031/api/test/simulate/Truck-002?packets=20"
+Invoke-RestMethod -Method POST -Uri "http://localhost:5031/api/test/simulate/Truck-003?packets=20"
 ```
 
 When `JWT_REQUIRE_AUTHENTICATION=true`, include a bearer token with the `vehicle:simulate` scope:
@@ -139,7 +141,9 @@ On macOS/Linux (real curl):
 curl -X POST "http://localhost:5031/api/test/simulate/Truck-001?packets=10"
 ```
 
-Open the Expo app — the map should show **Live Map Connected** and the marker should move as packets are processed.
+Open the Expo app — **Map** shows all fleet markers, **Fleet** shows KPI cards, **Alerts** shows anomaly playbook responses when triggered.
+
+Fleet vehicle IDs are configured in root `.env` (`FLEET_VEHICLE_IDS`) and `frontend/.env` (`EXPO_PUBLIC_FLEET_VEHICLES`). Keep them in sync.
 
 ---
 
@@ -166,7 +170,7 @@ $response.accessToken
 
 ### Mobile app with auth enabled
 
-Add the token to `omniops-frontend/.env`:
+Add the token to `frontend/.env`:
 
 ```text
 EXPO_PUBLIC_API_TOKEN=<paste accessToken here>
@@ -196,7 +200,7 @@ Set `JWT_REQUIRE_AUTHENTICATION=true`, use a strong `JWT_SECRET`, and **do not**
 | `dockerDesktopLinuxEngine` pipe not found | Start Docker Desktop and wait until the engine is running |
 | `Superpower.ParseException` on API startup | Fix `.env` format — use semicolons in `DB_CONNECTION_STRING`, no single quotes |
 | `password authentication failed for user "postgres"` | Postgres volume has stale credentials — run `docker compose … down -v` and recreate |
-| `Cannot resolve 'undefined/api/stream/telemetry'` | Create `omniops-frontend/.env` with `EXPO_PUBLIC_API_URL`, then `npx expo start -c` |
+| `Cannot resolve 'undefined/api/stream/telemetry'` | Create `frontend/.env` with `EXPO_PUBLIC_API_URL`, then `npx expo start -c` |
 | SignalR `Network request failed` on phone | Set `EXPO_PUBLIC_API_URL` to your LAN IP, not `localhost` |
 | SignalR fails on simulator | Restart API after pulling latest code (HTTPS redirect is disabled in Development) |
 | `401 Unauthorized` on API or SignalR | Set `JWT_REQUIRE_AUTHENTICATION=false` for open local dev, or obtain a token via `/api/auth/token` and set `EXPO_PUBLIC_API_TOKEN` |
