@@ -560,6 +560,9 @@ mvnw.cmd
 # --------------------------------------------------------------------
 # 6. IDEs & SYSTEM CACHES: VS Code, JetBrains, Windows
 # --------------------------------------------------------------------
+.cursor/
+.claude/
+**/.claude/**
 .vscode/
 !.vscode/extensions.json
 .idea/
