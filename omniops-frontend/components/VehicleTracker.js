@@ -9,12 +9,25 @@ export default function VehicleTracker({ vehicleId = "Truck-001" }) {
   const mapRef = useRef(null);
 
   useEffect(() => {
-    //connecting to my backend API
-    const connection = new SignalR.HubConnectionBuilder()
-      .withUrl(`${process.env.EXPO_PUBLIC_API_URL}/api/stream/telemetry`) 
+    const apiBaseUrl = process.env.EXPO_PUBLIC_API_URL;
+
+    if (!apiBaseUrl) {
+      setStatus('Missing EXPO_PUBLIC_API_URL. Create omniops-frontend/.env');
+      console.error('EXPO_PUBLIC_API_URL is not set. Add it to omniops-frontend/.env');
+      return;
+    }
+
+    const hubUrl = `${apiBaseUrl.replace(/\/+$/, '')}/api/stream/telemetry`;
+    const apiToken = process.env.EXPO_PUBLIC_API_TOKEN;
+
+    const connectionBuilder = new SignalR.HubConnectionBuilder()
+      .withUrl(hubUrl, apiToken
+        ? { accessTokenFactory: () => apiToken }
+        : undefined)
       .withAutomaticReconnect()
-      .configureLogging(SignalR.LogLevel.Information)
-      .build();
+      .configureLogging(SignalR.LogLevel.Information);
+
+    const connection = connectionBuilder.build();
 
     connection.start()
       .then(() => {
