@@ -1,6 +1,11 @@
 @OmniOps.Api_HostAddress = http://localhost:5031
 
-GET {{OmniOps.Api_HostAddress}}/weatherforecast/
+GET {{OmniOps.Api_HostAddress}}/api/telemetry/Truck-001
 Accept: application/json
+
+###
+
+POST {{OmniOps.Api_HostAddress}}/api/test/simulate/Truck-001?packets=10
+Content-Type: application/json
 
 ###

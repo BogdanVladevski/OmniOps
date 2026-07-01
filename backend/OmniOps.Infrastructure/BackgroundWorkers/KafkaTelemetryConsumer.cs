@@ -1,18 +1,17 @@
-using System;
 using System.Diagnostics;
 using System.Text.Json;
-using System.Threading;
-using System.Threading.Tasks;
 using Confluent.Kafka;
+using FluentValidation;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
+using OmniOps.Application.Commands;
 using OmniOps.Core.Entities;
-using OmniOps.Core.Telemetry;
+using OmniOps.Core.Interfaces;
 using OmniOps.Infrastructure.Configuration;
-
+using OmniOps.Infrastructure.Parsing;
 namespace OmniOps.Infrastructure.BackgroundWorkers;
 
 public class KafkaTelemetryConsumer : BackgroundService
@@ -21,20 +20,21 @@ public class KafkaTelemetryConsumer : BackgroundService
     private readonly IServiceProvider _serviceProvider;
     private readonly ConsumerConfig _config;
     private readonly string _topic;
-    private readonly IProducer<Null, string> _producer;
+    private readonly string _dlqTopic;
+    private readonly IKafkaMessageProducer _kafkaProducer;
     private IConsumer<Ignore, string>? _kafkaConsumer;
 
-    private static readonly ActivitySource _activitySource = new("OmniOps.Infrastructure.TelemetryConsumer");
+    private static readonly ActivitySource ActivitySource = new("OmniOps.Infrastructure.TelemetryConsumer");
 
     public KafkaTelemetryConsumer(
-        ILogger<KafkaTelemetryConsumer> logger, 
+        ILogger<KafkaTelemetryConsumer> logger,
         IServiceProvider serviceProvider,
         IOptions<KafkaOptions> kafkaOptions,
-        IProducer<Null, string> producer)
+        IKafkaMessageProducer kafkaProducer)
     {
         _logger = logger;
         _serviceProvider = serviceProvider;
-        _producer = producer;
+        _kafkaProducer = kafkaProducer;
 
         var options = kafkaOptions.Value;
         _config = new ConsumerConfig
@@ -45,13 +45,13 @@ public class KafkaTelemetryConsumer : BackgroundService
             EnableAutoCommit = true
         };
         _topic = options.Topic;
+        _dlqTopic = options.DlqTopic;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        _logger.LogInformation("KafkaTelemetryConsumer.ExecuteAsync starting background task.");
+        _logger.LogInformation("KafkaTelemetryConsumer starting");
 
-        // Yield execution immediately so that host startup isn't blocked by the Kafka consumer loop
         await Task.Yield();
 
         var retryDelay = TimeSpan.FromSeconds(2);
@@ -61,85 +61,88 @@ public class KafkaTelemetryConsumer : BackgroundService
         {
             try
             {
-                _logger.LogInformation("Attempting to connect Kafka Consumer to bootstrap servers: {Servers}...", _config.BootstrapServers);
-                
+                _logger.LogInformation(
+                    "Connecting Kafka consumer to {BootstrapServers}",
+                    _config.BootstrapServers);
+
                 _kafkaConsumer = new ConsumerBuilder<Ignore, string>(_config).Build();
                 _kafkaConsumer.Subscribe(_topic);
 
-                _logger.LogInformation("🚀 Kafka Telemetry Consumer successfully subscribed to topic: {Topic}", _topic);
-                
-                // Reset connection retry delay on success
+                _logger.LogInformation("Kafka consumer subscribed to topic {Topic}", _topic);
                 retryDelay = TimeSpan.FromSeconds(2);
 
                 while (!stoppingToken.IsCancellationRequested)
                 {
                     try
                     {
-                        _logger.LogDebug("Waiting/Polling for message from Kafka...");
-                        
-                        // Blocking consume call with token
                         var consumeResult = _kafkaConsumer.Consume(stoppingToken);
-                        if (consumeResult == null) continue;
+                        if (consumeResult is null)
+                        {
+                            continue;
+                        }
 
-                        // 1. Extract W3C trace context header (traceparent)
                         string? traceParent = null;
-                        if (consumeResult.Message.Headers != null && 
-                            consumeResult.Message.Headers.TryGetLastBytes("traceparent", out var headerBytes))
+                        if (consumeResult.Message.Headers?.TryGetLastBytes("traceparent", out var headerBytes) == true)
                         {
                             traceParent = System.Text.Encoding.UTF8.GetString(headerBytes);
                         }
 
-                        // 2. Start a linked activity for Distributed Tracing
-                        using var activity = _activitySource.StartActivity("KafkaConsumeTelemetry", ActivityKind.Consumer, traceParent ?? string.Empty);
+                        using var activity = ActivitySource.StartActivity(
+                            "KafkaConsumeTelemetry",
+                            ActivityKind.Consumer,
+                            traceParent ?? string.Empty);
                         activity?.SetTag("messaging.system", "kafka");
                         activity?.SetTag("messaging.destination.name", _topic);
 
-                        _logger.LogInformation("📥 Message received from Kafka: {Message}", consumeResult.Message.Value);
-
-                        VehicleTelemetry? telemetry = null;
+                        VehicleTelemetry? telemetry;
                         try
                         {
-                            telemetry = JsonSerializer.Deserialize<VehicleTelemetry>(consumeResult.Message.Value, new JsonSerializerOptions
+                            telemetry = TelemetryPayloadParser.TryParse(consumeResult.Message.Value);
+
+                            if (!TelemetryPayloadParser.IsValidTelemetry(telemetry))
                             {
-                                PropertyNameCaseInsensitive = true
-                            });
+                                throw new JsonException(
+                                    telemetry is null ? "Deserialized telemetry was null" : "VehicleId is required");
+                            }
                         }
                         catch (Exception parseEx)
                         {
-                            _logger.LogError(parseEx, "Failed to deserialize telemetry message. Sending to DLQ. Raw payload: {Payload}", consumeResult.Message.Value);
+                            _logger.LogError(parseEx,
+                                "Telemetry deserialization failed. Routing to DLQ topic {DlqTopic}",
+                                _dlqTopic);
                             await SendToDlqAsync(consumeResult.Message.Value, parseEx.Message, stoppingToken);
                             continue;
                         }
 
-                        if (telemetry == null)
-                        {
-                            _logger.LogWarning("Deserialized telemetry was null. Sending to DLQ. Raw payload: {Payload}", consumeResult.Message.Value);
-                            await SendToDlqAsync(consumeResult.Message.Value, "Deserialized object was null", stoppingToken);
-                            continue;
-                        }
-
-                        _logger.LogInformation("Handing off telemetry for vehicle {VehicleId} to MediatR", telemetry.VehicleId);
                         using var scope = _serviceProvider.CreateScope();
                         var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
-                        await mediator.Send(new ProcessTelemetryCommand(telemetry), stoppingToken);
+                        try
+                        {
+                            await mediator.Send(new ProcessTelemetryCommand(telemetry!), stoppingToken);
+                        }
+                        catch (ValidationException validationEx)
+                        {
+                            _logger.LogWarning(validationEx,
+                                "Telemetry validation failed. Routing to DLQ topic {DlqTopic}",
+                                _dlqTopic);
+                            await SendToDlqAsync(consumeResult.Message.Value, validationEx.Message, stoppingToken);
+                        }
                     }
                     catch (ConsumeException ex)
                     {
-                        _logger.LogError(ex, "Kafka consume error occurred.");
+                        _logger.LogError(ex, "Kafka consume error");
                         if (ex.Error.IsFatal)
                         {
-                            _logger.LogWarning("Fatal Kafka ConsumeException encountered. Re-initializing consumer...");
-                            break; // break inner loop to re-initialize consumer
+                            break;
                         }
                     }
                     catch (OperationCanceledException)
                     {
-                        _logger.LogInformation("Consumer loop canceled gracefully inside consume cycle.");
                         break;
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogError(ex, "Error encountered while processing Kafka telemetry stream packet.");
+                        _logger.LogError(ex, "Error processing Kafka telemetry packet");
                     }
                 }
             }
@@ -149,8 +152,10 @@ public class KafkaTelemetryConsumer : BackgroundService
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "💥 Kafka Consumer initialization or connection failed. Retrying in {Delay} seconds...", retryDelay.TotalSeconds);
-                
+                _logger.LogError(ex,
+                    "Kafka consumer connection failed. Retrying in {DelaySeconds}s",
+                    retryDelay.TotalSeconds);
+
                 CleanupConsumer();
 
                 try
@@ -162,8 +167,8 @@ public class KafkaTelemetryConsumer : BackgroundService
                     break;
                 }
 
-                // Exponential backoff
-                retryDelay = TimeSpan.FromMilliseconds(Math.Min(retryDelay.TotalMilliseconds * 2, maxRetryDelay.TotalMilliseconds));
+                retryDelay = TimeSpan.FromMilliseconds(
+                    Math.Min(retryDelay.TotalMilliseconds * 2, maxRetryDelay.TotalMilliseconds));
             }
             finally
             {
@@ -171,32 +176,28 @@ public class KafkaTelemetryConsumer : BackgroundService
             }
         }
 
-        _logger.LogInformation("KafkaTelemetryConsumer.ExecuteAsync has finished.");
+        _logger.LogInformation("KafkaTelemetryConsumer stopped");
     }
 
     private async Task SendToDlqAsync(string rawPayload, string reason, CancellationToken cancellationToken)
     {
         try
         {
-            var dlqTopic = _topic + "-dlq";
-            var headers = new Headers
-            {
-                { "dlq-reason", System.Text.Encoding.UTF8.GetBytes(reason) },
-                { "dlq-timestamp", System.Text.Encoding.UTF8.GetBytes(DateTime.UtcNow.ToString("O")) }
-            };
+            await _kafkaProducer.ProduceAsync(
+                _dlqTopic,
+                rawPayload,
+                new Dictionary<string, string>
+                {
+                    ["dlq-reason"] = reason,
+                    ["dlq-timestamp"] = DateTime.UtcNow.ToString("O")
+                },
+                cancellationToken);
 
-            _logger.LogInformation("Routing poison message to DLQ topic: {DlqTopic}", dlqTopic);
-            await _producer.ProduceAsync(dlqTopic, new Message<Null, string>
-            {
-                Value = rawPayload,
-                Headers = headers
-            }, cancellationToken);
-            
-            _logger.LogInformation("Successfully routed poison message to DLQ.");
+            _logger.LogInformation("Poison message routed to DLQ topic {DlqTopic}", _dlqTopic);
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to send poison message to DLQ.");
+            _logger.LogError(ex, "Failed to route poison message to DLQ topic {DlqTopic}", _dlqTopic);
         }
     }
 
@@ -204,16 +205,12 @@ public class KafkaTelemetryConsumer : BackgroundService
     {
         try
         {
-            if (_kafkaConsumer != null)
-            {
-                _logger.LogInformation("Closing and disposing existing Kafka consumer instance.");
-                _kafkaConsumer.Close();
-                _kafkaConsumer.Dispose();
-            }
+            _kafkaConsumer?.Close();
+            _kafkaConsumer?.Dispose();
         }
         catch (Exception ex)
         {
-            _logger.LogDebug(ex, "Failed to cleanly dispose Kafka consumer.");
+            _logger.LogDebug(ex, "Error disposing Kafka consumer");
         }
         finally
         {
