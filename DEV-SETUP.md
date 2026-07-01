@@ -220,6 +220,30 @@ Invoke-RestMethod -Uri "http://localhost:5031/health/ready"
 
 ---
 
+## Observability (optional)
+
+With the API running on the host:
+
+```powershell
+docker compose -f infra/docker-compose.observability.yml up -d
+```
+
+| Service | URL | Credentials |
+|---------|-----|-------------|
+| Prometheus | http://localhost:9090 | — |
+| Grafana | http://localhost:3000 | `admin` / `admin` |
+| API metrics | http://localhost:5031/metrics | — |
+
+Grafana auto-loads the **OmniOps Overview** dashboard from `infra/observability/grafana/dashboards/`.
+
+Generate traffic so metrics appear:
+
+```powershell
+Invoke-RestMethod -Method POST -Uri "http://localhost:5031/api/test/simulate/Truck-001?packets=10"
+```
+
+---
+
 ## Port reference
 
 | Service | Port |
@@ -228,4 +252,6 @@ Invoke-RestMethod -Uri "http://localhost:5031/health/ready"
 | PostgreSQL | `5433` |
 | Redis | `6379` |
 | Kafka | `9092` |
+| Prometheus | `9090` |
+| Grafana | `3000` |
 | Expo dev server | `19006` (default) |

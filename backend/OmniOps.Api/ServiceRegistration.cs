@@ -16,8 +16,7 @@ using StackExchange.Redis;
 using Confluent.Kafka;
 using Confluent.Kafka.Admin;
 using Npgsql;
-using OpenTelemetry.Resources;
-using OpenTelemetry.Trace;
+using OmniOps.Infrastructure.Observability;
 
 namespace OmniOps.Api;
 
@@ -65,6 +64,7 @@ public static partial class ServiceRegistration
         builder.Services.AddTransient<ITelemetryRepository, TelemetryRepository>();
         builder.Services.AddTransient<ITelemetryBroadcastService, SignalRTelemetryBroadcastService>();
         builder.Services.AddTransient<IPlaybookOrchestrationService, PlaybookOrchestrationService>();
+        builder.Services.AddSingleton<ITelemetryMetrics, TelemetryMetrics>();
 
         builder.Services.AddMediatR(cfg =>
         {
@@ -90,7 +90,7 @@ public static partial class ServiceRegistration
         ConfigureRateLimiting(builder);
         ConfigureHealthChecks(builder, connectionString, redisConnectionString);
         ConfigureKafkaProducer(builder, kafkaOptions);
-        ConfigureOpenTelemetry(builder);
+        ConfigureObservability(builder);
     }
 
     private static void ConfigureCors(WebApplicationBuilder builder)
@@ -173,18 +173,6 @@ public static partial class ServiceRegistration
         {
             // Kafka may not be available at startup; consumer will retry
         }
-    }
-
-    private static void ConfigureOpenTelemetry(WebApplicationBuilder builder)
-    {
-        builder.Services.AddOpenTelemetry()
-            .ConfigureResource(resource => resource.AddService("OmniOps.Api"))
-            .WithTracing(tracing => tracing
-                .AddAspNetCoreInstrumentation()
-                .AddHttpClientInstrumentation()
-                .AddSource("OmniOps.Api.Simulator")
-                .AddSource("OmniOps.Infrastructure.TelemetryConsumer")
-                .AddConsoleExporter());
     }
 
     public static async Task MigrateDatabaseAsync(WebApplication app)

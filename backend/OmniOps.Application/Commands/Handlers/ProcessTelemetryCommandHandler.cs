@@ -16,6 +16,7 @@ public class ProcessTelemetryCommandHandler : IRequestHandler<ProcessTelemetryCo
     private readonly IDeduplicationService _deduplicationService;
     private readonly IAnomalyDetectionService _anomalyService;
     private readonly IPlaybookOrchestrationService _playbookOrchestration;
+    private readonly ITelemetryMetrics _metrics;
     private readonly ILogger<ProcessTelemetryCommandHandler> _logger;
 
     public ProcessTelemetryCommandHandler(
@@ -25,6 +26,7 @@ public class ProcessTelemetryCommandHandler : IRequestHandler<ProcessTelemetryCo
         IDeduplicationService deduplicationService,
         IAnomalyDetectionService anomalyService,
         IPlaybookOrchestrationService playbookOrchestration,
+        ITelemetryMetrics metrics,
         ILogger<ProcessTelemetryCommandHandler> logger)
     {
         _repository = repository;
@@ -33,6 +35,7 @@ public class ProcessTelemetryCommandHandler : IRequestHandler<ProcessTelemetryCo
         _deduplicationService = deduplicationService;
         _anomalyService = anomalyService;
         _playbookOrchestration = playbookOrchestration;
+        _metrics = metrics;
         _logger = logger;
     }
 
@@ -51,6 +54,7 @@ public class ProcessTelemetryCommandHandler : IRequestHandler<ProcessTelemetryCo
             _logger.LogWarning(
                 "Duplicate telemetry packet detected. PacketId={PacketId}, VehicleId={VehicleId}",
                 request.Telemetry.Id, request.Telemetry.VehicleId);
+            _metrics.RecordDuplicateSkipped();
             return true;
         }
 
@@ -97,6 +101,8 @@ public class ProcessTelemetryCommandHandler : IRequestHandler<ProcessTelemetryCo
                     "Anomaly event raised for vehicle {VehicleId}. Triggering playbook orchestration",
                     request.Telemetry.VehicleId);
 
+                _metrics.RecordAnomalyDetected();
+
                 await _playbookOrchestration.OrchestrateIncidentResponseAsync(
                     request.Telemetry.VehicleId,
                     $"Compound distress: fuel drop + engine thermal surge detected for {request.Telemetry.VehicleId}",
@@ -121,6 +127,7 @@ public class ProcessTelemetryCommandHandler : IRequestHandler<ProcessTelemetryCo
                 request.Telemetry.VehicleId);
         }
 
+        _metrics.RecordTelemetryProcessed();
         return true;
     }
 }

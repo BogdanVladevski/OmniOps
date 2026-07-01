@@ -66,6 +66,7 @@ public static class TelemetryEndpoints
         string vehicleId,
         int packets,
         IKafkaMessageProducer kafkaProducer,
+        ITelemetryMetrics metrics,
         ILogger<Program> logger,
         IOptions<KafkaOptions> kafkaOptions)
     {
@@ -125,6 +126,8 @@ public static class TelemetryEndpoints
 
             await Task.Delay(50);
         }
+
+        metrics.RecordSimulatePacketsPublished(successfullySent);
 
         return Results.Ok(new SimulateResponse
         {

@@ -2,6 +2,19 @@
 
 All notable changes to OmniOps are documented in this file.
 
+## [0.4.0] — 2026-07-01
+
+### Added
+
+- Serilog structured logging with request logging, environment enrichment, and `SERILOG_MINIMUM_LEVEL` configuration
+- Prometheus metrics via OpenTelemetry (`GET /metrics`) with custom counters for telemetry processing, DLQ routing, anomalies, and simulate publishes
+- `infra/docker-compose.observability.yml` — Prometheus (`:9090`) and Grafana (`:3000`) with a pre-provisioned OmniOps dashboard
+
+### Changed
+
+- OpenTelemetry console trace export enabled only in Development
+- Runtime, ASP.NET Core, and HTTP client metrics exported when `PROMETHEUS_METRICS_ENABLED=true`
+
 ## [0.3.0] — 2026-07-01
 
 ### Added
