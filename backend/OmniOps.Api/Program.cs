@@ -3,46 +3,75 @@ using OmniOps.Api.Configuration;
 using OmniOps.Api.Endpoints;
 using OmniOps.Api.Middleware;
 using OmniOps.Infrastructure.Configuration;
+using Serilog;
 
 EnvironmentConfiguration.LoadEnvironmentFile();
 
-var builder = WebApplication.CreateBuilder(args);
-EnvironmentConfiguration.BindEnvironmentVariables(builder.Configuration);
+Log.Logger = new LoggerConfiguration()
+    .WriteTo.Console()
+    .CreateBootstrapLogger();
 
-ServiceRegistration.ConfigureServices(builder);
-
-var app = builder.Build();
-
-app.UseGlobalExceptionHandler();
-
-if (app.Environment.IsDevelopment())
+try
 {
-    app.MapOpenApi();
+    var builder = WebApplication.CreateBuilder(args);
+
+    builder.Host.UseSerilog((context, services, configuration) => configuration
+        .ReadFrom.Configuration(context.Configuration)
+        .ReadFrom.Services(services)
+        .Enrich.FromLogContext()
+        .Enrich.WithProperty("Application", "OmniOps.Api")
+        .Enrich.WithEnvironmentName()
+        .WriteTo.Console(
+            outputTemplate: "[{Timestamp:HH:mm:ss} {Level:u3}] {SourceContext} {Message:lj}{NewLine}{Exception}"));
+
+    EnvironmentConfiguration.BindEnvironmentVariables(builder.Configuration);
+
+    ServiceRegistration.ConfigureServices(builder);
+
+    var app = builder.Build();
+
+    app.UseSerilogRequestLogging();
+    app.UseGlobalExceptionHandler();
+
+    if (app.Environment.IsDevelopment())
+    {
+        app.MapOpenApi();
+    }
+    else
+    {
+        app.UseHttpsRedirection();
+    }
+
+    app.UseCors();
+
+    var jwtOptions = app.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<JwtOptions>>().Value;
+    if (jwtOptions.RequireAuthentication)
+    {
+        app.UseAuthentication();
+        app.UseAuthorization();
+    }
+
+    app.UseRateLimiter();
+
+    app.MapTelemetryEndpoints();
+    app.MapHealthEndpoints();
+    app.MapObservabilityEndpoints();
+
+    if (app.Environment.IsDevelopment())
+    {
+        app.MapAuthEndpoints();
+    }
+
+    await ServiceRegistration.MigrateDatabaseAsync(app);
+
+    app.Run();
 }
-else
+catch (Exception ex)
 {
-    app.UseHttpsRedirection();
+    Log.Fatal(ex, "OmniOps API terminated unexpectedly");
+    throw;
 }
-
-app.UseCors();
-
-var jwtOptions = app.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<JwtOptions>>().Value;
-if (jwtOptions.RequireAuthentication)
+finally
 {
-    app.UseAuthentication();
-    app.UseAuthorization();
+    Log.CloseAndFlush();
 }
-
-app.UseRateLimiter();
-
-app.MapTelemetryEndpoints();
-app.MapHealthEndpoints();
-
-if (app.Environment.IsDevelopment())
-{
-    app.MapAuthEndpoints();
-}
-
-await ServiceRegistration.MigrateDatabaseAsync(app);
-
-app.Run();

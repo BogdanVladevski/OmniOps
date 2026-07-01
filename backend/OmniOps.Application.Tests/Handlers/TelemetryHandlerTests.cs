@@ -17,6 +17,7 @@ public class ProcessTelemetryCommandHandlerTests
     private readonly IDeduplicationService _deduplicationService = Substitute.For<IDeduplicationService>();
     private readonly IAnomalyDetectionService _anomalyService = Substitute.For<IAnomalyDetectionService>();
     private readonly IPlaybookOrchestrationService _playbookOrchestration = Substitute.For<IPlaybookOrchestrationService>();
+    private readonly ITelemetryMetrics _metrics = Substitute.For<ITelemetryMetrics>();
     private readonly ProcessTelemetryCommandHandler _handler;
 
     public ProcessTelemetryCommandHandlerTests()
@@ -28,6 +29,7 @@ public class ProcessTelemetryCommandHandlerTests
             _deduplicationService,
             _anomalyService,
             _playbookOrchestration,
+            _metrics,
             NullLogger<ProcessTelemetryCommandHandler>.Instance);
     }
 

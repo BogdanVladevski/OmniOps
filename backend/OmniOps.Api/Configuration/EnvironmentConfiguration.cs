@@ -66,6 +66,8 @@ public static class EnvironmentConfiguration
         MapEnv(envVars, "Jwt:RequireAuthentication", "JWT_REQUIRE_AUTHENTICATION");
         MapEnv(envVars, "SimulateRateLimit:PermitLimit", "SIMULATE_RATE_LIMIT_PERMIT_LIMIT");
         MapEnv(envVars, "SimulateRateLimit:WindowSeconds", "SIMULATE_RATE_LIMIT_WINDOW_SECONDS");
+        MapEnv(envVars, "Serilog:MinimumLevel:Default", "SERILOG_MINIMUM_LEVEL");
+        MapEnv(envVars, "Observability:EnablePrometheusMetrics", "PROMETHEUS_METRICS_ENABLED");
 
         configurationBuilder.AddInMemoryCollection(envVars);
     }

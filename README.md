@@ -78,7 +78,7 @@ sequenceDiagram
 | Anomaly detection | 30-second sliding window (fuel + engine thermal) |
 | Playbook orchestration | Simulated RAG incident response via SignalR |
 | Real-time | SignalR vehicle groups, camelCase JSON |
-| Observability | OpenTelemetry tracing (API, Kafka, SignalR) |
+| Observability | Serilog structured logging, OpenTelemetry tracing, Prometheus `/metrics` |
 | Mobile | Expo map with live marker updates |
 
 ---
@@ -91,6 +91,7 @@ sequenceDiagram
 | `POST` | `/api/test/simulate/{vehicleId}?packets=N` | Publish mock telemetry to Kafka (`N` = 1–100) |
 | `GET` | `/health/live` | Liveness probe (process up) |
 | `GET` | `/health/ready` | Readiness probe (Postgres, Redis, Kafka) |
+| `GET` | `/metrics` | Prometheus metrics (when enabled) |
 | WS | `/api/stream/telemetry` | SignalR hub |
 
 **SignalR hub**
@@ -236,6 +237,35 @@ Kafka uses **KRaft** (no Zookeeper).
 
 ---
 
+## Observability
+
+| Component | Port / endpoint | Purpose |
+|-----------|-----------------|--------|
+| Serilog | Console output | Structured logs with request logging |
+| Prometheus scrape | `GET http://localhost:5031/metrics` | HTTP + runtime + custom telemetry counters |
+| Prometheus UI | `http://localhost:9090` | Metrics store (observability compose) |
+| Grafana | `http://localhost:3000` | Dashboards (`admin` / `admin` by default) |
+
+Start the observability stack (API must be running on the host so Prometheus can scrape `host.docker.internal:5031`):
+
+```powershell
+docker compose -f infra/docker-compose.observability.yml up -d
+```
+
+Custom metrics (meter `OmniOps.Telemetry`):
+
+| Metric | Description |
+|--------|-------------|
+| `telemetry.processed` | Packets persisted and broadcast |
+| `telemetry.duplicate_skipped` | Redis dedup skips |
+| `telemetry.anomaly_detected` | Anomaly playbook triggers |
+| `kafka.dlq_routed` | Messages sent to DLQ |
+| `simulate.packets_published` | Simulate endpoint Kafka publishes |
+
+Set `PROMETHEUS_METRICS_ENABLED=false` to disable the `/metrics` endpoint. Set `SERILOG_MINIMUM_LEVEL=Debug` for verbose logs.
+
+---
+
 ## Security
 
 - Secrets live in `.env` files (gitignored)
@@ -250,9 +280,9 @@ Kafka uses **KRaft** (no Zookeeper).
 
 ## Roadmap
 
-**Done:** OpenTelemetry, transactional outbox, DLQ, Redis dedup, anomaly detection, simulated playbook orchestration, unit/integration test suite, JWT auth + hub authorization, simulate rate limiting, FluentValidation, Polly Kafka resilience, health checks
+**Done:** OpenTelemetry, Serilog, Prometheus/Grafana observability stack, transactional outbox, DLQ, Redis dedup, anomaly detection, simulated playbook orchestration, unit/integration test suite, JWT auth + hub authorization, simulate rate limiting, FluentValidation, Polly Kafka resilience, health checks
 
-**Planned:** Dedicated worker host, Serilog, Prometheus/Grafana, CI/CD, Kubernetes, geofencing, route replay, real LangGraph/Semantic Kernel integration
+**Planned:** Dedicated worker host, CI/CD, Kubernetes, geofencing, route replay, real LangGraph/Semantic Kernel integration
 
 ---
 

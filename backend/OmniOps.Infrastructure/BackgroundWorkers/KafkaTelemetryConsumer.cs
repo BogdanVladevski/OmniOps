@@ -22,6 +22,7 @@ public class KafkaTelemetryConsumer : BackgroundService
     private readonly string _topic;
     private readonly string _dlqTopic;
     private readonly IKafkaMessageProducer _kafkaProducer;
+    private readonly ITelemetryMetrics _metrics;
     private IConsumer<Ignore, string>? _kafkaConsumer;
 
     private static readonly ActivitySource ActivitySource = new("OmniOps.Infrastructure.TelemetryConsumer");
@@ -30,11 +31,13 @@ public class KafkaTelemetryConsumer : BackgroundService
         ILogger<KafkaTelemetryConsumer> logger,
         IServiceProvider serviceProvider,
         IOptions<KafkaOptions> kafkaOptions,
-        IKafkaMessageProducer kafkaProducer)
+        IKafkaMessageProducer kafkaProducer,
+        ITelemetryMetrics metrics)
     {
         _logger = logger;
         _serviceProvider = serviceProvider;
         _kafkaProducer = kafkaProducer;
+        _metrics = metrics;
 
         var options = kafkaOptions.Value;
         _config = new ConsumerConfig
@@ -193,6 +196,7 @@ public class KafkaTelemetryConsumer : BackgroundService
                 },
                 cancellationToken);
 
+            _metrics.RecordDlqRouted(reason);
             _logger.LogInformation("Poison message routed to DLQ topic {DlqTopic}", _dlqTopic);
         }
         catch (Exception ex)
