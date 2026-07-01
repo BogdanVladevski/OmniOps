@@ -22,12 +22,17 @@ public static class TelemetryEndpoints
         var jwtOptions = app.Services.GetRequiredService<IOptions<JwtOptions>>().Value;
         var requireAuth = jwtOptions.RequireAuthentication;
 
+        var fleetEndpoint = app.MapGet("/api/telemetry/fleet", GetFleetTelemetry)
+            .WithName("GetFleetTelemetry")
+            .WithOpenApi();
+
         var telemetryEndpoint = app.MapGet("/api/telemetry/{vehicleId}", GetLatestTelemetry)
             .WithName("GetLatestVehicleTelemetry")
             .WithOpenApi();
 
         if (requireAuth)
         {
+            fleetEndpoint.RequireAuthorization(AuthorizationPolicies.VehicleRead);
             telemetryEndpoint.RequireAuthorization(AuthorizationPolicies.VehicleRead);
         }
 
@@ -46,6 +51,12 @@ public static class TelemetryEndpoints
         {
             hubEndpoint.RequireAuthorization(AuthorizationPolicies.VehicleRead);
         }
+    }
+
+    private static async Task<IResult> GetFleetTelemetry(IMediator mediator)
+    {
+        var result = await mediator.Send(new GetFleetTelemetryQuery());
+        return Results.Ok(result);
     }
 
     private static async Task<IResult> GetLatestTelemetry(string vehicleId, IMediator mediator)

@@ -188,3 +188,59 @@ public class GetLatestTelemetryQueryHandlerTests
         Assert.Null(result);
     }
 }
+
+public class GetFleetTelemetryQueryHandlerTests
+{
+    [Fact]
+    public async Task Handle_ReturnsActiveVehiclesAndSummary()
+    {
+        var cache = Substitute.For<ITelemetryCacheService>();
+        var registry = Substitute.For<IFleetVehicleRegistry>();
+        registry.GetConfiguredVehicleIds().Returns(["Truck-001", "Truck-002"]);
+
+        cache.GetLatestTelemetryAsync("Truck-001").Returns(new VehicleTelemetry
+        {
+            VehicleId = "Truck-001",
+            FuelLevel = 80,
+            EngineTemperature = 90,
+            Latitude = 41.99,
+            Longitude = 21.43,
+            Speed = 70,
+            Timestamp = DateTime.UtcNow
+        });
+        cache.GetLatestTelemetryAsync("Truck-002").Returns((VehicleTelemetry?)null);
+
+        var handler = new GetFleetTelemetryQueryHandler(cache, registry);
+        var result = await handler.Handle(new GetFleetTelemetryQuery(), CancellationToken.None);
+
+        Assert.Equal(2, result.Summary.ConfiguredVehicleCount);
+        Assert.Equal(1, result.Summary.ActiveVehicleCount);
+        Assert.Single(result.Vehicles);
+        Assert.Equal("Truck-001", result.Vehicles[0].VehicleId);
+        Assert.Equal(80, result.Summary.AverageFuelLevel);
+    }
+
+    [Fact]
+    public async Task Handle_CountsVehiclesInWarningState()
+    {
+        var cache = Substitute.For<ITelemetryCacheService>();
+        var registry = Substitute.For<IFleetVehicleRegistry>();
+        registry.GetConfiguredVehicleIds().Returns(["Truck-001"]);
+
+        cache.GetLatestTelemetryAsync("Truck-001").Returns(new VehicleTelemetry
+        {
+            VehicleId = "Truck-001",
+            FuelLevel = 20,
+            EngineTemperature = 95,
+            Latitude = 41.99,
+            Longitude = 21.43,
+            Speed = 40,
+            Timestamp = DateTime.UtcNow
+        });
+
+        var handler = new GetFleetTelemetryQueryHandler(cache, registry);
+        var result = await handler.Handle(new GetFleetTelemetryQuery(), CancellationToken.None);
+
+        Assert.Equal(1, result.Summary.WarningCount);
+    }
+}

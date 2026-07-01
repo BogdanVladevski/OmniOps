@@ -504,7 +504,7 @@ credentials.json
 secrets.xml
 
 # --------------------------------------------------------------------
-# 2. FRONTEND: React Native / Expo (omniops-frontend)
+# 2. FRONTEND: React Native / Expo (frontend)
 # --------------------------------------------------------------------
 **/node_modules/
 **/.expo/

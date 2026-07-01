@@ -68,6 +68,7 @@ public static class EnvironmentConfiguration
         MapEnv(envVars, "SimulateRateLimit:WindowSeconds", "SIMULATE_RATE_LIMIT_WINDOW_SECONDS");
         MapEnv(envVars, "Serilog:MinimumLevel:Default", "SERILOG_MINIMUM_LEVEL");
         MapEnv(envVars, "Observability:EnablePrometheusMetrics", "PROMETHEUS_METRICS_ENABLED");
+        MapEnv(envVars, "Fleet:VehicleIds", "FLEET_VEHICLE_IDS");
 
         configurationBuilder.AddInMemoryCollection(envVars);
     }

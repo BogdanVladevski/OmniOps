@@ -2,6 +2,24 @@
 
 All notable changes to OmniOps are documented in this file.
 
+## [0.5.0] — 2026-07-01
+
+### Added
+
+- `GET /api/telemetry/fleet` — latest cached telemetry and KPI summary for configured fleet vehicles
+- SignalR `WatchFleet()` / `UnwatchFleet()` fleet group; telemetry and playbook events broadcast to fleet + vehicle groups
+- Expo mobile app: bottom-tab navigation (Map, Fleet, Alerts)
+- Multi-vehicle live map with vehicle chips and status-colored markers
+- Fleet dashboard tab with KPI cards (active count, warnings, average fuel/temp)
+- Alerts tab subscribing to `ReceivePlaybookInstructions` anomaly playbook stream
+- `FLEET_VEHICLE_IDS` (backend) and `EXPO_PUBLIC_FLEET_VEHICLES` (frontend) configuration
+
+### Changed
+
+- Mobile app uses shared `FleetContext` SignalR connection instead of per-screen connections
+- Default fleet demo vehicles: `Truck-001`, `Truck-002`, `Truck-003`
+- Renamed `omniops-frontend/` to `frontend/`; mobile layout uses safe-area insets for phone displays
+
 ## [0.4.0] — 2026-07-01
 
 ### Added
