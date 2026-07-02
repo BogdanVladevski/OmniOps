@@ -88,9 +88,9 @@ export function FleetProvider({ children }) {
         if (cancelled) return;
 
         setConnectionStatus('Live fleet connected.');
-        // Fleet group receives all telemetry + playbook broadcasts; avoid also
-        // joining per-vehicle groups or the same event is delivered twice.
-        await connection.invoke('WatchFleet');      } catch (error) {
+        // WatchFleet is enough — per-vehicle groups would send the same events twice.
+        await connection.invoke('WatchFleet');
+      } catch (error) {
         if (!cancelled) {
           setConnectionStatus('Fleet link offline.');
           console.error('SignalR error:', error);

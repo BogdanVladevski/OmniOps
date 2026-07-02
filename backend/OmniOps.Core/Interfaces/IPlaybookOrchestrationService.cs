@@ -1,8 +1,8 @@
 namespace OmniOps.Core.Interfaces;
 
 /// <summary>
-/// Modular abstraction for RAG-driven autonomous incident response.
-/// Implementations integrate with LangGraph, Semantic Kernel, or similar agent frameworks.
+/// Runs the incident playbook when anomaly detection fires.
+/// Current impl is a stub — swap in LangGraph, Semantic Kernel, etc. when ready.
 /// </summary>
 public interface IPlaybookOrchestrationService
 {

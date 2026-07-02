@@ -168,11 +168,9 @@ public static partial class ServiceRegistration
         }
         catch (CreateTopicsException e) when (e.Results.Any(r => r.Error.Code == ErrorCode.TopicAlreadyExists))
         {
-            // Topics already exist
         }
         catch (Exception)
         {
-            // Kafka may not be available at startup; consumer will retry
         }
     }
 

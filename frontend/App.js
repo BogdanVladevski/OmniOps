@@ -3,7 +3,7 @@ import { Platform, StatusBar } from 'react-native';
 import { NavigationContainer } from '@react-navigation/native';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { FleetProvider } from './context/FleetContext';
+import { FleetProvider } from './contexts/FleetContext';
 import FleetMap from './components/FleetMap';
 import FleetDashboard from './components/FleetDashboard';
 import AlertsFeed from './components/AlertsFeed';

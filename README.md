@@ -132,12 +132,14 @@ Default fleet vehicles: `Truck-001`, `Truck-002`, `Truck-003` (configurable via 
 OmniOps/
 ├── backend/
 │   ├── OmniOps.Api/              Endpoints, middleware, host
+│   │   └── Configuration/        Environment, auth, health, observability
 │   ├── OmniOps.Application/      Handlers, DTOs, behaviours
 │   ├── OmniOps.Core/             Entities, interfaces, events
-│   ├── OmniOps.Infrastructure/   Data, Kafka workers, Redis, hubs
+│   ├── OmniOps.Infrastructure/ Data, Kafka workers, Redis, hubs
 │   └── OmniOps.sln
-├── frontend/             Expo mobile app
+├── frontend/             Expo mobile app (components, contexts, utils)
 ├── infra/docker-compose.yml      Postgres, Redis, Kafka
+├── scripts/                      Dev utilities (e.g. dotnet-install.sh)
 ├── .env.example                  Backend environment template
 └── DEV-SETUP.md                  Setup guide
 ```

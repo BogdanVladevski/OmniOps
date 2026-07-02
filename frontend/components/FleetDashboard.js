@@ -1,6 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
-import { useFleet } from '../context/FleetContext';
+import { useFleet } from '../contexts/FleetContext';
 import { computeFleetSummary, getVehicleStatus, statusColor } from '../utils/fleetConfig';
 import { useLayout } from '../utils/layout';
 import Screen from './Screen';
