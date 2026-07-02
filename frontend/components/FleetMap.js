@@ -2,7 +2,7 @@ import React, { useRef } from 'react';
 import { Text, View, StyleSheet, ActivityIndicator, Pressable, ScrollView } from 'react-native';
 import MapView, { Marker, PROVIDER_DEFAULT } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { useFleet } from '../context/FleetContext';
+import { useFleet } from '../contexts/FleetContext';
 import { getVehicleStatus, statusColor } from '../utils/fleetConfig';
 import { useLayout } from '../utils/layout';
 

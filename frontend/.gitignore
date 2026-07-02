@@ -49,3 +49,7 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# local AI assistant config (keep out of the public repo)
+AGENTS.md
+CLAUDE.md
