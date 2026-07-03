@@ -58,4 +58,21 @@ public class RedisDeduplicationServiceTests : IAsyncLifetime
         Assert.True(first);
         Assert.True(second);
     }
+
+    [Fact]
+    public async Task ReleaseProcessingLockAsync_AllowsSubsequentLockAcquisition()
+    {
+        var service = new RedisDeduplicationService(
+            _connection,
+            NullLogger<RedisDeduplicationService>.Instance);
+
+        var packetId = Guid.NewGuid();
+
+        Assert.True(await service.TryAcquireProcessingLockAsync(packetId));
+        Assert.False(await service.TryAcquireProcessingLockAsync(packetId));
+
+        await service.ReleaseProcessingLockAsync(packetId);
+
+        Assert.True(await service.TryAcquireProcessingLockAsync(packetId));
+    }
 }

@@ -45,6 +45,13 @@ try
     app.UseCors();
 
     var jwtOptions = app.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<JwtOptions>>().Value;
+    if (!app.Environment.IsDevelopment() && !jwtOptions.RequireAuthentication)
+    {
+        app.Logger.LogCritical(
+            "Running in non-Development environment with authentication DISABLED. " +
+            "Set JWT_REQUIRE_AUTHENTICATION=true before deploying to production.");
+    }
+
     if (jwtOptions.RequireAuthentication)
     {
         app.UseAuthentication();

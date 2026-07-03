@@ -76,9 +76,10 @@ public class KafkaTelemetryConsumer : BackgroundService
 
                 while (!stoppingToken.IsCancellationRequested)
                 {
+                    ConsumeResult<Ignore, string>? consumeResult = null;
                     try
                     {
-                        var consumeResult = _kafkaConsumer.Consume(stoppingToken);
+                        consumeResult = _kafkaConsumer.Consume(stoppingToken);
                         if (consumeResult is null)
                         {
                             continue;
@@ -145,7 +146,16 @@ public class KafkaTelemetryConsumer : BackgroundService
                     }
                     catch (Exception ex)
                     {
-                        _logger.LogError(ex, "Error processing Kafka telemetry packet");
+                        // With EnableAutoCommit=true, unhandled processing errors would advance the offset
+                        // and permanently drop the packet unless we route it to the DLQ explicitly.
+                        _logger.LogError(ex,
+                            "Telemetry processing failed. Routing to DLQ topic {DlqTopic}",
+                            _dlqTopic);
+
+                        if (consumeResult?.Message?.Value is not null)
+                        {
+                            await SendToDlqAsync(consumeResult.Message.Value, ex.Message, stoppingToken);
+                        }
                     }
                 }
             }

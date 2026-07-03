@@ -97,9 +97,42 @@ public class ProcessTelemetryCommandHandlerTests
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
             _handler.Handle(new ProcessTelemetryCommand(telemetry), CancellationToken.None));
 
+        await _deduplicationService.Received(1)
+            .ReleaseProcessingLockAsync(telemetry.Id, Arg.Any<CancellationToken>());
         await _cacheService.DidNotReceive().SetLatestTelemetryAsync(Arg.Any<VehicleTelemetry>());
         await _broadcastService.DidNotReceive()
             .BroadcastTelemetryUpdateAsync(Arg.Any<VehicleTelemetry>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_WhenPersistenceFails_ReleasesDedupLockSoRetryCanProcess()
+    {
+        var telemetry = CreateTelemetry();
+        var saveAttempts = 0;
+
+        _deduplicationService.TryAcquireProcessingLockAsync(telemetry.Id, Arg.Any<CancellationToken>())
+            .Returns(true);
+        _repository.SaveChangesAsync(Arg.Any<CancellationToken>())
+            .Returns(_ =>
+            {
+                saveAttempts++;
+                return saveAttempts == 1
+                    ? Task.FromException(new InvalidOperationException("db error"))
+                    : Task.CompletedTask;
+            });
+        _anomalyService.AnalyzeTelemetryAsync(telemetry, Arg.Any<CancellationToken>()).Returns(false);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            _handler.Handle(new ProcessTelemetryCommand(telemetry), CancellationToken.None));
+
+        await _deduplicationService.Received(1)
+            .ReleaseProcessingLockAsync(telemetry.Id, Arg.Any<CancellationToken>());
+
+        var result = await _handler.Handle(new ProcessTelemetryCommand(telemetry), CancellationToken.None);
+
+        Assert.True(result);
+        Assert.Equal(2, saveAttempts);
+        await _repository.Received(2).SaveChangesAsync(Arg.Any<CancellationToken>());
     }
 
     [Fact]

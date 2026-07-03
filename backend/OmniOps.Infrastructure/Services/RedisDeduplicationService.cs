@@ -37,4 +37,23 @@ public class RedisDeduplicationService : IDeduplicationService
             return true;
         }
     }
+
+    public async Task ReleaseProcessingLockAsync(
+        Guid packetId,
+        CancellationToken cancellationToken = default)
+    {
+        var db = _redisConnection.GetDatabase();
+        var dedupKey = $"telemetry:dedup:{packetId}";
+
+        try
+        {
+            await db.KeyDeleteAsync(dedupKey);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex,
+                "Failed to release deduplication lock for PacketId={PacketId}",
+                packetId);
+        }
+    }
 }

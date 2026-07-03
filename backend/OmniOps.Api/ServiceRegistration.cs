@@ -17,6 +17,7 @@ using Confluent.Kafka;
 using Confluent.Kafka.Admin;
 using Npgsql;
 using OmniOps.Infrastructure.Observability;
+using Serilog;
 
 namespace OmniOps.Api;
 
@@ -169,8 +170,9 @@ public static partial class ServiceRegistration
         catch (CreateTopicsException e) when (e.Results.Any(r => r.Error.Code == ErrorCode.TopicAlreadyExists))
         {
         }
-        catch (Exception)
+        catch (Exception ex)
         {
+            Log.Warning(ex, "Failed to create Kafka topics on startup: {Message}", ex.Message);
         }
     }
 

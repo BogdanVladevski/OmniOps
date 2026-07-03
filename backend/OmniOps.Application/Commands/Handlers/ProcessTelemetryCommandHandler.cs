@@ -75,8 +75,11 @@ public class ProcessTelemetryCommandHandler : IRequestHandler<ProcessTelemetryCo
         }
         catch (Exception ex)
         {
+            await _deduplicationService.ReleaseProcessingLockAsync(
+                request.Telemetry.Id, cancellationToken);
+
             _logger.LogError(ex,
-                "Failed to persist telemetry for vehicle {VehicleId}. Transaction aborted",
+                "Failed to persist telemetry for vehicle {VehicleId}. Transaction aborted; dedup lock released for retry",
                 request.Telemetry.VehicleId);
             throw;
         }
