@@ -101,12 +101,13 @@ sequenceDiagram
 
 | Direction | Method / event | Purpose |
 |-----------|----------------|---------|
-| Client → server | `WatchVehicle(vehicleId)` | Join vehicle broadcast group |
-| Client → server | `UnwatchVehicle(vehicleId)` | Leave vehicle group |
-| Client → server | `WatchFleet()` | Join fleet-wide broadcast group |
-| Client → server | `UnwatchFleet()` | Leave fleet group |
-| Server → client | `ReceiveTelemetryUpdate` | Live telemetry payload |
+| Client → server | `WatchFleet()` | Join fleet group (used by Expo app) |
+| Client → server | `WatchVehicle(vehicleId)` | Join vehicle group (single-vehicle clients) |
+| Client → server | `UnwatchFleet()` / `UnwatchVehicle(vehicleId)` | Leave groups |
+| Server → client | `ReceiveTelemetryUpdate` | Live telemetry payload (camelCase) |
 | Server → client | `ReceivePlaybookInstructions` | Anomaly playbook response |
+
+The server broadcasts to both vehicle and fleet groups; the mobile app calls `WatchFleet()` only to avoid duplicate events. See [backend docs](https://bogdanvladevski.github.io/OmniOps/#mobile) for the full client bootstrap flow.
 
 Default fleet vehicles: `Truck-001`, `Truck-002`, `Truck-003` (configurable via `FLEET_VEHICLE_IDS` / `EXPO_PUBLIC_FLEET_VEHICLES`).
 
@@ -139,7 +140,11 @@ OmniOps/
 │   ├── OmniOps.Core/             Entities, interfaces, events
 │   ├── OmniOps.Infrastructure/ Data, Kafka workers, Redis, hubs
 │   └── OmniOps.sln
-├── frontend/             Expo mobile app (components, contexts, utils)
+├── frontend/             Expo mobile app
+│   ├── components/       FleetMap, FleetDashboard, AlertsFeed
+│   ├── contexts/         FleetContext (SignalR + REST snapshot)
+│   └── utils/            fleetConfig, layout
+├── docs/                 GitHub Pages pipeline deep-dive
 ├── infra/docker-compose.yml      Postgres, Redis, Kafka
 ├── scripts/                      Dev utilities (e.g. dotnet-install.sh)
 ├── .env.example                  Backend environment template
@@ -177,7 +182,10 @@ For the mobile app, copy `frontend/.env.example` to `frontend/.env`:
 ```text
 EXPO_PUBLIC_API_URL=http://localhost:5031
 EXPO_PUBLIC_FLEET_VEHICLES=Truck-001,Truck-002,Truck-003
+EXPO_PUBLIC_API_TOKEN=
 ```
+
+Set `EXPO_PUBLIC_API_TOKEN` when `JWT_REQUIRE_AUTHENTICATION=true` (Development token: `POST /api/auth/token` with `{"scopes":["vehicle:read"]}`).
 
 Expo does **not** read the root `.env`. On a physical device, use your machine's LAN IP (e.g. `http://192.168.1.173:5031`).
 

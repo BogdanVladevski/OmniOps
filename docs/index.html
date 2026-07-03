@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>OmniOps — Backend Engine &amp; Telemetry Pipeline</title>
+  <title>OmniOps - Backend Engine &amp; Telemetry Pipeline</title>
   <meta name="description" content="How a vehicle telemetry packet travels through Kafka, CQRS, PostgreSQL, Redis, and SignalR — the full pipeline and reliability patterns behind OmniOps.">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -21,6 +21,7 @@
     <a href="#outbox">Outbox</a>
     <a href="#anomaly">Anomaly</a>
     <a href="#realtime">Real-time</a>
+    <a href="#mobile">Mobile</a>
     <a href="#e2e">End to end</a>
   </nav>
 </header>
@@ -92,8 +93,8 @@
         <div class="num">5</div>
         <div>
           <h4>Serve</h4>
-          <p>REST queries read Redis cache; SignalR hub streams live updates to vehicle and fleet groups on the Expo app.</p>
-          <span class="file-ref">Infrastructure/Hubs/TelemetryHub.cs</span>
+          <p>REST fleet snapshot seeds the UI; SignalR streams live telemetry and playbook alerts to the Expo app over <code>WatchFleet()</code>.</p>
+          <span class="file-ref">Infrastructure/Hubs/TelemetryHub.cs · frontend/contexts/FleetContext.js</span>
         </div>
       </div>
     </div>
@@ -340,11 +341,18 @@ await db.KeyExpireAsync(historyKey, WindowDuration);  // 30 seconds</pre>
   <!-- 05 -->
   <section id="realtime">
     <p class="section-num">05</p>
-    <h2>Real-time — SignalR groups</h2>
+    <h2>Real-time — SignalR hub</h2>
     <p>
-      The Expo mobile app connects to <code>/api/stream/telemetry</code>. Clients join
-      scoped groups so broadcasts don't fan out to the entire fleet unnecessarily.
+      The hub lives at <code>/api/stream/telemetry</code> with camelCase JSON payloads.
+      The server broadcasts every update to <strong>both</strong> the vehicle group and the
+      fleet group — downstream consumers can subscribe at either granularity.
     </p>
+
+<pre>// SignalRTelemetryBroadcastService — dual fan-out
+await _hubContext.Clients.Group(dto.VehicleId)
+    .SendAsync("ReceiveTelemetryUpdate", dto);
+await _hubContext.Clients.Group(TelemetryHub.FleetGroupName)
+    .SendAsync("ReceiveTelemetryUpdate", dto);</pre>
 
     <table>
       <thead>
@@ -357,18 +365,18 @@ await db.KeyExpireAsync(historyKey, WindowDuration);  // 30 seconds</pre>
       <tbody>
         <tr>
           <td>Client → server</td>
-          <td><code>WatchVehicle(id)</code></td>
-          <td>Join vehicle-specific group</td>
+          <td><code>WatchFleet()</code></td>
+          <td>Join fleet group — used by the Expo app</td>
         </tr>
         <tr>
           <td>Client → server</td>
-          <td><code>WatchFleet()</code></td>
-          <td>Join fleet-wide dashboard group</td>
+          <td><code>WatchVehicle(id)</code></td>
+          <td>Join vehicle group — available for single-vehicle clients</td>
         </tr>
         <tr>
           <td>Server → client</td>
           <td><code>ReceiveTelemetryUpdate</code></td>
-          <td>Live GPS, speed, fuel, engine temp</td>
+          <td>Live GPS, speed, fuel, engine temp (camelCase DTO)</td>
         </tr>
         <tr>
           <td>Server → client</td>
@@ -380,14 +388,98 @@ await db.KeyExpireAsync(historyKey, WindowDuration);  // 30 seconds</pre>
 
     <p>
       REST endpoints (<code>GET /api/telemetry/fleet</code>, <code>GET /api/telemetry/{vehicleId}</code>)
-      read the Redis latest-telemetry cache for instant dashboard KPIs and map positions.
-      History lives in Postgres; hot path reads don't hit the database.
+      read the Redis latest-telemetry cache. History lives in Postgres; hot-path reads skip the database.
+      When <code>JWT_REQUIRE_AUTHENTICATION=true</code>, hub connections require a bearer token with
+      the <code>vehicle:read</code> scope.
     </p>
   </section>
 
   <!-- 06 -->
-  <section id="e2e">
+  <section id="mobile">
     <p class="section-num">06</p>
+    <h2>Mobile client — Expo fleet dashboard</h2>
+    <p>
+      The React Native app under <code>frontend/</code> uses a bottom-tab navigator with three screens.
+      All live state flows through a single <code>FleetProvider</code> context — no per-screen SignalR wiring.
+    </p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Tab</th>
+          <th>Component</th>
+          <th>Shows</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Map</strong></td>
+          <td><code>FleetMap</code></td>
+          <td>Multi-vehicle markers, vehicle picker, connection status</td>
+        </tr>
+        <tr>
+          <td><strong>Fleet</strong></td>
+          <td><code>FleetDashboard</code></td>
+          <td>Active/warning KPIs, average fuel &amp; engine temp, vehicle cards</td>
+        </tr>
+        <tr>
+          <td><strong>Alerts</strong></td>
+          <td><code>AlertsFeed</code></td>
+          <td>Live anomaly playbook responses with detail modal</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>Connection bootstrap</h3>
+    <p>
+      On mount, <code>FleetContext</code> loads a REST snapshot from
+      <code>GET /api/telemetry/fleet</code>, then starts SignalR and invokes
+      <code>WatchFleet()</code> only — joining per-vehicle groups as well would deliver duplicate events.
+    </p>
+
+<pre>// frontend/contexts/FleetContext.js
+await loadFleetSnapshot();          // seed map + KPIs from Redis cache
+await connection.start();
+await connection.invoke('WatchFleet');
+connection.on('ReceiveTelemetryUpdate', mergeTelemetry);
+connection.on('ReceivePlaybookInstructions', appendAlert);</pre>
+
+    <h3>Configuration</h3>
+    <table>
+      <thead>
+        <tr>
+          <th>Variable</th>
+          <th>Purpose</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>EXPO_PUBLIC_API_URL</code></td>
+          <td>API base URL (LAN IP on physical devices, not <code>localhost</code>)</td>
+        </tr>
+        <tr>
+          <td><code>EXPO_PUBLIC_FLEET_VEHICLES</code></td>
+          <td>Comma-separated IDs — must match backend <code>FLEET_VEHICLE_IDS</code></td>
+        </tr>
+        <tr>
+          <td><code>EXPO_PUBLIC_API_TOKEN</code></td>
+          <td>Bearer JWT when auth is enabled (<code>vehicle:read</code> scope)</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="callout">
+      <p>
+        <strong>Status colours on the map</strong> are derived client-side from cached telemetry:
+        warning when fuel &lt; 30% or engine temp &gt; 100°C; offline when no data yet.
+        This is presentation logic only — anomaly detection runs server-side in Redis.
+      </p>
+    </div>
+  </section>
+
+  <!-- 07 -->
+  <section id="e2e">
+    <p class="section-num">07</p>
     <h2>Following one packet end to end</h2>
     <p>
       To tie it together — <em>Truck-001 sends telemetry with a sudden fuel drop and rising engine temp</em>
@@ -428,7 +520,7 @@ await db.KeyExpireAsync(historyKey, WindowDuration);  // 30 seconds</pre>
         </tr>
         <tr>
           <td><strong>Broadcast</strong></td>
-          <td>SignalR pushes <code>ReceiveTelemetryUpdate</code> to vehicle + fleet groups; playbook event follows.</td>
+          <td>SignalR dual fan-out to vehicle + fleet groups; Expo client on <code>WatchFleet</code> receives update.</td>
         </tr>
         <tr>
           <td><strong>Outbox worker</strong></td>
@@ -436,7 +528,7 @@ await db.KeyExpireAsync(historyKey, WindowDuration);  // 30 seconds</pre>
         </tr>
         <tr>
           <td><strong>Mobile UI</strong></td>
-          <td>Expo map marker moves, KPIs refresh, Alerts tab shows compound distress + playbook steps.</td>
+          <td><strong>Map</strong> marker moves, <strong>Fleet</strong> KPIs refresh, <strong>Alerts</strong> tab appends playbook instructions.</td>
         </tr>
       </tbody>
     </table>
@@ -457,7 +549,7 @@ await db.KeyExpireAsync(historyKey, WindowDuration);  // 30 seconds</pre>
   <p>
     Ingest: <code>Infrastructure/BackgroundWorkers/</code> ·
     Commands: <code>Application/Commands/</code> ·
-    Outbox: <code>Infrastructure/Data/Interceptors/</code>
+    Mobile: <code>frontend/contexts/FleetContext.js</code>
   </p>
   <a class="repo-link" href="https://github.com/BogdanVladevski/OmniOps">github.com/BogdanVladevski/OmniOps</a>
 </footer>

@@ -41,7 +41,11 @@ Use **semicolon-separated** Npgsql connection strings. Do not use comma syntax o
 
 ```text
 EXPO_PUBLIC_API_URL=http://localhost:5031
+EXPO_PUBLIC_FLEET_VEHICLES=Truck-001,Truck-002,Truck-003
+EXPO_PUBLIC_API_TOKEN=
 ```
+
+Keep `EXPO_PUBLIC_FLEET_VEHICLES` in sync with backend `FLEET_VEHICLE_IDS`.
 
 | Target | `EXPO_PUBLIC_API_URL` |
 |--------|------------------------|
