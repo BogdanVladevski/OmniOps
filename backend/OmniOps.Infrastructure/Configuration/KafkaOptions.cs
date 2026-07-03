@@ -9,4 +9,9 @@ public class KafkaOptions
     public string EventsTopic { get; set; } = "fleet-telemetry-events";
     public string DlqTopic { get; set; } = "fleet-telemetry-dlq";
     public string GroupId { get; set; } = "omniops-telemetry-group";
+
+    /// <summary>Bounded in-process retries for transient processing failures before DLQ routing.</summary>
+    public int ProcessingRetryMaxAttempts { get; set; } = 3;
+
+    public int ProcessingRetryDelayMilliseconds { get; set; } = 500;
 }

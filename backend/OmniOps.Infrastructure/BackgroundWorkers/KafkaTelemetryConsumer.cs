@@ -1,13 +1,11 @@
 using System.Diagnostics;
 using System.Text.Json;
 using Confluent.Kafka;
-using FluentValidation;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using OmniOps.Application.Commands;
 using OmniOps.Core.Entities;
 using OmniOps.Core.Interfaces;
 using OmniOps.Infrastructure.Configuration;
@@ -23,6 +21,7 @@ public class KafkaTelemetryConsumer : BackgroundService
     private readonly string _dlqTopic;
     private readonly IKafkaMessageProducer _kafkaProducer;
     private readonly ITelemetryMetrics _metrics;
+    private readonly KafkaTelemetryMessageProcessor _messageProcessor;
     private IConsumer<Ignore, string>? _kafkaConsumer;
 
     private static readonly ActivitySource ActivitySource = new("OmniOps.Infrastructure.TelemetryConsumer");
@@ -32,12 +31,14 @@ public class KafkaTelemetryConsumer : BackgroundService
         IServiceProvider serviceProvider,
         IOptions<KafkaOptions> kafkaOptions,
         IKafkaMessageProducer kafkaProducer,
-        ITelemetryMetrics metrics)
+        ITelemetryMetrics metrics,
+        KafkaTelemetryMessageProcessor messageProcessor)
     {
         _logger = logger;
         _serviceProvider = serviceProvider;
         _kafkaProducer = kafkaProducer;
         _metrics = metrics;
+        _messageProcessor = messageProcessor;
 
         var options = kafkaOptions.Value;
         _config = new ConsumerConfig
@@ -120,17 +121,12 @@ public class KafkaTelemetryConsumer : BackgroundService
 
                         using var scope = _serviceProvider.CreateScope();
                         var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
-                        try
-                        {
-                            await mediator.Send(new ProcessTelemetryCommand(telemetry!), stoppingToken);
-                        }
-                        catch (ValidationException validationEx)
-                        {
-                            _logger.LogWarning(validationEx,
-                                "Telemetry validation failed. Routing to DLQ topic {DlqTopic}",
-                                _dlqTopic);
-                            await SendToDlqAsync(consumeResult.Message.Value, validationEx.Message, stoppingToken);
-                        }
+                        await _messageProcessor.ProcessAsync(
+                            consumeResult.Message.Value,
+                            telemetry!,
+                            mediator,
+                            SendToDlqAsync,
+                            stoppingToken);
                     }
                     catch (ConsumeException ex)
                     {

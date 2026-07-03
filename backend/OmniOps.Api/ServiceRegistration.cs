@@ -77,6 +77,7 @@ public static partial class ServiceRegistration
 
         builder.Services.AddValidatorsFromAssemblyContaining<ProcessTelemetryCommandValidator>();
 
+        builder.Services.AddSingleton<KafkaTelemetryMessageProcessor>();
         builder.Services.AddHostedService<KafkaTelemetryConsumer>();
         builder.Services.AddHostedService<OutboxPublisherWorker>();
         builder.Services.AddSignalR()

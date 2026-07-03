@@ -4,6 +4,7 @@ using OmniOps.Application.Commands;
 using OmniOps.Application.Dtos;
 using OmniOps.Core.Entities;
 using OmniOps.Core.Events;
+using OmniOps.Core.Exceptions;
 using OmniOps.Core.Interfaces;
 
 namespace OmniOps.Application.Commands.Handlers;
@@ -81,7 +82,9 @@ public class ProcessTelemetryCommandHandler : IRequestHandler<ProcessTelemetryCo
             _logger.LogError(ex,
                 "Failed to persist telemetry for vehicle {VehicleId}. Transaction aborted; dedup lock released for retry",
                 request.Telemetry.VehicleId);
-            throw;
+            throw new TransientProcessingException(
+                $"Failed to persist telemetry for vehicle {request.Telemetry.VehicleId}",
+                ex);
         }
 
         try

@@ -5,6 +5,7 @@ using OmniOps.Application.Commands.Handlers;
 using OmniOps.Application.Queries;
 using OmniOps.Application.Queries.Handlers;
 using OmniOps.Core.Entities;
+using OmniOps.Core.Exceptions;
 using OmniOps.Core.Interfaces;
 
 namespace OmniOps.Application.Tests;
@@ -94,9 +95,10 @@ public class ProcessTelemetryCommandHandlerTests
         _repository.SaveChangesAsync(Arg.Any<CancellationToken>())
             .Returns<Task>(_ => throw new InvalidOperationException("db error"));
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+        var thrown = await Assert.ThrowsAsync<TransientProcessingException>(() =>
             _handler.Handle(new ProcessTelemetryCommand(telemetry), CancellationToken.None));
 
+        Assert.IsType<InvalidOperationException>(thrown.InnerException);
         await _deduplicationService.Received(1)
             .ReleaseProcessingLockAsync(telemetry.Id, Arg.Any<CancellationToken>());
         await _cacheService.DidNotReceive().SetLatestTelemetryAsync(Arg.Any<VehicleTelemetry>());
@@ -122,9 +124,10 @@ public class ProcessTelemetryCommandHandlerTests
             });
         _anomalyService.AnalyzeTelemetryAsync(telemetry, Arg.Any<CancellationToken>()).Returns(false);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+        var thrown = await Assert.ThrowsAsync<TransientProcessingException>(() =>
             _handler.Handle(new ProcessTelemetryCommand(telemetry), CancellationToken.None));
 
+        Assert.IsType<InvalidOperationException>(thrown.InnerException);
         await _deduplicationService.Received(1)
             .ReleaseProcessingLockAsync(telemetry.Id, Arg.Any<CancellationToken>());
 

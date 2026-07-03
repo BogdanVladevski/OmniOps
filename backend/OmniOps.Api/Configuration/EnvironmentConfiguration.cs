@@ -58,6 +58,8 @@ public static class EnvironmentConfiguration
         MapEnv(envVars, "Kafka:Topic", "KAFKA_MAIN_TOPIC");
         MapEnv(envVars, "Kafka:EventsTopic", "KAFKA_EVENTS_TOPIC");
         MapEnv(envVars, "Kafka:DlqTopic", "KAFKA_DLQ_TOPIC");
+        MapEnv(envVars, "Kafka:ProcessingRetryMaxAttempts", "KAFKA_PROCESSING_RETRY_MAX_ATTEMPTS");
+        MapEnv(envVars, "Kafka:ProcessingRetryDelayMilliseconds", "KAFKA_PROCESSING_RETRY_DELAY_MS");
         MapEnv(envVars, "Cors:AllowedOrigins", "ALLOWED_CORS_ORIGINS");
         MapEnv(envVars, "Jwt:Secret", "JWT_SECRET");
         MapEnv(envVars, "Jwt:Issuer", "JWT_ISSUER");
