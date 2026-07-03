@@ -1,7 +1,6 @@
 using System.Diagnostics;
 using System.Text.Json;
 using Confluent.Kafka;
-using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
@@ -15,7 +14,7 @@ namespace OmniOps.Infrastructure.BackgroundWorkers;
 public class KafkaTelemetryConsumer : BackgroundService
 {
     private readonly ILogger<KafkaTelemetryConsumer> _logger;
-    private readonly IServiceProvider _serviceProvider;
+    private readonly IServiceScopeFactory _scopeFactory;
     private readonly ConsumerConfig _config;
     private readonly string _topic;
     private readonly string _dlqTopic;
@@ -28,14 +27,14 @@ public class KafkaTelemetryConsumer : BackgroundService
 
     public KafkaTelemetryConsumer(
         ILogger<KafkaTelemetryConsumer> logger,
-        IServiceProvider serviceProvider,
+        IServiceScopeFactory scopeFactory,
         IOptions<KafkaOptions> kafkaOptions,
         IKafkaMessageProducer kafkaProducer,
         ITelemetryMetrics metrics,
         KafkaTelemetryMessageProcessor messageProcessor)
     {
         _logger = logger;
-        _serviceProvider = serviceProvider;
+        _scopeFactory = scopeFactory;
         _kafkaProducer = kafkaProducer;
         _metrics = metrics;
         _messageProcessor = messageProcessor;
@@ -119,12 +118,10 @@ public class KafkaTelemetryConsumer : BackgroundService
                             continue;
                         }
 
-                        using var scope = _serviceProvider.CreateScope();
-                        var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
                         await _messageProcessor.ProcessAsync(
                             consumeResult.Message.Value,
                             telemetry!,
-                            mediator,
+                            _scopeFactory,
                             SendToDlqAsync,
                             stoppingToken);
                     }

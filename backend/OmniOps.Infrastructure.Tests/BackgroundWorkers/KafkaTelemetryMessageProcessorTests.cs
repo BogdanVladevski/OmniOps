@@ -1,6 +1,7 @@
 using FluentValidation;
 using FluentValidation.Results;
 using MediatR;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 using NSubstitute;
@@ -26,6 +27,18 @@ public class KafkaTelemetryMessageProcessorTests
                 DlqTopic = "fleet-telemetry-dlq"
             }));
 
+    private static (IServiceScopeFactory ScopeFactory, IMediator Mediator) CreateScopeFactory(IMediator mediator)
+    {
+        var scope = Substitute.For<IServiceScope>();
+        var serviceProvider = Substitute.For<IServiceProvider>();
+        scope.ServiceProvider.Returns(serviceProvider);
+        serviceProvider.GetService(typeof(IMediator)).Returns(mediator);
+
+        var scopeFactory = Substitute.For<IServiceScopeFactory>();
+        scopeFactory.CreateScope().Returns(scope);
+        return (scopeFactory, mediator);
+    }
+
     private static VehicleTelemetry CreateTelemetry() => new()
     {
         Id = Guid.NewGuid(),
@@ -43,6 +56,7 @@ public class KafkaTelemetryMessageProcessorTests
     {
         var processor = CreateProcessor(maxAttempts: 3, delayMs: 0);
         var mediator = Substitute.For<IMediator>();
+        var (scopeFactory, _) = CreateScopeFactory(mediator);
         var telemetry = CreateTelemetry();
         var sendAttempts = 0;
         var dlqCalls = 0;
@@ -62,7 +76,7 @@ public class KafkaTelemetryMessageProcessorTests
         await processor.ProcessAsync(
             "{\"vehicleId\":\"Truck-001\"}",
             telemetry,
-            mediator,
+            scopeFactory,
             (_, _, _) =>
             {
                 dlqCalls++;
@@ -72,6 +86,7 @@ public class KafkaTelemetryMessageProcessorTests
 
         Assert.Equal(0, dlqCalls);
         await mediator.Received(2).Send(Arg.Any<ProcessTelemetryCommand>(), Arg.Any<CancellationToken>());
+        scopeFactory.Received(2).CreateScope();
     }
 
     [Fact]
@@ -79,6 +94,7 @@ public class KafkaTelemetryMessageProcessorTests
     {
         var processor = CreateProcessor(maxAttempts: 3, delayMs: 0);
         var mediator = Substitute.For<IMediator>();
+        var (scopeFactory, _) = CreateScopeFactory(mediator);
         var telemetry = CreateTelemetry();
         string? dlqReason = null;
 
@@ -89,7 +105,7 @@ public class KafkaTelemetryMessageProcessorTests
         await processor.ProcessAsync(
             "{\"vehicleId\":\"Truck-001\"}",
             telemetry,
-            mediator,
+            scopeFactory,
             (_, reason, _) =>
             {
                 dlqReason = reason;
@@ -100,6 +116,7 @@ public class KafkaTelemetryMessageProcessorTests
         Assert.NotNull(dlqReason);
         Assert.Contains("transient failure exhausted retries", dlqReason, StringComparison.OrdinalIgnoreCase);
         await mediator.Received(3).Send(Arg.Any<ProcessTelemetryCommand>(), Arg.Any<CancellationToken>());
+        scopeFactory.Received(3).CreateScope();
     }
 
     [Fact]
@@ -107,6 +124,7 @@ public class KafkaTelemetryMessageProcessorTests
     {
         var processor = CreateProcessor(maxAttempts: 3, delayMs: 0);
         var mediator = Substitute.For<IMediator>();
+        var (scopeFactory, _) = CreateScopeFactory(mediator);
         var telemetry = CreateTelemetry();
         var dlqCalls = 0;
 
@@ -118,7 +136,7 @@ public class KafkaTelemetryMessageProcessorTests
         await processor.ProcessAsync(
             "{\"vehicleId\":\"\"}",
             telemetry,
-            mediator,
+            scopeFactory,
             (_, _, _) =>
             {
                 dlqCalls++;
@@ -128,5 +146,6 @@ public class KafkaTelemetryMessageProcessorTests
 
         Assert.Equal(1, dlqCalls);
         await mediator.Received(1).Send(Arg.Any<ProcessTelemetryCommand>(), Arg.Any<CancellationToken>());
+        scopeFactory.Received(1).CreateScope();
     }
 }

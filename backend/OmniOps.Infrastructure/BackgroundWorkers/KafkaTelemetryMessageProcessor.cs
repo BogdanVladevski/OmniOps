@@ -1,5 +1,6 @@
 using FluentValidation;
 using MediatR;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
 using OmniOps.Application.Commands;
@@ -25,7 +26,7 @@ public class KafkaTelemetryMessageProcessor
     public async Task ProcessAsync(
         string rawPayload,
         VehicleTelemetry telemetry,
-        IMediator mediator,
+        IServiceScopeFactory scopeFactory,
         Func<string, string, CancellationToken, Task> sendToDlqAsync,
         CancellationToken cancellationToken)
     {
@@ -33,6 +34,9 @@ public class KafkaTelemetryMessageProcessor
 
         for (var attempt = 1; attempt <= maxAttempts; attempt++)
         {
+            using var scope = scopeFactory.CreateScope();
+            var mediator = scope.ServiceProvider.GetRequiredService<IMediator>();
+
             try
             {
                 await mediator.Send(new ProcessTelemetryCommand(telemetry), cancellationToken);
