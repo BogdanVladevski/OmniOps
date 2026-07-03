@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>OmniOps — Backend Engine &amp; Telemetry Pipeline</title>
+  <meta name="description" content="How a vehicle telemetry packet travels through Kafka, CQRS, PostgreSQL, Redis, and SignalR — the full pipeline and reliability patterns behind OmniOps.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="site-header">
+  <div class="brand"><span>OmniOps</span> · Backend Documentation</div>
+  <nav>
+    <a href="#loop">Pipeline</a>
+    <a href="#kafka">Kafka</a>
+    <a href="#processing">Processing</a>
+    <a href="#outbox">Outbox</a>
+    <a href="#anomaly">Anomaly</a>
+    <a href="#realtime">Real-time</a>
+    <a href="#e2e">End to end</a>
+  </nav>
+</header>
+
+<main>
+  <div class="hero">
+    <p class="hero-eyebrow">OmniOps · Backend Documentation</p>
+    <h1>How a GPS packet becomes fleet intelligence</h1>
+    <p class="lead">
+      From one Kafka message to persisted history, live map updates, and anomaly playbooks —
+      the full pipeline and the reliability patterns that keep it honest under failure.
+    </p>
+    <div class="tech-badges">
+      <span>.NET 9</span>
+      <span>Clean Architecture</span>
+      <span>PostgreSQL · EF Core</span>
+      <span>Apache Kafka</span>
+      <span>Redis</span>
+      <span>SignalR</span>
+      <span>Expo mobile</span>
+    </div>
+  </div>
+
+  <!-- 00 -->
+  <section id="loop">
+    <p class="section-num">00</p>
+    <h2>The whole engine in one loop</h2>
+    <p>
+      Every telemetry packet enters through Kafka, is processed exactly once (when possible),
+      persisted with its domain events in one transaction, cached for fast reads, analysed for
+      distress signals, and pushed live to mobile clients. Nothing is invented — the message is
+      the source of truth; OmniOps deduplicates it, hardens it, and adds derived intelligence.
+    </p>
+
+    <div class="pipeline">
+      <div class="pipeline-step">
+        <div class="num">1</div>
+        <div>
+          <h4>Ingest</h4>
+          <p>The simulate API (or any producer) publishes <code>VehicleTelemetry</code> JSON to <code>fleet-telemetry</code>.</p>
+          <span class="file-ref">OmniOps.Api/Endpoints/TelemetryEndpoints.cs</span>
+        </div>
+      </div>
+      <div class="pipeline-step">
+        <div class="num">2</div>
+        <div>
+          <h4>Consume</h4>
+          <p><code>KafkaTelemetryConsumer</code> deserializes the payload, validates shape, and hands off to the message processor.</p>
+          <span class="file-ref">Infrastructure/BackgroundWorkers/KafkaTelemetryConsumer.cs</span>
+        </div>
+      </div>
+      <div class="pipeline-step">
+        <div class="num">3</div>
+        <div>
+          <h4>Process</h4>
+          <p>MediatR dispatches <code>ProcessTelemetryCommand</code> — dedup lock, persist, cache, anomaly check, SignalR broadcast.</p>
+          <span class="file-ref">Application/Commands/Handlers/ProcessTelemetryCommandHandler.cs</span>
+        </div>
+      </div>
+      <div class="pipeline-step">
+        <div class="num">4</div>
+        <div>
+          <h4>Outbox</h4>
+          <p>Domain events are captured in the same DB transaction and later published to <code>fleet-telemetry-events</code>.</p>
+          <span class="file-ref">Infrastructure/Data/Interceptors/OutboxSaveChangesInterceptor.cs</span>
+        </div>
+      </div>
+      <div class="pipeline-step">
+        <div class="num">5</div>
+        <div>
+          <h4>Serve</h4>
+          <p>REST queries read Redis cache; SignalR hub streams live updates to vehicle and fleet groups on the Expo app.</p>
+          <span class="file-ref">Infrastructure/Hubs/TelemetryHub.cs</span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- 01 -->
+  <section id="kafka">
+    <p class="section-num">01</p>
+    <h2>Ingesting from Kafka</h2>
+    <p>
+      Telemetry arrives on topic <code>fleet-telemetry</code>. The consumer runs as a
+      <code>BackgroundService</code> with resilient reconnect logic — if the broker drops,
+      it backs off and resubscribes rather than crashing the host.
+    </p>
+
+<pre>// KafkaTelemetryConsumer — continuous poll loop
+_kafkaConsumer.Subscribe("fleet-telemetry");
+var result = _kafkaConsumer.Consume(stoppingToken);
+// → deserialize → KafkaTelemetryMessageProcessor.ProcessAsync(...)</pre>
+
+    <h3>The feed's non-obvious realities</h3>
+    <p>
+      Most of the engineering effort lives in failure routing, because a streaming pipeline
+      will silently lose or duplicate data if errors are handled naïvely:
+    </p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Scenario</th>
+          <th>Why it bites</th>
+          <th>How it's handled</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Malformed JSON or missing fields</td>
+          <td>Throwing aborts the consumer loop; the offset may never advance cleanly</td>
+          <td>Parse failure → route raw payload to <code>fleet-telemetry-dlq</code> with reason</td>
+        </tr>
+        <tr>
+          <td>FluentValidation failure (empty vehicle ID, out-of-range values)</td>
+          <td>Retrying won't fix bad data — you'd waste DB connections forever</td>
+          <td>Validation exception → immediate DLQ, no retry</td>
+        </tr>
+        <tr>
+          <td>Transient Postgres failure mid-<code>SaveChanges</code></td>
+          <td>Dedup lock still held → packet stuck; or outbox rows orphaned in EF tracker</td>
+          <td>Release lock, throw <code>TransientProcessingException</code>, retry with <strong>fresh DI scope</strong></td>
+        </tr>
+        <tr>
+          <td>Retries exhausted</td>
+          <td>Packet would loop forever or be silently dropped</td>
+          <td>After <code>ProcessingRetryMaxAttempts</code> → DLQ with exhaustion reason</td>
+        </tr>
+        <tr>
+          <td>Unhandled consumer exception</td>
+          <td>Message consumed but never processed — silent data loss</td>
+          <td>Generic catch publishes to DLQ before continuing the poll loop</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- 02 -->
+  <section id="processing">
+    <p class="section-num">02</p>
+    <h2>Processing — CQRS and idempotency</h2>
+    <p>
+      The handler is the heart of the system. It runs inside a MediatR pipeline with
+      logging and FluentValidation behaviours, and follows a strict ordering: acquire dedup
+      lock → attach domain event → persist → side effects.
+    </p>
+
+    <h3>Deduplication lock</h3>
+    <p>
+      Before any write, Redis <code>SET NX</code> on key <code>telemetry:dedup:{packetId}</code>
+      with a 10-minute TTL. A duplicate packet ID returns early — counted in
+      <code>telemetry.duplicate_skipped</code> metrics — without touching Postgres.
+    </p>
+
+<pre>// RedisDeduplicationService
+await db.StringSetAsync(dedupKey, "1", LockExpiration, When.NotExists);
+// false → duplicate, skip processing</pre>
+
+    <div class="callout callout-warn">
+      <p>
+        <strong>Lock release on failure matters.</strong>
+        If <code>SaveChangesAsync</code> throws, the handler deletes the dedup key so a
+        legitimate retry can re-acquire the lock. Without this, a transient DB blip would
+        block that packet for 10 minutes.
+      </p>
+    </div>
+
+    <h3>Side effects after commit</h3>
+    <p>
+      Cache update, anomaly analysis, and SignalR broadcast happen <em>after</em> successful
+      persistence. Cache and broadcast failures are logged but do not fail the command —
+      the authoritative record is already in Postgres.
+    </p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Step</th>
+          <th>Store</th>
+          <th>On failure</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Dedup lock</td>
+          <td>Redis</td>
+          <td>Redis down → proceed (fail-open) to avoid blocking ingestion</td>
+        </tr>
+        <tr>
+          <td>Persist + outbox</td>
+          <td>PostgreSQL</td>
+          <td>Release lock, throw transient → retry</td>
+        </tr>
+        <tr>
+          <td>Latest cache</td>
+          <td>Redis</td>
+          <td>Log warning, continue</td>
+        </tr>
+        <tr>
+          <td>Anomaly + playbook</td>
+          <td>Redis window + SignalR</td>
+          <td>Log error, continue</td>
+        </tr>
+        <tr>
+          <td>Live broadcast</td>
+          <td>SignalR</td>
+          <td>Log error, continue</td>
+        </tr>
+      </tbody>
+    </table>
+  </section>
+
+  <!-- 03 -->
+  <section id="outbox">
+    <p class="section-num">03</p>
+    <h2>Outbox — one transaction, safe retries</h2>
+    <p>
+      When telemetry is saved, a <code>TelemetryReceivedEvent</code> domain event is raised on
+      the entity. An EF <code>SaveChangesInterceptor</code> captures all pending domain events
+      and inserts matching <code>OutboxMessage</code> rows in the <strong>same transaction</strong>.
+      A background worker polls every 2 seconds and publishes unpublished rows to
+      <code>fleet-telemetry-events</code>.
+    </p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Component</th>
+          <th>Role</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>OutboxSaveChangesInterceptor</code></td>
+          <td>Serializes domain events → <code>OutboxMessage</code> rows before commit</td>
+        </tr>
+        <tr>
+          <td><code>OutboxPublisherWorker</code></td>
+          <td>Polls unpublished messages, publishes to Kafka, marks processed</td>
+        </tr>
+        <tr>
+          <td><code>OutboxMessage</code></td>
+          <td><code>Id</code>, <code>Type</code>, <code>Content</code> (JSON), <code>OccurredOnUtc</code>, <code>ProcessedOnUtc</code></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <h3>Why a fresh scope per retry</h3>
+    <p>
+      Retries used to reuse one <code>AppDbContext</code> across attempts. If
+      <code>SaveChanges</code> failed after the interceptor added an outbox row to the change
+      tracker, that orphaned entity stayed tracked. The retry added a <em>second</em> outbox
+      row — duplicate downstream events.
+    </p>
+
+<pre>// KafkaTelemetryMessageProcessor — inside the retry loop
+for (var attempt = 1; attempt &lt;= maxAttempts; attempt++)
+{
+    using var scope = scopeFactory.CreateScope();  // fresh DbContext each attempt
+    var mediator = scope.ServiceProvider.GetRequiredService&lt;IMediator&gt;();
+    await mediator.Send(new ProcessTelemetryCommand(telemetry), cancellationToken);
+}</pre>
+
+    <div class="callout">
+      <p>
+        <strong>This is the EF detail that matters.</strong>
+        Interceptors mutate the change tracker before save. A failed save leaves dirty state.
+        Scoped DbContext per attempt guarantees each retry starts with a clean tracker —
+        exactly one outbox row on success.
+      </p>
+    </div>
+  </section>
+
+  <!-- 04 -->
+  <section id="anomaly">
+    <p class="section-num">04</p>
+    <h2>Anomaly detection — sliding window</h2>
+    <p>
+      After persistence, each packet is pushed into a Redis list keyed by vehicle.
+      The service keeps up to 30 points within a 30-second window and compares oldest vs newest
+      to detect compound distress — not a single threshold, but correlated signals.
+    </p>
+
+    <div class="signal-grid">
+      <div class="signal-card">
+        <div class="value">≥ 5%</div>
+        <div class="label">Fuel drop over window</div>
+      </div>
+      <div class="signal-card">
+        <div class="value">≥ 8°C</div>
+        <div class="label">Engine temp rise + above 95°C</div>
+      </div>
+      <div class="signal-card">
+        <div class="value">≥ 20 km/h</div>
+        <div class="label">Sudden deceleration + engine &gt; 100°C</div>
+      </div>
+    </div>
+
+    <p>
+      <strong>Compound rule:</strong> fuel drop <em>and</em> thermal surge together → anomaly.
+      <strong>Critical rule:</strong> hard deceleration with engine overheating → anomaly.
+      Either triggers simulated RAG playbook orchestration over SignalR
+      (<code>ReceivePlaybookInstructions</code>).
+    </p>
+
+<pre>// RedisAnomalyDetectionService
+await db.ListLeftPushAsync(historyKey, JsonSerializer.Serialize(currentPoint));
+await db.ListTrimAsync(historyKey, 0, MaxWindowPoints - 1);
+await db.KeyExpireAsync(historyKey, WindowDuration);  // 30 seconds</pre>
+
+    <p>
+      Anomaly detection is best-effort after commit — a Redis outage won't roll back
+      telemetry, it just skips analysis for that packet.
+    </p>
+  </section>
+
+  <!-- 05 -->
+  <section id="realtime">
+    <p class="section-num">05</p>
+    <h2>Real-time — SignalR groups</h2>
+    <p>
+      The Expo mobile app connects to <code>/api/stream/telemetry</code>. Clients join
+      scoped groups so broadcasts don't fan out to the entire fleet unnecessarily.
+    </p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Direction</th>
+          <th>Method / event</th>
+          <th>Purpose</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Client → server</td>
+          <td><code>WatchVehicle(id)</code></td>
+          <td>Join vehicle-specific group</td>
+        </tr>
+        <tr>
+          <td>Client → server</td>
+          <td><code>WatchFleet()</code></td>
+          <td>Join fleet-wide dashboard group</td>
+        </tr>
+        <tr>
+          <td>Server → client</td>
+          <td><code>ReceiveTelemetryUpdate</code></td>
+          <td>Live GPS, speed, fuel, engine temp</td>
+        </tr>
+        <tr>
+          <td>Server → client</td>
+          <td><code>ReceivePlaybookInstructions</code></td>
+          <td>Anomaly playbook response</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <p>
+      REST endpoints (<code>GET /api/telemetry/fleet</code>, <code>GET /api/telemetry/{vehicleId}</code>)
+      read the Redis latest-telemetry cache for instant dashboard KPIs and map positions.
+      History lives in Postgres; hot path reads don't hit the database.
+    </p>
+  </section>
+
+  <!-- 06 -->
+  <section id="e2e">
+    <p class="section-num">06</p>
+    <h2>Following one packet end to end</h2>
+    <p>
+      To tie it together — <em>Truck-001 sends telemetry with a sudden fuel drop and rising engine temp</em>
+      travelling through the whole system:
+    </p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Stage</th>
+          <th>What happens to that packet</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Ingest</strong></td>
+          <td>Simulate API publishes JSON to <code>fleet-telemetry</code> with a unique packet <code>Id</code>.</td>
+        </tr>
+        <tr>
+          <td><strong>Consume</strong></td>
+          <td>Consumer deserializes, opens processor with <code>IServiceScopeFactory</code>.</td>
+        </tr>
+        <tr>
+          <td><strong>Dedup</strong></td>
+          <td>Redis <code>SET NX</code> succeeds — first time seeing this packet ID.</td>
+        </tr>
+        <tr>
+          <td><strong>Persist</strong></td>
+          <td>EF saves <code>VehicleTelemetry</code> row; interceptor writes <code>OutboxMessage</code> for <code>TelemetryReceivedEvent</code> in same transaction.</td>
+        </tr>
+        <tr>
+          <td><strong>Cache</strong></td>
+          <td>Redis key updated — fleet API and map read this on next poll.</td>
+        </tr>
+        <tr>
+          <td><strong>Anomaly</strong></td>
+          <td>30s window shows ≥5% fuel drop + ≥8°C rise → playbook orchestration fires.</td>
+        </tr>
+        <tr>
+          <td><strong>Broadcast</strong></td>
+          <td>SignalR pushes <code>ReceiveTelemetryUpdate</code> to vehicle + fleet groups; playbook event follows.</td>
+        </tr>
+        <tr>
+          <td><strong>Outbox worker</strong></td>
+          <td>Within ~2s, event published to <code>fleet-telemetry-events</code> for downstream consumers.</td>
+        </tr>
+        <tr>
+          <td><strong>Mobile UI</strong></td>
+          <td>Expo map marker moves, KPIs refresh, Alerts tab shows compound distress + playbook steps.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="callout">
+      <p>
+        <strong>Reliability is layered, not single-point.</strong>
+        Dedup prevents double-processing. Outbox prevents lost domain events. Fresh scopes
+        prevent duplicate outbox rows on retry. DLQ captures everything that can't be salvaged.
+        Each layer handles a different failure mode — together they keep the pipeline honest.
+      </p>
+    </div>
+  </section>
+</main>
+
+<footer class="site-footer">
+  <p>OmniOps — live vehicle telemetry · backend engine</p>
+  <p>
+    Ingest: <code>Infrastructure/BackgroundWorkers/</code> ·
+    Commands: <code>Application/Commands/</code> ·
+    Outbox: <code>Infrastructure/Data/Interceptors/</code>
+  </p>
+  <a class="repo-link" href="https://github.com/BogdanVladevski/OmniOps">github.com/BogdanVladevski/OmniOps</a>
+</footer>
+
+</body>
+</html>

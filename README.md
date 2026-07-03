@@ -15,6 +15,8 @@ OmniOps ingests vehicle GPS telemetry through Apache Kafka, processes it with a 
 
 The backend uses **Clean Architecture** with four layers, environment-driven configuration, and production-style reliability patterns: transactional outbox, idempotent consumption, and a dead-letter queue.
 
+**Deep dive:** [How a GPS packet becomes fleet intelligence →](https://bogdanvladevski.github.io/OmniOps/)
+
 **Local setup:** [DEV-SETUP.md](DEV-SETUP.md)
 
 ---
