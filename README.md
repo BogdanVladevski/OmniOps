@@ -288,9 +288,9 @@ Set `PROMETHEUS_METRICS_ENABLED=false` to disable the `/metrics` endpoint. Set `
 
 ## Roadmap
 
-**Done:** OpenTelemetry, Serilog, Prometheus/Grafana observability stack, transactional outbox, DLQ, Redis dedup, anomaly detection, simulated playbook orchestration, unit/integration test suite, JWT auth + hub authorization, simulate rate limiting, FluentValidation, Polly Kafka resilience, health checks, Expo fleet dashboard (map + KPIs + alerts)
+**Done:** OpenTelemetry, Serilog, Prometheus/Grafana observability stack, transactional outbox, DLQ, Redis dedup, anomaly detection, simulated playbook orchestration, unit/integration test suite, GitHub Actions CI, JWT auth + hub authorization, simulate rate limiting, FluentValidation, Polly Kafka resilience, health checks, Expo fleet dashboard (map + KPIs + alerts)
 
-**Planned:** GitHub Actions CI, dedicated worker host, Kubernetes, geofencing, route replay, real LangGraph/Semantic Kernel integration
+**Planned:** Dedicated worker host, Kubernetes, geofencing, route replay, real LangGraph/Semantic Kernel integration
 
 ---
 

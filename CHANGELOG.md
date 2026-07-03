@@ -2,6 +2,13 @@
 
 All notable changes to OmniOps are documented in this file.
 
+## [0.6.0] — 2026-07-03
+
+### Added
+
+- GitHub Actions CI workflow for backend restore, Release build, and full test execution on pushes and pull requests to `main`
+- Test result artifact upload for easier CI failure inspection
+
 ## [0.5.0] — 2026-07-01
 
 ### Added
