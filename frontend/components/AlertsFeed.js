@@ -14,16 +14,16 @@ export default function AlertsFeed() {
   return (
     <Screen style={styles.screen}>
       <View style={[styles.container, { paddingHorizontal: horizontalPadding }]}>
-        <Text style={[styles.heading, { fontSize: titleSize }]}>Live Alerts</Text>
+        <Text style={[styles.heading, { fontSize: titleSize }]}>Incident Alerts</Text>
         <Text style={[styles.subheading, { fontSize: bodySize }]}>
-          Anomaly playbook responses stream here in real time.
+          Cold-chain excursions and incident response protocols stream here in real time.
         </Text>
 
         {alerts.length === 0 ? (
           <View style={[styles.emptyState, { padding: cardPadding + 4 }]}>
-            <Text style={styles.emptyTitle}>No alerts yet</Text>
+            <Text style={styles.emptyTitle}>No incidents yet</Text>
             <Text style={[styles.emptyBody, { fontSize: bodySize }]}>
-              Simulate telemetry with dropping fuel and rising engine temperature to trigger anomaly detection.
+              Simulate telemetry to trigger cargo temperature excursion detection. Alerts appear here when a shipment breaches its safe temperature range.
             </Text>
           </View>
         ) : (

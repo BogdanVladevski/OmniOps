@@ -1,6 +1,6 @@
 # OmniOps
 
-> Distributed real-time vehicle telemetry platform
+> Cold-chain pharmaceutical delivery monitoring real time telemetry, excursion detection, and incident response
 
 ![.NET](https://img.shields.io/badge/.NET-9-512BD4?logo=dotnet)
 ![Kafka](https://img.shields.io/badge/Apache_Kafka-231F20?logo=apachekafka)
@@ -11,7 +11,9 @@
 ![Docker](https://img.shields.io/badge/Docker-2496ED?logo=docker)
 ![OpenTelemetry](https://img.shields.io/badge/OpenTelemetry-000000?logo=opentelemetry)
 
-OmniOps ingests vehicle GPS telemetry through Apache Kafka, processes it with a .NET 9 backend (CQRS + MediatR), persists history in PostgreSQL, caches hot state in Redis, and streams live updates to an Expo mobile client over SignalR.
+A temperature excursion during pharmaceutical transport can turn a $50 k shipment into medical waste before anyone notices. OmniOps monitors cold-chain delivery trucks in real time, detects cargo temperature excursions against per-shipment safe ranges, and fires incident response playbooks to field operatives instantly.
+
+Telemetry flows through Apache Kafka into a .NET 9 backend (CQRS + MediatR), is persisted in PostgreSQL, cached in Redis, and streamed live to an Expo mobile client over SignalR. Each truck carries a named shipment (product, batch, value-at-risk), and every alert reads like a real cold-chain incident report.
 
 The backend uses **Clean Architecture** with four layers, environment-driven configuration, and production-style reliability patterns: transactional outbox, idempotent consumption, and a dead-letter queue.
 
@@ -62,8 +64,9 @@ sequenceDiagram
 
 1. The **simulate endpoint** (or any external producer) publishes `VehicleTelemetry` JSON to `fleet-telemetry`.
 2. **KafkaTelemetryConsumer** deserializes the message and dispatches `ProcessTelemetryCommand` via MediatR.
-3. The handler deduplicates via Redis, persists to PostgreSQL, updates the cache, runs anomaly detection, and broadcasts over SignalR.
-4. Domain events are captured by an **EF outbox interceptor** in the same database transaction and later published to `fleet-telemetry-events` by **OutboxPublisherWorker**.
+3. The handler deduplicates via Redis, persists to PostgreSQL, updates the cache, resolves the active shipment (`Shipment` entity), runs temperature-excursion detection, and broadcasts over SignalR.
+4. When cargo temperature breaches the shipment's `MinSafeTempCelsius`–`MaxSafeTempCelsius` range, the **playbook service** fires a cold-chain incident response to `ReceivePlaybookInstructions` with the product name, batch number, excursion duration, and estimated value at risk.
+5. Domain events are captured by an **EF outbox interceptor** in the same database transaction and later published to `fleet-telemetry-events` by **OutboxPublisherWorker**.
 
 ---
 
@@ -71,17 +74,19 @@ sequenceDiagram
 
 | Area | Implementation |
 |------|----------------|
+| **Domain** | `Shipment` entity (product, batch, safe-temp range, value-at-risk) seeded for Truck-001/002/003 |
+| **Excursion detection** | Per-shipment temperature excursion check + consecutive-seconds excursion duration tracking in Redis |
+| **Incident alerts** | Playbook fires `"{Product} batch {Batch} has been outside safe range for {N}s — est. value at risk: ${Value}"` |
 | Event streaming | Kafka consumer with retry, backoff, and DLQ routing |
 | CQRS | MediatR commands, queries, logging/validation pipeline behaviours |
 | Outbox | `OutboxSaveChangesInterceptor` + polling publisher |
 | Idempotency | Redis `SET NX` per packet ID (10-minute TTL) |
 | Dead letter queue | Unparseable messages → `fleet-telemetry-dlq` |
 | Cache | Redis latest-telemetry per vehicle |
-| Anomaly detection | 30-second sliding window (fuel + engine thermal) |
-| Playbook orchestration | Simulated RAG incident response via SignalR |
+| Playbook orchestration | SOP-referenced cold-chain incident response via SignalR |
 | Real-time | SignalR vehicle + fleet groups, camelCase JSON |
 | Observability | Serilog structured logging, OpenTelemetry tracing, Prometheus `/metrics` |
-| Mobile | Expo fleet dashboard — live map, KPIs, anomaly alerts |
+| Mobile | Expo fleet dashboard — live map, shipment KPIs, cold-chain alerts |
 
 ---
 
@@ -298,9 +303,9 @@ Set `PROMETHEUS_METRICS_ENABLED=false` to disable the `/metrics` endpoint. Set `
 
 ## Roadmap
 
-**Done:** OpenTelemetry, Serilog, Prometheus/Grafana observability stack, transactional outbox, DLQ, Redis dedup, anomaly detection, simulated playbook orchestration, unit/integration test suite, GitHub Actions CI, JWT auth + hub authorization, simulate rate limiting, FluentValidation, Polly Kafka resilience, health checks, Expo fleet dashboard (map + KPIs + alerts)
+**Done:** Cold-chain domain model (`Shipment` entity + migrations + seed), per-shipment excursion detection, cold-chain incident playbooks, OpenTelemetry, Serilog, Prometheus/Grafana observability stack, transactional outbox, DLQ, Redis dedup, unit/integration test suite, GitHub Actions CI, JWT auth + hub authorization, simulate rate limiting, FluentValidation, Polly Kafka resilience, health checks, Expo fleet dashboard (map + shipment KPIs + cold-chain alerts)
 
-**Planned:** Dedicated worker host, Kubernetes, geofencing, route replay, real LangGraph/Semantic Kernel integration
+**Planned (Phase 2–6):** Adaptive per-shipment anomaly baselines, incident replay / black-box viewer, RAG-generated incident narratives from playbook SOPs, scripted scenario injector for demos, full portfolio polish pass
 
 ---
 

@@ -16,6 +16,24 @@ function KpiCard({ label, value, accent, compact }) {
   );
 }
 
+function ShipmentBadge({ shipment, cargoTemp }) {
+  if (!shipment) return null;
+  const inExcursion =
+    cargoTemp > shipment.maxSafeTempCelsius || cargoTemp < shipment.minSafeTempCelsius;
+  return (
+    <View style={[styles.shipmentBadge, inExcursion && styles.shipmentBadgeExcursion]}>
+      <Text style={styles.shipmentBadgeText} numberOfLines={1}>
+        {shipment.productName} · {shipment.batchNumber}
+      </Text>
+      {inExcursion && (
+        <Text style={styles.shipmentExcursionText} numberOfLines={1}>
+          Temp excursion — ${shipment.valueAtRiskUsd?.toLocaleString()} at risk
+        </Text>
+      )}
+    </View>
+  );
+}
+
 export default function FleetDashboard() {
   const { vehicleIds, vehicles, connectionStatus, setSelectedVehicleId } = useFleet();
   const summary = computeFleetSummary(vehicles, vehicleIds);
@@ -28,7 +46,7 @@ export default function FleetDashboard() {
         contentContainerStyle={[styles.content, { paddingHorizontal: horizontalPadding, paddingBottom: 24 }]}
         showsVerticalScrollIndicator={false}
       >
-        <Text style={[styles.heading, { fontSize: titleSize }]}>Fleet Overview</Text>
+        <Text style={[styles.heading, { fontSize: titleSize }]}>Cold-Chain Fleet</Text>
         <Text style={[styles.subheading, { fontSize: bodySize }]}>{connectionStatus}</Text>
 
         <View style={styles.kpiGrid}>
@@ -43,7 +61,7 @@ export default function FleetDashboard() {
           <KpiCard compact={compact} label="AVG TEMP" value={summary.averageTemp != null ? `${summary.averageTemp}°C` : '—'} />
         </View>
 
-        <Text style={styles.sectionTitle}>Vehicles</Text>
+        <Text style={styles.sectionTitle}>Shipments in Transit</Text>
         {vehicleIds.map((vehicleId) => {
           const telemetry = vehicles[vehicleId];
           const status = getVehicleStatus(telemetry);
@@ -60,9 +78,17 @@ export default function FleetDashboard() {
                   <Text style={styles.statusBadgeText}>{status.toUpperCase()}</Text>
                 </View>
               </View>
+
+              {telemetry?.shipment && (
+                <ShipmentBadge shipment={telemetry.shipment} cargoTemp={telemetry.engineTemperature} />
+              )}
+
               {telemetry ? (
                 <Text style={[styles.vehicleMeta, { fontSize: bodySize }]} numberOfLines={2}>
-                  {telemetry.speed} km/h · Fuel {telemetry.fuelLevel}% · {telemetry.engineTemperature}°C
+                  {telemetry.speed} km/h · Fuel {telemetry.fuelLevel}% · Cargo {telemetry.engineTemperature}°C
+                  {telemetry.shipment
+                    ? ` (safe ${telemetry.shipment.minSafeTempCelsius}–${telemetry.shipment.maxSafeTempCelsius}°C)`
+                    : ''}
                 </Text>
               ) : (
                 <Text style={[styles.vehicleMeta, { fontSize: bodySize }]} numberOfLines={2}>
@@ -113,5 +139,19 @@ const styles = StyleSheet.create({
   vehicleId: { fontSize: 16, fontWeight: '700', color: '#1C1C1E', flex: 1 },
   statusBadge: { borderRadius: 10, paddingHorizontal: 8, paddingVertical: 4 },
   statusBadgeText: { color: '#FFFFFF', fontSize: 11, fontWeight: '700' },
+  shipmentBadge: {
+    backgroundColor: '#F2F2F7',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    marginBottom: 6,
+  },
+  shipmentBadgeExcursion: {
+    backgroundColor: '#FFF3CD',
+    borderLeftWidth: 3,
+    borderLeftColor: '#FF9500',
+  },
+  shipmentBadgeText: { fontSize: 13, fontWeight: '600', color: '#1C1C1E' },
+  shipmentExcursionText: { fontSize: 12, color: '#C05000', marginTop: 2 },
   vehicleMeta: { color: '#636366' },
 });

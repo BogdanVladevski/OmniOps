@@ -9,13 +9,16 @@ public class GetFleetTelemetryQueryHandler : IRequestHandler<GetFleetTelemetryQu
 {
     private readonly ITelemetryCacheService _cacheService;
     private readonly IFleetVehicleRegistry _fleetRegistry;
+    private readonly IShipmentRepository _shipmentRepository;
 
     public GetFleetTelemetryQueryHandler(
         ITelemetryCacheService cacheService,
-        IFleetVehicleRegistry fleetRegistry)
+        IFleetVehicleRegistry fleetRegistry,
+        IShipmentRepository shipmentRepository)
     {
         _cacheService = cacheService;
         _fleetRegistry = fleetRegistry;
+        _shipmentRepository = shipmentRepository;
     }
 
     public async Task<FleetTelemetryDto> Handle(
@@ -28,10 +31,39 @@ public class GetFleetTelemetryQueryHandler : IRequestHandler<GetFleetTelemetryQu
         foreach (var vehicleId in vehicleIds)
         {
             var telemetry = await _cacheService.GetLatestTelemetryAsync(vehicleId);
-            if (telemetry is not null)
+            if (telemetry is null)
             {
-                vehicles.Add(TelemetryDto.FromEntity(telemetry));
+                continue;
             }
+
+            ShipmentInfoDto? shipmentInfo = null;
+            try
+            {
+                var shipment = await _shipmentRepository.GetActiveShipmentForVehicleAsync(
+                    vehicleId, cancellationToken);
+
+                if (shipment is not null)
+                {
+                    // ExcursionDurationSeconds is not tracked here (Redis anomaly service owns that);
+                    // we set it to 0 in the fleet snapshot — the live value comes via SignalR alerts.
+                    shipmentInfo = new ShipmentInfoDto
+                    {
+                        ShipmentId = shipment.Id,
+                        ProductName = shipment.ProductName,
+                        BatchNumber = shipment.BatchNumber,
+                        ValueAtRiskUsd = shipment.ValueAtRiskUsd,
+                        MinSafeTempCelsius = shipment.MinSafeTempCelsius,
+                        MaxSafeTempCelsius = shipment.MaxSafeTempCelsius,
+                        ExcursionDurationSeconds = 0
+                    };
+                }
+            }
+            catch
+            {
+                // Shipment lookup failure must never break the fleet snapshot.
+            }
+
+            vehicles.Add(TelemetryDto.FromEntity(telemetry, shipmentInfo));
         }
 
         return new FleetTelemetryDto
@@ -54,6 +86,10 @@ public class GetFleetTelemetryQueryHandler : IRequestHandler<GetFleetTelemetryQu
         }
 
         var warningCount = vehicles.Count(IsWarning);
+        var excursionCount = vehicles.Count(v =>
+            v.Shipment is not null
+            && (v.EngineTemperature > v.Shipment.MaxSafeTempCelsius
+                || v.EngineTemperature < v.Shipment.MinSafeTempCelsius));
 
         return new FleetSummaryDto
         {
@@ -61,10 +97,20 @@ public class GetFleetTelemetryQueryHandler : IRequestHandler<GetFleetTelemetryQu
             ActiveVehicleCount = vehicles.Count,
             WarningCount = warningCount,
             AverageFuelLevel = Math.Round(vehicles.Average(v => v.FuelLevel), 1),
-            AverageEngineTemperature = Math.Round(vehicles.Average(v => v.EngineTemperature), 1)
+            AverageEngineTemperature = Math.Round(vehicles.Average(v => v.EngineTemperature), 1),
+            ExcursionCount = excursionCount
         };
     }
 
-    private static bool IsWarning(TelemetryDto telemetry) =>
-        telemetry.FuelLevel < 30 || telemetry.EngineTemperature > 100;
+    private static bool IsWarning(TelemetryDto telemetry)
+    {
+        if (telemetry.Shipment is not null)
+        {
+            return telemetry.EngineTemperature > telemetry.Shipment.MaxSafeTempCelsius
+                   || telemetry.EngineTemperature < telemetry.Shipment.MinSafeTempCelsius
+                   || telemetry.FuelLevel < 30;
+        }
+
+        return telemetry.FuelLevel < 30 || telemetry.EngineTemperature > 100;
+    }
 }

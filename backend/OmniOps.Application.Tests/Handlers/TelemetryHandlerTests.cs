@@ -4,6 +4,7 @@ using OmniOps.Application.Commands;
 using OmniOps.Application.Commands.Handlers;
 using OmniOps.Application.Queries;
 using OmniOps.Application.Queries.Handlers;
+using OmniOps.Core.Domain;
 using OmniOps.Core.Entities;
 using OmniOps.Core.Exceptions;
 using OmniOps.Core.Interfaces;
@@ -18,6 +19,7 @@ public class ProcessTelemetryCommandHandlerTests
     private readonly IDeduplicationService _deduplicationService = Substitute.For<IDeduplicationService>();
     private readonly IAnomalyDetectionService _anomalyService = Substitute.For<IAnomalyDetectionService>();
     private readonly IPlaybookOrchestrationService _playbookOrchestration = Substitute.For<IPlaybookOrchestrationService>();
+    private readonly IShipmentRepository _shipmentRepository = Substitute.For<IShipmentRepository>();
     private readonly ITelemetryMetrics _metrics = Substitute.For<ITelemetryMetrics>();
     private readonly ProcessTelemetryCommandHandler _handler;
 
@@ -30,8 +32,14 @@ public class ProcessTelemetryCommandHandlerTests
             _deduplicationService,
             _anomalyService,
             _playbookOrchestration,
+            _shipmentRepository,
             _metrics,
             NullLogger<ProcessTelemetryCommandHandler>.Instance);
+
+        // Default: no active shipment for any vehicle.
+        _shipmentRepository
+            .GetActiveShipmentForVehicleAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns((Shipment?)null);
     }
 
     [Fact]
@@ -55,7 +63,9 @@ public class ProcessTelemetryCommandHandlerTests
         var telemetry = CreateTelemetry();
         _deduplicationService.TryAcquireProcessingLockAsync(telemetry.Id, Arg.Any<CancellationToken>())
             .Returns(true);
-        _anomalyService.AnalyzeTelemetryAsync(telemetry, Arg.Any<CancellationToken>()).Returns(false);
+        _anomalyService
+            .AnalyzeTelemetryAsync(telemetry, Arg.Any<Shipment?>(), Arg.Any<CancellationToken>())
+            .Returns(new AnomalyAnalysis(false));
 
         var result = await _handler.Handle(new ProcessTelemetryCommand(telemetry), CancellationToken.None);
 
@@ -75,7 +85,9 @@ public class ProcessTelemetryCommandHandlerTests
         var telemetry = CreateTelemetry();
         _deduplicationService.TryAcquireProcessingLockAsync(telemetry.Id, Arg.Any<CancellationToken>())
             .Returns(true);
-        _anomalyService.AnalyzeTelemetryAsync(telemetry, Arg.Any<CancellationToken>()).Returns(true);
+        _anomalyService
+            .AnalyzeTelemetryAsync(telemetry, Arg.Any<Shipment?>(), Arg.Any<CancellationToken>())
+            .Returns(new AnomalyAnalysis(true, ExcursionDurationSeconds: 45));
 
         await _handler.Handle(new ProcessTelemetryCommand(telemetry), CancellationToken.None);
 
@@ -83,6 +95,29 @@ public class ProcessTelemetryCommandHandlerTests
             .OrchestrateIncidentResponseAsync(
                 telemetry.VehicleId,
                 Arg.Is<string>(s => s.Contains(telemetry.VehicleId)),
+                Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_WhenAnomalyDetectedWithActiveShipment_IncludesProductInIncidentSummary()
+    {
+        var telemetry = CreateTelemetry();
+        var shipment = CreateShipment();
+        _deduplicationService.TryAcquireProcessingLockAsync(telemetry.Id, Arg.Any<CancellationToken>())
+            .Returns(true);
+        _shipmentRepository
+            .GetActiveShipmentForVehicleAsync(telemetry.VehicleId, Arg.Any<CancellationToken>())
+            .Returns(shipment);
+        _anomalyService
+            .AnalyzeTelemetryAsync(telemetry, Arg.Any<Shipment?>(), Arg.Any<CancellationToken>())
+            .Returns(new AnomalyAnalysis(true, ExcursionDurationSeconds: 90));
+
+        await _handler.Handle(new ProcessTelemetryCommand(telemetry), CancellationToken.None);
+
+        await _playbookOrchestration.Received(1)
+            .OrchestrateIncidentResponseAsync(
+                telemetry.VehicleId,
+                Arg.Is<string>(s => s.Contains(shipment.ProductName) && s.Contains(shipment.BatchNumber)),
                 Arg.Any<CancellationToken>());
     }
 
@@ -122,7 +157,9 @@ public class ProcessTelemetryCommandHandlerTests
                     ? Task.FromException(new InvalidOperationException("db error"))
                     : Task.CompletedTask;
             });
-        _anomalyService.AnalyzeTelemetryAsync(telemetry, Arg.Any<CancellationToken>()).Returns(false);
+        _anomalyService
+            .AnalyzeTelemetryAsync(telemetry, Arg.Any<Shipment?>(), Arg.Any<CancellationToken>())
+            .Returns(new AnomalyAnalysis(false));
 
         var thrown = await Assert.ThrowsAsync<TransientProcessingException>(() =>
             _handler.Handle(new ProcessTelemetryCommand(telemetry), CancellationToken.None));
@@ -144,7 +181,9 @@ public class ProcessTelemetryCommandHandlerTests
         var telemetry = CreateTelemetry();
         _deduplicationService.TryAcquireProcessingLockAsync(telemetry.Id, Arg.Any<CancellationToken>())
             .Returns(true);
-        _anomalyService.AnalyzeTelemetryAsync(telemetry, Arg.Any<CancellationToken>()).Returns(false);
+        _anomalyService
+            .AnalyzeTelemetryAsync(telemetry, Arg.Any<Shipment?>(), Arg.Any<CancellationToken>())
+            .Returns(new AnomalyAnalysis(false));
         _cacheService.SetLatestTelemetryAsync(telemetry)
             .Returns<Task>(_ => throw new InvalidOperationException("redis down"));
 
@@ -163,13 +202,34 @@ public class ProcessTelemetryCommandHandlerTests
 
         _deduplicationService.TryAcquireProcessingLockAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
             .Returns(true);
-        _anomalyService.AnalyzeTelemetryAsync(telemetry, Arg.Any<CancellationToken>()).Returns(false);
+        _anomalyService
+            .AnalyzeTelemetryAsync(telemetry, Arg.Any<Shipment?>(), Arg.Any<CancellationToken>())
+            .Returns(new AnomalyAnalysis(false));
 
         await _handler.Handle(new ProcessTelemetryCommand(telemetry), CancellationToken.None);
 
         Assert.NotEqual(Guid.Empty, telemetry.Id);
         await _deduplicationService.Received(1)
             .TryAcquireProcessingLockAsync(telemetry.Id, Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_WhenShipmentLookupFails_StillProcessesTelemetry()
+    {
+        var telemetry = CreateTelemetry();
+        _deduplicationService.TryAcquireProcessingLockAsync(telemetry.Id, Arg.Any<CancellationToken>())
+            .Returns(true);
+        _shipmentRepository
+            .GetActiveShipmentForVehicleAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns<Shipment?>(_ => throw new InvalidOperationException("db timeout"));
+        _anomalyService
+            .AnalyzeTelemetryAsync(telemetry, Arg.Any<Shipment?>(), Arg.Any<CancellationToken>())
+            .Returns(new AnomalyAnalysis(false));
+
+        var result = await _handler.Handle(new ProcessTelemetryCommand(telemetry), CancellationToken.None);
+
+        Assert.True(result);
+        await _repository.Received(1).AddAsync(telemetry, Arg.Any<CancellationToken>());
     }
 
     private static VehicleTelemetry CreateTelemetry() => new()
@@ -182,6 +242,20 @@ public class ProcessTelemetryCommandHandlerTests
         FuelLevel = 75,
         EngineTemperature = 90,
         Timestamp = DateTime.UtcNow
+    };
+
+    private static Shipment CreateShipment() => new()
+    {
+        Id = new Guid("a1000000-0000-0000-0000-000000000001"),
+        VehicleId = "Truck-001",
+        ProductName = "Insulin Glargine",
+        BatchNumber = "B-4471",
+        MinSafeTempCelsius = 50.0,
+        MaxSafeTempCelsius = 100.0,
+        ValueAtRiskUsd = 12_400m,
+        DepartedAtUtc = new DateTime(2026, 7, 1, 8, 0, 0, DateTimeKind.Utc),
+        ExpectedDeliveryUtc = new DateTime(2026, 7, 7, 18, 0, 0, DateTimeKind.Utc),
+        Status = OmniOps.Core.Enums.ShipmentStatus.InTransit
     };
 }
 
@@ -227,6 +301,22 @@ public class GetLatestTelemetryQueryHandlerTests
 
 public class GetFleetTelemetryQueryHandlerTests
 {
+    private static GetFleetTelemetryQueryHandler BuildHandler(
+        ITelemetryCacheService cache,
+        IFleetVehicleRegistry registry,
+        IShipmentRepository? shipmentRepo = null)
+    {
+        if (shipmentRepo is null)
+        {
+            var defaultRepo = Substitute.For<IShipmentRepository>();
+            defaultRepo.GetActiveShipmentForVehicleAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+                .Returns((Shipment?)null);
+            return new GetFleetTelemetryQueryHandler(cache, registry, defaultRepo);
+        }
+
+        return new GetFleetTelemetryQueryHandler(cache, registry, shipmentRepo);
+    }
+
     [Fact]
     public async Task Handle_ReturnsActiveVehiclesAndSummary()
     {
@@ -246,7 +336,7 @@ public class GetFleetTelemetryQueryHandlerTests
         });
         cache.GetLatestTelemetryAsync("Truck-002").Returns((VehicleTelemetry?)null);
 
-        var handler = new GetFleetTelemetryQueryHandler(cache, registry);
+        var handler = BuildHandler(cache, registry);
         var result = await handler.Handle(new GetFleetTelemetryQuery(), CancellationToken.None);
 
         Assert.Equal(2, result.Summary.ConfiguredVehicleCount);
@@ -274,9 +364,78 @@ public class GetFleetTelemetryQueryHandlerTests
             Timestamp = DateTime.UtcNow
         });
 
-        var handler = new GetFleetTelemetryQueryHandler(cache, registry);
+        var handler = BuildHandler(cache, registry);
         var result = await handler.Handle(new GetFleetTelemetryQuery(), CancellationToken.None);
 
         Assert.Equal(1, result.Summary.WarningCount);
+    }
+
+    [Fact]
+    public async Task Handle_WhenShipmentPresent_PopulatesShipmentInfoOnTelemetryDto()
+    {
+        var cache = Substitute.For<ITelemetryCacheService>();
+        var registry = Substitute.For<IFleetVehicleRegistry>();
+        var shipmentRepo = Substitute.For<IShipmentRepository>();
+        registry.GetConfiguredVehicleIds().Returns(["Truck-001"]);
+
+        cache.GetLatestTelemetryAsync("Truck-001").Returns(new VehicleTelemetry
+        {
+            VehicleId = "Truck-001",
+            FuelLevel = 80,
+            EngineTemperature = 90,
+            Latitude = 41.99,
+            Longitude = 21.43,
+            Speed = 70,
+            Timestamp = DateTime.UtcNow
+        });
+        shipmentRepo
+            .GetActiveShipmentForVehicleAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns(new Shipment
+            {
+                Id = Guid.NewGuid(),
+                VehicleId = "Truck-001",
+                ProductName = "Insulin Glargine",
+                BatchNumber = "B-4471",
+                MinSafeTempCelsius = 50,
+                MaxSafeTempCelsius = 100,
+                ValueAtRiskUsd = 12_400m,
+                Status = OmniOps.Core.Enums.ShipmentStatus.InTransit
+            });
+
+        var handler = BuildHandler(cache, registry, shipmentRepo);
+        var result = await handler.Handle(new GetFleetTelemetryQuery(), CancellationToken.None);
+
+        Assert.NotNull(result.Vehicles[0].Shipment);
+        Assert.Equal("Insulin Glargine", result.Vehicles[0].Shipment!.ProductName);
+        Assert.Equal("B-4471", result.Vehicles[0].Shipment!.BatchNumber);
+    }
+
+    [Fact]
+    public async Task Handle_WhenShipmentLookupFails_StillReturnsVehicle()
+    {
+        var cache = Substitute.For<ITelemetryCacheService>();
+        var registry = Substitute.For<IFleetVehicleRegistry>();
+        var shipmentRepo = Substitute.For<IShipmentRepository>();
+        registry.GetConfiguredVehicleIds().Returns(["Truck-001"]);
+
+        cache.GetLatestTelemetryAsync("Truck-001").Returns(new VehicleTelemetry
+        {
+            VehicleId = "Truck-001",
+            FuelLevel = 80,
+            EngineTemperature = 90,
+            Latitude = 41.99,
+            Longitude = 21.43,
+            Speed = 70,
+            Timestamp = DateTime.UtcNow
+        });
+        shipmentRepo
+            .GetActiveShipmentForVehicleAsync(Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns<Shipment?>(_ => throw new InvalidOperationException("db timeout"));
+
+        var handler = new GetFleetTelemetryQueryHandler(cache, registry, shipmentRepo);
+        var result = await handler.Handle(new GetFleetTelemetryQuery(), CancellationToken.None);
+
+        Assert.Single(result.Vehicles);
+        Assert.Null(result.Vehicles[0].Shipment);
     }
 }

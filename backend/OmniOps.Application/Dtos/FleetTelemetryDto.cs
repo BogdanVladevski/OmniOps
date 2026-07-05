@@ -17,5 +17,9 @@ public class FleetSummaryDto
 
     public double? AverageFuelLevel { get; init; }
 
+    /// <summary>Average cargo temperature across active vehicles in °C.</summary>
     public double? AverageEngineTemperature { get; init; }
+
+    /// <summary>Number of vehicles currently carrying a shipment with an active temperature excursion.</summary>
+    public int ExcursionCount { get; init; }
 }

@@ -8,6 +8,14 @@ export function parseFleetVehicles() {
 
 export function getVehicleStatus(telemetry) {
   if (!telemetry) return 'offline';
+  if (telemetry.shipment) {
+    const temp = telemetry.engineTemperature;
+    const outOfRange =
+      temp > telemetry.shipment.maxSafeTempCelsius ||
+      temp < telemetry.shipment.minSafeTempCelsius;
+    if (outOfRange || telemetry.fuelLevel < 30) return 'warning';
+    return 'ok';
+  }
   if (telemetry.fuelLevel < 30 || telemetry.engineTemperature > 100) return 'warning';
   return 'ok';
 }

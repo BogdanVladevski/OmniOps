@@ -25,19 +25,19 @@ public class PlaybookOrchestrationService : IPlaybookOrchestrationService
             "Playbook orchestration triggered for vehicle {VehicleId}: {Summary}",
             vehicleId, anomalySummary);
 
-        var repairContext = await SearchRepairManualIndexAsync(anomalySummary, cancellationToken);
+        var playbookRef = await RetrievePlaybookReferenceAsync(anomalySummary, cancellationToken);
 
-        var solutionScript = GenerateSolutionScript(vehicleId, anomalySummary, repairContext);
+        var responseSteps = BuildResponseSteps(vehicleId, anomalySummary, playbookRef);
 
-        var ticketId = CreateServiceTicket(vehicleId, anomalySummary);
+        var ticketId = CreateIncidentTicket(vehicleId, anomalySummary);
 
         var instructions = $"""
-            AUTONOMOUS PLAYBOOK ACTIVATED
+            COLD-CHAIN INCIDENT RESPONSE ACTIVATED
             Ticket: {ticketId}
-            Anomaly: {anomalySummary}
+            Incident: {anomalySummary}
             
-            Recommended Actions:
-            {solutionScript}
+            Response Protocol:
+            {responseSteps}
             """;
 
         await _broadcastService.BroadcastPlaybookInstructionsAsync(
@@ -48,33 +48,35 @@ public class PlaybookOrchestrationService : IPlaybookOrchestrationService
             vehicleId, ticketId);
     }
 
-    private Task<string> SearchRepairManualIndexAsync(
-        string query,
+    private Task<string> RetrievePlaybookReferenceAsync(
+        string anomalySummary,
         CancellationToken cancellationToken)
     {
-        var simulatedResults = query.Contains("fuel", StringComparison.OrdinalIgnoreCase)
-            ? "Manual Ref 7.3.2: Check fuel pump pressure and inspect for line leaks."
-            : "Manual Ref 4.1.8: Inspect cooling system, verify coolant levels, check thermostat.";
+        // Phase 4 will replace this with a real RAG retrieval against docs/playbooks/.
+        var playbookRef = anomalySummary.Contains("excursion", StringComparison.OrdinalIgnoreCase)
+                          || anomalySummary.Contains("safe range", StringComparison.OrdinalIgnoreCase)
+            ? "SOP-CCM-7.3: Immediate temperature excursion response — isolate shipment, notify QA, initiate quarantine assessment."
+            : "SOP-CCM-4.1: Cargo condition deviation — halt delivery, document chain-of-custody, escalate to pharmacovigilance.";
 
-        return Task.FromResult(simulatedResults);
+        return Task.FromResult(playbookRef);
     }
 
-    private static string GenerateSolutionScript(
+    private static string BuildResponseSteps(
         string vehicleId,
         string anomalySummary,
-        string repairContext)
+        string playbookRef)
     {
         return $"""
-            1. Safely pull over vehicle {vehicleId} if in motion.
-            2. Run diagnostic scan for engine thermal and fuel system codes.
-            3. {repairContext}
-            4. If temperature exceeds 110°C, disable engine and dispatch roadside assistance.
-            5. Log all findings to service ticket for fleet maintenance review.
+            1. Halt vehicle {vehicleId} safely and secure the shipment bay.
+            2. Record current cargo temperature and GPS position.
+            3. {playbookRef}
+            4. Contact the receiving facility to arrange emergency cold-storage upon arrival.
+            5. Log all readings, timestamps, and chain-of-custody notes to the incident ticket.
             """;
     }
 
-    private static string CreateServiceTicket(string vehicleId, string anomalySummary)
+    private static string CreateIncidentTicket(string vehicleId, string anomalySummary)
     {
-        return $"TKT-{vehicleId}-{DateTime.UtcNow:yyyyMMddHHmmss}";
+        return $"CCM-{vehicleId}-{DateTime.UtcNow:yyyyMMddHHmmss}";
     }
 }

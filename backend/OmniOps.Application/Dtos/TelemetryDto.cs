@@ -10,10 +10,16 @@ public class TelemetryDto
     public double Longitude { get; set; }
     public double Speed { get; set; }
     public double FuelLevel { get; set; }
+
+    /// <summary>Cargo temperature in °C (sourced from EngineTemperature on the telemetry packet).</summary>
     public double EngineTemperature { get; set; }
+
     public DateTime Timestamp { get; set; }
 
-    public static TelemetryDto FromEntity(VehicleTelemetry entity)
+    /// <summary>Active cold-chain shipment on this vehicle, null if no active shipment.</summary>
+    public ShipmentInfoDto? Shipment { get; set; }
+
+    public static TelemetryDto FromEntity(VehicleTelemetry entity, ShipmentInfoDto? shipment = null)
     {
         ArgumentNullException.ThrowIfNull(entity);
 
@@ -26,7 +32,8 @@ public class TelemetryDto
             Speed = entity.Speed,
             FuelLevel = entity.FuelLevel,
             EngineTemperature = entity.EngineTemperature,
-            Timestamp = entity.Timestamp
+            Timestamp = entity.Timestamp,
+            Shipment = shipment
         };
     }
 }

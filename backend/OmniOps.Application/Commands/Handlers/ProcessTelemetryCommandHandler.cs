@@ -1,7 +1,6 @@
 using MediatR;
 using Microsoft.Extensions.Logging;
 using OmniOps.Application.Commands;
-using OmniOps.Application.Dtos;
 using OmniOps.Core.Entities;
 using OmniOps.Core.Events;
 using OmniOps.Core.Exceptions;
@@ -17,6 +16,7 @@ public class ProcessTelemetryCommandHandler : IRequestHandler<ProcessTelemetryCo
     private readonly IDeduplicationService _deduplicationService;
     private readonly IAnomalyDetectionService _anomalyService;
     private readonly IPlaybookOrchestrationService _playbookOrchestration;
+    private readonly IShipmentRepository _shipmentRepository;
     private readonly ITelemetryMetrics _metrics;
     private readonly ILogger<ProcessTelemetryCommandHandler> _logger;
 
@@ -27,6 +27,7 @@ public class ProcessTelemetryCommandHandler : IRequestHandler<ProcessTelemetryCo
         IDeduplicationService deduplicationService,
         IAnomalyDetectionService anomalyService,
         IPlaybookOrchestrationService playbookOrchestration,
+        IShipmentRepository shipmentRepository,
         ITelemetryMetrics metrics,
         ILogger<ProcessTelemetryCommandHandler> logger)
     {
@@ -36,6 +37,7 @@ public class ProcessTelemetryCommandHandler : IRequestHandler<ProcessTelemetryCo
         _deduplicationService = deduplicationService;
         _anomalyService = anomalyService;
         _playbookOrchestration = playbookOrchestration;
+        _shipmentRepository = shipmentRepository;
         _metrics = metrics;
         _logger = logger;
     }
@@ -60,7 +62,7 @@ public class ProcessTelemetryCommandHandler : IRequestHandler<ProcessTelemetryCo
         }
 
         _logger.LogInformation(
-            "Processing telemetry command for vehicle {VehicleId}",
+            "Processing telemetry for vehicle {VehicleId}",
             request.Telemetry.VehicleId);
 
         request.Telemetry.AddDomainEvent(new TelemetryReceivedEvent(request.Telemetry));
@@ -100,18 +102,38 @@ public class ProcessTelemetryCommandHandler : IRequestHandler<ProcessTelemetryCo
 
         try
         {
-            var isAnomaly = await _anomalyService.AnalyzeTelemetryAsync(request.Telemetry, cancellationToken);
-            if (isAnomaly)
+            // Resolve the active cold-chain shipment for this vehicle. Failure here must never
+            // block telemetry persistence — we fall back to anomaly detection without shipment context.
+            Shipment? activeShipment = null;
+            try
+            {
+                activeShipment = await _shipmentRepository.GetActiveShipmentForVehicleAsync(
+                    request.Telemetry.VehicleId, cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex,
+                    "Could not resolve active shipment for vehicle {VehicleId}; anomaly detection will proceed without shipment context",
+                    request.Telemetry.VehicleId);
+            }
+
+            var analysis = await _anomalyService.AnalyzeTelemetryAsync(
+                request.Telemetry, activeShipment, cancellationToken);
+
+            if (analysis.IsAnomaly)
             {
                 _logger.LogWarning(
-                    "Anomaly event raised for vehicle {VehicleId}. Triggering playbook orchestration",
+                    "Anomaly event raised for vehicle {VehicleId}. Triggering cold-chain incident response",
                     request.Telemetry.VehicleId);
 
                 _metrics.RecordAnomalyDetected();
 
+                var incidentSummary = BuildIncidentSummary(
+                    request.Telemetry, activeShipment, analysis.ExcursionDurationSeconds);
+
                 await _playbookOrchestration.OrchestrateIncidentResponseAsync(
                     request.Telemetry.VehicleId,
-                    $"Compound distress: fuel drop + engine thermal surge detected for {request.Telemetry.VehicleId}",
+                    incidentSummary,
                     cancellationToken);
             }
         }
@@ -135,5 +157,30 @@ public class ProcessTelemetryCommandHandler : IRequestHandler<ProcessTelemetryCo
 
         _metrics.RecordTelemetryProcessed();
         return true;
+    }
+
+    private static string BuildIncidentSummary(
+        VehicleTelemetry telemetry,
+        Shipment? shipment,
+        int excursionDurationSeconds)
+    {
+        if (shipment is null)
+        {
+            return $"Cargo temperature anomaly detected for {telemetry.VehicleId}. " +
+                   $"Current reading: {telemetry.EngineTemperature}°C.";
+        }
+
+        if (excursionDurationSeconds > 0)
+        {
+            return $"{shipment.ProductName} batch {shipment.BatchNumber} on {telemetry.VehicleId} " +
+                   $"has been outside safe range ({shipment.MinSafeTempCelsius}–{shipment.MaxSafeTempCelsius}°C) " +
+                   $"for {excursionDurationSeconds} seconds at {telemetry.EngineTemperature}°C " +
+                   $"— estimated value at risk: ${shipment.ValueAtRiskUsd:N0}.";
+        }
+
+        return $"{shipment.ProductName} batch {shipment.BatchNumber} on {telemetry.VehicleId} " +
+               $"cargo temperature excursion detected at {telemetry.EngineTemperature}°C " +
+               $"(safe range {shipment.MinSafeTempCelsius}–{shipment.MaxSafeTempCelsius}°C) " +
+               $"— estimated value at risk: ${shipment.ValueAtRiskUsd:N0}.";
     }
 }

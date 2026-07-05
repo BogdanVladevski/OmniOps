@@ -63,6 +63,7 @@ public static partial class ServiceRegistration
         builder.Services.AddTransient<IAnomalyDetectionService, RedisAnomalyDetectionService>();
         builder.Services.AddTransient<IDeduplicationService, RedisDeduplicationService>();
         builder.Services.AddTransient<ITelemetryRepository, TelemetryRepository>();
+        builder.Services.AddTransient<IShipmentRepository, ShipmentRepository>();
         builder.Services.AddTransient<ITelemetryBroadcastService, SignalRTelemetryBroadcastService>();
         builder.Services.AddTransient<IPlaybookOrchestrationService, PlaybookOrchestrationService>();
         builder.Services.AddSingleton<ITelemetryMetrics, TelemetryMetrics>();
