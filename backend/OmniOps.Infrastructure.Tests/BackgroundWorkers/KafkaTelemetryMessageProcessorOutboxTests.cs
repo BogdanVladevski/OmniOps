@@ -83,6 +83,7 @@ public class KafkaTelemetryMessageProcessorOutboxTests
         services.AddSingleton(Substitute.For<ITelemetryBroadcastService>());
         services.AddSingleton(Substitute.For<IAnomalyDetectionService>());
         services.AddSingleton(Substitute.For<IPlaybookOrchestrationService>());
+        services.AddSingleton(Substitute.For<IShipmentRepository>());
         services.AddSingleton(Substitute.For<ITelemetryMetrics>());
         services.AddLogging();
 
