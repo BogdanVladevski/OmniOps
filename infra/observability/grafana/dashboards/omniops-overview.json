@@ -167,6 +167,42 @@
       ],
       "title": "HTTP request rate (ASP.NET instrumentation)",
       "type": "timeseries"
+    },
+    {
+      "datasource": { "type": "prometheus", "uid": "Prometheus" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "unit": "ops"
+        },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "Warning/s" },
+            "properties": [{ "id": "color", "value": { "fixedColor": "orange", "mode": "fixed" } }]
+          },
+          {
+            "matcher": { "id": "byName", "options": "Critical/s" },
+            "properties": [{ "id": "color", "value": { "fixedColor": "red", "mode": "fixed" } }]
+          }
+        ]
+      },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 24 },
+      "id": 7,
+      "options": { "legend": { "displayMode": "list", "placement": "bottom" } },
+      "targets": [
+        {
+          "expr": "sum(rate(OmniOps_Telemetry_telemetry_anomaly_detected_total{severity=\"Warning\"}[1m]))",
+          "legendFormat": "Warning/s",
+          "refId": "A"
+        },
+        {
+          "expr": "sum(rate(OmniOps_Telemetry_telemetry_anomaly_detected_total{severity=\"Critical\"}[1m]))",
+          "legendFormat": "Critical/s",
+          "refId": "B"
+        }
+      ],
+      "title": "Excursion severity over time (Warning vs Critical)",
+      "type": "timeseries"
     }
   ],
   "refresh": "10s",

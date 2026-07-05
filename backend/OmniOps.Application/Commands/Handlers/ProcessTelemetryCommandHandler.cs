@@ -2,6 +2,7 @@ using MediatR;
 using Microsoft.Extensions.Logging;
 using OmniOps.Application.Commands;
 using OmniOps.Core.Entities;
+using OmniOps.Core.Enums;
 using OmniOps.Core.Events;
 using OmniOps.Core.Exceptions;
 using OmniOps.Core.Interfaces;
@@ -102,8 +103,7 @@ public class ProcessTelemetryCommandHandler : IRequestHandler<ProcessTelemetryCo
 
         try
         {
-            // Resolve the active cold-chain shipment for this vehicle. Failure here must never
-            // block telemetry persistence — we fall back to anomaly detection without shipment context.
+            // Shipment lookup failure must not block telemetry persistence — fall through without context.
             Shipment? activeShipment = null;
             try
             {
@@ -122,14 +122,27 @@ public class ProcessTelemetryCommandHandler : IRequestHandler<ProcessTelemetryCo
 
             if (analysis.IsAnomaly)
             {
+                var severity = analysis.Severity ?? AnomalySeverity.Warning;
+
                 _logger.LogWarning(
-                    "Anomaly event raised for vehicle {VehicleId}. Triggering cold-chain incident response",
-                    request.Telemetry.VehicleId);
+                    "{Severity} anomaly for vehicle {VehicleId} — triggering cold-chain incident response",
+                    severity, request.Telemetry.VehicleId);
 
                 _metrics.RecordAnomalyDetected();
 
                 var incidentSummary = BuildIncidentSummary(
-                    request.Telemetry, activeShipment, analysis.ExcursionDurationSeconds);
+                    request.Telemetry, activeShipment, analysis.ExcursionDurationSeconds, severity);
+
+                // Attach the domain event so downstream subscribers (outbox → Kafka events,
+                // future RAG narrative in Phase 4) get severity + value-at-risk without re-querying.
+                request.Telemetry.AddDomainEvent(new AnomalyDetectedEvent(
+                    vehicleId: request.Telemetry.VehicleId,
+                    severity: severity,
+                    excursionDurationSeconds: analysis.ExcursionDurationSeconds,
+                    incidentSummary: incidentSummary,
+                    productName: activeShipment?.ProductName,
+                    batchNumber: activeShipment?.BatchNumber,
+                    valueAtRiskUsd: activeShipment?.ValueAtRiskUsd));
 
                 await _playbookOrchestration.OrchestrateIncidentResponseAsync(
                     request.Telemetry.VehicleId,
@@ -162,25 +175,30 @@ public class ProcessTelemetryCommandHandler : IRequestHandler<ProcessTelemetryCo
     private static string BuildIncidentSummary(
         VehicleTelemetry telemetry,
         Shipment? shipment,
-        int excursionDurationSeconds)
+        int excursionDurationSeconds,
+        AnomalySeverity severity)
     {
+        var tag = severity == AnomalySeverity.Critical ? "[CRITICAL]" : "[WARNING]";
+
         if (shipment is null)
         {
-            return $"Cargo temperature anomaly detected for {telemetry.VehicleId}. " +
-                   $"Current reading: {telemetry.EngineTemperature}°C.";
+            return $"{tag} Cargo temperature anomaly on {telemetry.VehicleId} — " +
+                   $"reading: {telemetry.EngineTemperature}°C.";
         }
 
         if (excursionDurationSeconds > 0)
         {
-            return $"{shipment.ProductName} batch {shipment.BatchNumber} on {telemetry.VehicleId} " +
+            return $"{tag} {shipment.ProductName} batch {shipment.BatchNumber} on {telemetry.VehicleId} " +
                    $"has been outside safe range ({shipment.MinSafeTempCelsius}–{shipment.MaxSafeTempCelsius}°C) " +
-                   $"for {excursionDurationSeconds} seconds at {telemetry.EngineTemperature}°C " +
-                   $"— estimated value at risk: ${shipment.ValueAtRiskUsd:N0}.";
+                   $"for {excursionDurationSeconds}s at {telemetry.EngineTemperature}°C " +
+                   $"— est. value at risk: ${shipment.ValueAtRiskUsd:N0}.";
         }
 
-        return $"{shipment.ProductName} batch {shipment.BatchNumber} on {telemetry.VehicleId} " +
-               $"cargo temperature excursion detected at {telemetry.EngineTemperature}°C " +
-               $"(safe range {shipment.MinSafeTempCelsius}–{shipment.MaxSafeTempCelsius}°C) " +
-               $"— estimated value at risk: ${shipment.ValueAtRiskUsd:N0}.";
+        // Warning with no recorded excursion yet = trending toward breach.
+        return $"{tag} {shipment.ProductName} batch {shipment.BatchNumber} on {telemetry.VehicleId} " +
+               $"cargo temperature trending toward excursion at {telemetry.EngineTemperature}°C " +
+               $"(safe {shipment.MinSafeTempCelsius}–{shipment.MaxSafeTempCelsius}°C) " +
+               $"— est. value at risk: ${shipment.ValueAtRiskUsd:N0}.";
     }
 }
+

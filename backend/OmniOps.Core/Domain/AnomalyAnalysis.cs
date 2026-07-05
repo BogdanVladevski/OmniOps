@@ -1,9 +1,17 @@
+using OmniOps.Core.Enums;
+
 namespace OmniOps.Core.Domain;
 
-/// <summary>Result returned by IAnomalyDetectionService after evaluating a telemetry packet.</summary>
-/// <param name="IsAnomaly">Whether an anomaly condition was detected.</param>
-/// <param name="ExcursionDurationSeconds">
-/// How many consecutive seconds cargo temperature has been outside the shipment's safe range.
-/// Zero when no active shipment or temperature is within range.
+/// <param name="IsAnomaly">True for both Warning and Critical — caller should check Severity for escalation logic.</param>
+/// <param name="Severity">
+/// Warning = trending toward breach but still in range.
+/// Critical = outside safe range, or has been for >60s.
+/// Null when IsAnomaly is false.
 /// </param>
-public record AnomalyAnalysis(bool IsAnomaly, int ExcursionDurationSeconds = 0);
+/// <param name="ExcursionDurationSeconds">
+/// Consecutive seconds outside the safe range. Zero when in range or no active shipment.
+/// </param>
+public record AnomalyAnalysis(
+    bool IsAnomaly,
+    AnomalySeverity? Severity = null,
+    int ExcursionDurationSeconds = 0);
