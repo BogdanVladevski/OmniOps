@@ -9,8 +9,10 @@ namespace OmniOps.Api.Authentication;
 
 public interface IJwtTokenService
 {
-    string GenerateToken(IEnumerable<string> scopes, TimeSpan? lifetime = null);
+    string GenerateToken(IEnumerable<string> scopes, TokenTenantContext? tenant = null, TimeSpan? lifetime = null);
 }
+
+public record TokenTenantContext(string? Subject, Guid? OrganizationId, Guid? WorkspaceId);
 
 public class JwtTokenService : IJwtTokenService
 {
@@ -21,7 +23,7 @@ public class JwtTokenService : IJwtTokenService
         _options = options.Value;
     }
 
-    public string GenerateToken(IEnumerable<string> scopes, TimeSpan? lifetime = null)
+    public string GenerateToken(IEnumerable<string> scopes, TokenTenantContext? tenant = null, TimeSpan? lifetime = null)
     {
         if (!_options.IsConfigured())
         {
@@ -45,10 +47,15 @@ public class JwtTokenService : IJwtTokenService
 
         var claims = new List<Claim>
         {
-            new(JwtRegisteredClaimNames.Sub, "omniops-client"),
+            new(JwtRegisteredClaimNames.Sub, tenant?.Subject ?? "omniops-client"),
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
             new("scope", string.Join(' ', scopeList))
         };
+
+        if (tenant?.OrganizationId is Guid orgId)
+            claims.Add(new Claim("org_id", orgId.ToString()));
+        if (tenant?.WorkspaceId is Guid workspaceId)
+            claims.Add(new Claim("workspace_id", workspaceId.ToString()));
 
         var token = new JwtSecurityToken(
             issuer: _options.Issuer,

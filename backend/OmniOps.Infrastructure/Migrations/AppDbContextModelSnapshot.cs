@@ -22,6 +22,577 @@ namespace OmniOps.Infrastructure.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("OmniOps.Core.Entities.AlertRule", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AlertType")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("IsEnabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<bool>("NotifyEmail")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("NotifyPush")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Severity")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OrganizationId");
+
+                    b.ToTable("AlertRules");
+                });
+
+            modelBuilder.Entity("OmniOps.Core.Entities.ApiKey", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("ExpiresAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("KeyHash")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("KeyPrefix")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("Revoked")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Scopes")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("KeyPrefix");
+
+                    b.HasIndex("OrganizationId");
+
+                    b.ToTable("ApiKeys");
+                });
+
+            modelBuilder.Entity("OmniOps.Core.Entities.AuditLog", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Details")
+                        .HasColumnType("text");
+
+                    b.Property<string>("EntityId")
+                        .HasColumnType("text");
+
+                    b.Property<string>("EntityType")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("OccurredAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UserId")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OccurredAtUtc");
+
+                    b.ToTable("AuditLogs");
+                });
+
+            modelBuilder.Entity("OmniOps.Core.Entities.Depot", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Capacity")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("FleetId")
+                        .HasColumnType("uuid");
+
+                    b.Property<double>("Latitude")
+                        .HasColumnType("double precision");
+
+                    b.Property<double>("Longitude")
+                        .HasColumnType("double precision");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FleetId");
+
+                    b.ToTable("Depots");
+                });
+
+            modelBuilder.Entity("OmniOps.Core.Entities.DeviceRegistration", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("LastSeenAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Platform")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("PushToken")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("RegisteredAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId", "PushToken")
+                        .IsUnique();
+
+                    b.ToTable("DeviceRegistrations");
+                });
+
+            modelBuilder.Entity("OmniOps.Core.Entities.Driver", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("FleetId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("FullName")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("LicenseNumber")
+                        .HasColumnType("text");
+
+                    b.Property<double>("SafetyScore")
+                        .HasColumnType("double precision");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FleetId");
+
+                    b.ToTable("Drivers");
+                });
+
+            modelBuilder.Entity("OmniOps.Core.Entities.Fleet", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid>("WorkspaceId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Name")
+                        .IsUnique();
+
+                    b.HasIndex("OrganizationId");
+
+                    b.ToTable("Fleets");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("f1000000-0000-0000-0000-000000000001"),
+                            CreatedAtUtc = new DateTime(2026, 6, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Description = "Primary pharmaceutical cold-chain fleet",
+                            Name = "Cold-Chain North",
+                            OrganizationId = new Guid("01000000-0000-0000-0000-000000000001"),
+                            WorkspaceId = new Guid("02000000-0000-0000-0000-000000000001")
+                        });
+                });
+
+            modelBuilder.Entity("OmniOps.Core.Entities.Geofence", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<double?>("CenterLatitude")
+                        .HasColumnType("double precision");
+
+                    b.Property<double?>("CenterLongitude")
+                        .HasColumnType("double precision");
+
+                    b.Property<Guid?>("FleetId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("PolygonCoordinatesJson")
+                        .HasColumnType("text");
+
+                    b.Property<double?>("RadiusMeters")
+                        .HasColumnType("double precision");
+
+                    b.Property<int>("ShapeType")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("FleetId");
+
+                    b.ToTable("Geofences");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("a4000000-0000-0000-0000-000000000001"),
+                            CenterLatitude = 41.996499999999997,
+                            CenterLongitude = 21.4314,
+                            FleetId = new Guid("f1000000-0000-0000-0000-000000000001"),
+                            IsActive = true,
+                            Name = "Skopje Distribution Hub",
+                            RadiusMeters = 2500.0,
+                            ShapeType = 0
+                        });
+                });
+
+            modelBuilder.Entity("OmniOps.Core.Entities.Incident", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AssignedTo")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("DetectedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("FleetId")
+                        .HasColumnType("uuid");
+
+                    b.Property<double?>("Latitude")
+                        .HasColumnType("double precision");
+
+                    b.Property<double?>("Longitude")
+                        .HasColumnType("double precision");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("ResolvedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Severity")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("Type")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("VehicleId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OrganizationId");
+
+                    b.HasIndex("VehicleId");
+
+                    b.HasIndex("FleetId", "Status");
+
+                    b.ToTable("Incidents");
+                });
+
+            modelBuilder.Entity("OmniOps.Core.Entities.IncidentNote", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Author")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("IncidentId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Text")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("IncidentId");
+
+                    b.ToTable("IncidentNotes");
+                });
+
+            modelBuilder.Entity("OmniOps.Core.Entities.Invitation", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("Accepted")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("ExpiresAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("TokenHash")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OrganizationId");
+
+                    b.HasIndex("TokenHash");
+
+                    b.ToTable("Invitations");
+                });
+
+            modelBuilder.Entity("OmniOps.Core.Entities.LoginHistory", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("IpAddress")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("OccurredAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("Success")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("LoginHistories");
+                });
+
+            modelBuilder.Entity("OmniOps.Core.Entities.Notification", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Body")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<int>("Channel")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Error")
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("RelatedEntityId")
+                        .HasColumnType("text");
+
+                    b.Property<string>("RelatedEntityType")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("SentAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Subject")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OrganizationId", "UserId", "Status");
+
+                    b.ToTable("Notifications");
+                });
+
+            modelBuilder.Entity("OmniOps.Core.Entities.NotificationPreference", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AlertType")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<bool>("EmailEnabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("InAppEnabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("PushEnabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("SmsEnabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OrganizationId", "UserId", "AlertType")
+                        .IsUnique();
+
+                    b.ToTable("NotificationPreferences");
+                });
+
+            modelBuilder.Entity("OmniOps.Core.Entities.Organization", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("Slug")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Slug")
+                        .IsUnique();
+
+                    b.ToTable("Organizations");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("01000000-0000-0000-0000-000000000001"),
+                            CreatedAtUtc = new DateTime(2026, 6, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            Name = "OmniOps Demo Org",
+                            Slug = "omniops-demo"
+                        });
+                });
+
             modelBuilder.Entity("OmniOps.Core.Entities.OutboxMessage", b =>
                 {
                     b.Property<Guid>("Id")
@@ -52,6 +623,36 @@ namespace OmniOps.Infrastructure.Migrations
                     b.HasIndex("ProcessedOnUtc", "OccurredOnUtc");
 
                     b.ToTable("OutboxMessages");
+                });
+
+            modelBuilder.Entity("OmniOps.Core.Entities.RefreshToken", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime>("ExpiresAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<bool>("Revoked")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("TokenHash")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("RefreshTokens");
                 });
 
             modelBuilder.Entity("OmniOps.Core.Entities.Shipment", b =>
@@ -139,11 +740,273 @@ namespace OmniOps.Infrastructure.Migrations
                         });
                 });
 
+            modelBuilder.Entity("OmniOps.Core.Entities.StoredEvent", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("AggregateId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("AggregateType")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<string>("CorrelationId")
+                        .HasColumnType("text");
+
+                    b.Property<string>("EventType")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("OccurredOnUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Payload")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("ReplayedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("SchemaVersion")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EventType");
+
+                    b.HasIndex("OccurredOnUtc");
+
+                    b.HasIndex("AggregateType", "AggregateId");
+
+                    b.ToTable("StoredEvents");
+                });
+
+            modelBuilder.Entity("OmniOps.Core.Entities.Team", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OrganizationId");
+
+                    b.ToTable("Teams");
+                });
+
+            modelBuilder.Entity("OmniOps.Core.Entities.TeamMember", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("JoinedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Role")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("TeamId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TeamId", "UserId")
+                        .IsUnique();
+
+                    b.ToTable("TeamMembers");
+                });
+
+            modelBuilder.Entity("OmniOps.Core.Entities.TenantSettings", b =>
+                {
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<bool>("EmailNotificationsEnabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("Locale")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<bool>("PushNotificationsEnabled")
+                        .HasColumnType("boolean");
+
+                    b.Property<string>("TimeZone")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.HasKey("OrganizationId");
+
+                    b.ToTable("TenantSettings");
+
+                    b.HasData(
+                        new
+                        {
+                            OrganizationId = new Guid("01000000-0000-0000-0000-000000000001"),
+                            EmailNotificationsEnabled = true,
+                            Locale = "en-US",
+                            PushNotificationsEnabled = true,
+                            TimeZone = "UTC"
+                        });
+                });
+
+            modelBuilder.Entity("OmniOps.Core.Entities.Trip", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("CompletedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Destination")
+                        .HasColumnType("text");
+
+                    b.Property<Guid?>("DriverId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Origin")
+                        .HasColumnType("text");
+
+                    b.Property<DateTime?>("StartedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("VehicleId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DriverId");
+
+                    b.HasIndex("VehicleId", "Status");
+
+                    b.ToTable("Trips");
+                });
+
+            modelBuilder.Entity("OmniOps.Core.Entities.Vehicle", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<Guid?>("AssignedDriverId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("ExternalId")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("FleetId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("InsuranceExpiryUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("InsuranceProvider")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Registration")
+                        .HasColumnType("text");
+
+                    b.Property<int>("Status")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Vin")
+                        .HasColumnType("text");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AssignedDriverId");
+
+                    b.HasIndex("FleetId", "ExternalId")
+                        .IsUnique();
+
+                    b.ToTable("Vehicles");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("b1000000-0000-0000-0000-000000000001"),
+                            ExternalId = "Truck-001",
+                            FleetId = new Guid("f1000000-0000-0000-0000-000000000001"),
+                            Registration = "CC-4471",
+                            Status = 0,
+                            Vin = "1HGBH41JXMN109186"
+                        },
+                        new
+                        {
+                            Id = new Guid("b2000000-0000-0000-0000-000000000002"),
+                            ExternalId = "Truck-002",
+                            FleetId = new Guid("f1000000-0000-0000-0000-000000000001"),
+                            Registration = "CC-0293",
+                            Status = 0,
+                            Vin = "1HGBH41JXMN109187"
+                        },
+                        new
+                        {
+                            Id = new Guid("b3000000-0000-0000-0000-000000000003"),
+                            ExternalId = "Truck-003",
+                            FleetId = new Guid("f1000000-0000-0000-0000-000000000001"),
+                            Registration = "CC-1182",
+                            Status = 0,
+                            Vin = "1HGBH41JXMN109188"
+                        });
+                });
+
+            modelBuilder.Entity("OmniOps.Core.Entities.VehicleMaintenanceRecord", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<DateTime>("PerformedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("VehicleId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("VehicleId");
+
+                    b.ToTable("VehicleMaintenanceRecords");
+                });
+
             modelBuilder.Entity("OmniOps.Core.Entities.VehicleTelemetry", b =>
                 {
                     b.Property<Guid>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("uuid");
+
+                    b.Property<double?>("BatteryLevel")
+                        .HasColumnType("double precision");
 
                     b.Property<double>("EngineTemperature")
                         .HasColumnType("double precision");
@@ -151,11 +1014,17 @@ namespace OmniOps.Infrastructure.Migrations
                     b.Property<double>("FuelLevel")
                         .HasColumnType("double precision");
 
+                    b.Property<double?>("Heading")
+                        .HasColumnType("double precision");
+
                     b.Property<double>("Latitude")
                         .HasColumnType("double precision");
 
                     b.Property<double>("Longitude")
                         .HasColumnType("double precision");
+
+                    b.Property<string>("SensorReadingsJson")
+                        .HasColumnType("text");
 
                     b.Property<double>("Speed")
                         .HasColumnType("double precision");
@@ -172,6 +1041,221 @@ namespace OmniOps.Infrastructure.Migrations
                     b.HasIndex("VehicleId", "Timestamp");
 
                     b.ToTable("Telemetries");
+                });
+
+            modelBuilder.Entity("OmniOps.Core.Entities.Workspace", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("DefaultFleetId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OrganizationId", "Name")
+                        .IsUnique();
+
+                    b.ToTable("Workspaces");
+
+                    b.HasData(
+                        new
+                        {
+                            Id = new Guid("02000000-0000-0000-0000-000000000001"),
+                            CreatedAtUtc = new DateTime(2026, 6, 1, 0, 0, 0, 0, DateTimeKind.Utc),
+                            DefaultFleetId = new Guid("f1000000-0000-0000-0000-000000000001"),
+                            Name = "North America Operations",
+                            OrganizationId = new Guid("01000000-0000-0000-0000-000000000001")
+                        });
+                });
+
+            modelBuilder.Entity("OmniOps.Core.Entities.Depot", b =>
+                {
+                    b.HasOne("OmniOps.Core.Entities.Fleet", "Fleet")
+                        .WithMany("Depots")
+                        .HasForeignKey("FleetId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Fleet");
+                });
+
+            modelBuilder.Entity("OmniOps.Core.Entities.Driver", b =>
+                {
+                    b.HasOne("OmniOps.Core.Entities.Fleet", "Fleet")
+                        .WithMany("Drivers")
+                        .HasForeignKey("FleetId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Fleet");
+                });
+
+            modelBuilder.Entity("OmniOps.Core.Entities.Geofence", b =>
+                {
+                    b.HasOne("OmniOps.Core.Entities.Fleet", "Fleet")
+                        .WithMany()
+                        .HasForeignKey("FleetId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.Navigation("Fleet");
+                });
+
+            modelBuilder.Entity("OmniOps.Core.Entities.IncidentNote", b =>
+                {
+                    b.HasOne("OmniOps.Core.Entities.Incident", "Incident")
+                        .WithMany("Notes")
+                        .HasForeignKey("IncidentId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Incident");
+                });
+
+            modelBuilder.Entity("OmniOps.Core.Entities.Invitation", b =>
+                {
+                    b.HasOne("OmniOps.Core.Entities.Organization", "Organization")
+                        .WithMany()
+                        .HasForeignKey("OrganizationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Organization");
+                });
+
+            modelBuilder.Entity("OmniOps.Core.Entities.Team", b =>
+                {
+                    b.HasOne("OmniOps.Core.Entities.Organization", "Organization")
+                        .WithMany("Teams")
+                        .HasForeignKey("OrganizationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Organization");
+                });
+
+            modelBuilder.Entity("OmniOps.Core.Entities.TeamMember", b =>
+                {
+                    b.HasOne("OmniOps.Core.Entities.Team", "Team")
+                        .WithMany("Members")
+                        .HasForeignKey("TeamId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Team");
+                });
+
+            modelBuilder.Entity("OmniOps.Core.Entities.TenantSettings", b =>
+                {
+                    b.HasOne("OmniOps.Core.Entities.Organization", "Organization")
+                        .WithOne()
+                        .HasForeignKey("OmniOps.Core.Entities.TenantSettings", "OrganizationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Organization");
+                });
+
+            modelBuilder.Entity("OmniOps.Core.Entities.Trip", b =>
+                {
+                    b.HasOne("OmniOps.Core.Entities.Driver", "Driver")
+                        .WithMany()
+                        .HasForeignKey("DriverId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("OmniOps.Core.Entities.Vehicle", "Vehicle")
+                        .WithMany("Trips")
+                        .HasForeignKey("VehicleId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Driver");
+
+                    b.Navigation("Vehicle");
+                });
+
+            modelBuilder.Entity("OmniOps.Core.Entities.Vehicle", b =>
+                {
+                    b.HasOne("OmniOps.Core.Entities.Driver", "AssignedDriver")
+                        .WithMany()
+                        .HasForeignKey("AssignedDriverId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
+                    b.HasOne("OmniOps.Core.Entities.Fleet", "Fleet")
+                        .WithMany("Vehicles")
+                        .HasForeignKey("FleetId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("AssignedDriver");
+
+                    b.Navigation("Fleet");
+                });
+
+            modelBuilder.Entity("OmniOps.Core.Entities.VehicleMaintenanceRecord", b =>
+                {
+                    b.HasOne("OmniOps.Core.Entities.Vehicle", "Vehicle")
+                        .WithMany("MaintenanceHistory")
+                        .HasForeignKey("VehicleId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Vehicle");
+                });
+
+            modelBuilder.Entity("OmniOps.Core.Entities.Workspace", b =>
+                {
+                    b.HasOne("OmniOps.Core.Entities.Organization", "Organization")
+                        .WithMany("Workspaces")
+                        .HasForeignKey("OrganizationId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Organization");
+                });
+
+            modelBuilder.Entity("OmniOps.Core.Entities.Fleet", b =>
+                {
+                    b.Navigation("Depots");
+
+                    b.Navigation("Drivers");
+
+                    b.Navigation("Vehicles");
+                });
+
+            modelBuilder.Entity("OmniOps.Core.Entities.Incident", b =>
+                {
+                    b.Navigation("Notes");
+                });
+
+            modelBuilder.Entity("OmniOps.Core.Entities.Organization", b =>
+                {
+                    b.Navigation("Teams");
+
+                    b.Navigation("Workspaces");
+                });
+
+            modelBuilder.Entity("OmniOps.Core.Entities.Team", b =>
+                {
+                    b.Navigation("Members");
+                });
+
+            modelBuilder.Entity("OmniOps.Core.Entities.Vehicle", b =>
+                {
+                    b.Navigation("MaintenanceHistory");
+
+                    b.Navigation("Trips");
                 });
 #pragma warning restore 612, 618
         }

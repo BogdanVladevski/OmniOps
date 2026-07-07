@@ -4,8 +4,8 @@ using OmniOps.Application.Commands;
 using OmniOps.Application.Commands.Handlers;
 using OmniOps.Application.Queries;
 using OmniOps.Application.Queries.Handlers;
-using OmniOps.Core.Domain;
 using OmniOps.Core.Entities;
+using OmniOps.Core.Domain;
 using OmniOps.Core.Exceptions;
 using OmniOps.Core.Interfaces;
 
@@ -20,6 +20,9 @@ public class ProcessTelemetryCommandHandlerTests
     private readonly IAnomalyDetectionService _anomalyService = Substitute.For<IAnomalyDetectionService>();
     private readonly IPlaybookOrchestrationService _playbookOrchestration = Substitute.For<IPlaybookOrchestrationService>();
     private readonly IShipmentRepository _shipmentRepository = Substitute.For<IShipmentRepository>();
+    private readonly IGeofenceDetectionService _geofenceDetectionService = Substitute.For<IGeofenceDetectionService>();
+    private readonly IIncidentDetectionService _incidentDetectionService = Substitute.For<IIncidentDetectionService>();
+    private readonly IIncidentRepository _incidentRepository = Substitute.For<IIncidentRepository>();
     private readonly ITelemetryMetrics _metrics = Substitute.For<ITelemetryMetrics>();
     private readonly ProcessTelemetryCommandHandler _handler;
 
@@ -33,8 +36,18 @@ public class ProcessTelemetryCommandHandlerTests
             _anomalyService,
             _playbookOrchestration,
             _shipmentRepository,
+            _geofenceDetectionService,
+            _incidentDetectionService,
+            _incidentRepository,
             _metrics,
             NullLogger<ProcessTelemetryCommandHandler>.Instance);
+
+        _geofenceDetectionService
+            .DetectBreachesAsync(Arg.Any<VehicleTelemetry>(), Arg.Any<CancellationToken>())
+            .Returns(Array.Empty<Core.Events.GeofenceBreachedEvent>());
+        _incidentDetectionService
+            .DetectAsync(Arg.Any<VehicleTelemetry>(), Arg.Any<CancellationToken>())
+            .Returns(Array.Empty<Incident>());
 
         // Default: no active shipment for any vehicle.
         _shipmentRepository
@@ -76,7 +89,7 @@ public class ProcessTelemetryCommandHandlerTests
         await _broadcastService.Received(1)
             .BroadcastTelemetryUpdateAsync(telemetry, Arg.Any<CancellationToken>());
         await _playbookOrchestration.DidNotReceive()
-            .OrchestrateIncidentResponseAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
+            .OrchestrateIncidentResponseAsync(Arg.Any<IncidentContext>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -93,8 +106,8 @@ public class ProcessTelemetryCommandHandlerTests
 
         await _playbookOrchestration.Received(1)
             .OrchestrateIncidentResponseAsync(
-                telemetry.VehicleId,
-                Arg.Is<string>(s => s.Contains(telemetry.VehicleId)),
+                Arg.Is<IncidentContext>(c => c.VehicleId == telemetry.VehicleId
+                    && c.IncidentSummary.Contains(telemetry.VehicleId)),
                 Arg.Any<CancellationToken>());
     }
 
@@ -116,8 +129,10 @@ public class ProcessTelemetryCommandHandlerTests
 
         await _playbookOrchestration.Received(1)
             .OrchestrateIncidentResponseAsync(
-                telemetry.VehicleId,
-                Arg.Is<string>(s => s.Contains(shipment.ProductName) && s.Contains(shipment.BatchNumber)),
+                Arg.Is<IncidentContext>(c => c.ProductName == shipment.ProductName
+                    && c.BatchNumber == shipment.BatchNumber
+                    && c.IncidentSummary.Contains(shipment.ProductName)
+                    && c.IncidentSummary.Contains(shipment.BatchNumber)),
                 Arg.Any<CancellationToken>());
     }
 

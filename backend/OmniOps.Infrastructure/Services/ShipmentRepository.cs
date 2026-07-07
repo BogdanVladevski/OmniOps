@@ -23,4 +23,11 @@ public class ShipmentRepository : IShipmentRepository
             .Where(s => s.VehicleId == vehicleId && s.Status == ShipmentStatus.InTransit)
             .FirstOrDefaultAsync(cancellationToken);
     }
+
+    public Task<Shipment?> GetByIdAsync(Guid shipmentId, CancellationToken cancellationToken = default)
+    {
+        return _context.Shipments
+            .AsNoTracking()
+            .FirstOrDefaultAsync(s => s.Id == shipmentId, cancellationToken);
+    }
 }

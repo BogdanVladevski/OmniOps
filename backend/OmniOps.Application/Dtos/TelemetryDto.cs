@@ -10,6 +10,8 @@ public class TelemetryDto
     public double Longitude { get; set; }
     public double Speed { get; set; }
     public double FuelLevel { get; set; }
+    public double? Heading { get; set; }
+    public double? BatteryLevel { get; set; }
 
     /// <summary>Cargo temperature in °C (sourced from EngineTemperature on the telemetry packet).</summary>
     public double EngineTemperature { get; set; }
@@ -31,6 +33,8 @@ public class TelemetryDto
             Longitude = entity.Longitude,
             Speed = entity.Speed,
             FuelLevel = entity.FuelLevel,
+            Heading = entity.Heading,
+            BatteryLevel = entity.BatteryLevel,
             EngineTemperature = entity.EngineTemperature,
             Timestamp = entity.Timestamp,
             Shipment = shipment

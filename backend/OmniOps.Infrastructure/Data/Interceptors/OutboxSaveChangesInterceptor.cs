@@ -1,4 +1,3 @@
-using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using OmniOps.Core.Entities;
@@ -8,6 +7,11 @@ namespace OmniOps.Infrastructure.Data.Interceptors;
 
 public class OutboxSaveChangesInterceptor : SaveChangesInterceptor
 {
+    private readonly ICorrelationContext _correlationContext;
+
+    public OutboxSaveChangesInterceptor(ICorrelationContext correlationContext) =>
+        _correlationContext = correlationContext;
+
     public override async ValueTask<InterceptionResult<int>> SavingChangesAsync(
         DbContextEventData eventData,
         InterceptionResult<int> result,
@@ -33,9 +37,10 @@ public class OutboxSaveChangesInterceptor : SaveChangesInterceptor
         return base.SavingChanges(eventData, result);
     }
 
-    private static void CaptureDomainEvents(DbContext context)
+    private void CaptureDomainEvents(DbContext context)
     {
-        var outboxMessages = context.ChangeTracker.Entries<IHasDomainEvents>()
+        var correlationId = _correlationContext.CorrelationId;
+        var captured = context.ChangeTracker.Entries<IHasDomainEvents>()
             .Select(entry => entry.Entity)
             .SelectMany(entity =>
             {
@@ -43,18 +48,13 @@ public class OutboxSaveChangesInterceptor : SaveChangesInterceptor
                 entity.ClearDomainEvents();
                 return events;
             })
-            .Select(domainEvent => new OutboxMessage
-            {
-                Id = Guid.NewGuid(),
-                OccurredOnUtc = DateTime.UtcNow,
-                Type = domainEvent.GetType().Name,
-                Content = JsonSerializer.Serialize(domainEvent, domainEvent.GetType())
-            })
+            .Select(e => DomainEventCapture.Map(e, correlationId))
             .ToList();
 
-        if (outboxMessages.Count > 0)
+        if (captured.Count > 0)
         {
-            context.Set<OutboxMessage>().AddRange(outboxMessages);
+            context.Set<OutboxMessage>().AddRange(captured.Select(c => c.Outbox));
+            context.Set<StoredEvent>().AddRange(captured.Select(c => c.Stored));
         }
     }
 }

@@ -1,0 +1,102 @@
+# Default values for omniops Helm chart.
+# Override these per environment (staging, production).
+
+namespace:
+  create: true
+  name: omniops
+
+image:
+  repository: ghcr.io/OWNER/omniops-api
+  tag: latest
+  pullPolicy: IfNotPresent
+
+replicaCount: 2
+
+service:
+  type: ClusterIP
+  port: 80
+  targetPort: 8080
+
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "3600"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "3600"
+  hosts:
+    - host: omniops.local
+      paths:
+        - path: /
+          pathType: Prefix
+  tls: []
+
+resources:
+  requests:
+    cpu: 250m
+    memory: 512Mi
+  limits:
+    cpu: "1"
+    memory: 1Gi
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+deployment:
+  rollingUpdate:
+    maxSurge: 1
+    maxUnavailable: 0
+  terminationGracePeriodSeconds: 30
+
+probes:
+  liveness:
+    path: /health/live
+    initialDelaySeconds: 15
+    periodSeconds: 20
+  readiness:
+    path: /health/ready
+    initialDelaySeconds: 20
+    periodSeconds: 10
+
+env:
+  aspnetcoreEnvironment: Production
+  jwtRequireAuthentication: "true"
+  prometheusMetricsEnabled: "true"
+
+# Non-secret configuration (override for your cluster services)
+config:
+  databaseHost: postgres.omniops.svc.cluster.local
+  databasePort: "5432"
+  databaseName: OmniOps
+  redisHost: redis.omniops.svc.cluster.local
+  redisPort: "6379"
+  kafkaBootstrapServers: kafka.omniops.svc.cluster.local:9092
+  kafkaGroupId: omniops-telemetry-group
+  kafkaMainTopic: fleet-telemetry
+  kafkaEventsTopic: fleet-telemetry-events
+  kafkaDlqTopic: fleet-telemetry-dlq
+  allowedCorsOrigins: "https://omniops.local"
+
+# Secrets — provide via --set-file or external secret manager in production
+secrets:
+  create: true
+  databaseUsername: postgres
+  databasePassword: changeme
+  jwtSecret: change-me-to-a-random-string-at-least-32-characters-long
+  jwtIssuer: OmniOps
+  jwtAudience: OmniOps.Clients
+
+serviceAccount:
+  create: true
+  name: omniops-api
+
+nodeSelector: {}
+tolerations: []
+affinity: {}

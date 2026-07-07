@@ -6,6 +6,17 @@ export function parseFleetVehicles() {
     .filter(Boolean);
 }
 
+/** Seed shipment IDs from backend migration — fallback when fleet snapshot lacks shipment context. */
+const SEED_SHIPMENT_IDS = {
+  'Truck-001': 'a1000000-0000-0000-0000-000000000001',
+  'Truck-002': 'a2000000-0000-0000-0000-000000000002',
+  'Truck-003': 'a3000000-0000-0000-0000-000000000003',
+};
+
+export function resolveShipmentIdForVehicle(vehicleId, vehicles = {}) {
+  return vehicles[vehicleId]?.shipment?.shipmentId ?? SEED_SHIPMENT_IDS[vehicleId] ?? null;
+}
+
 export function getVehicleStatus(telemetry) {
   if (!telemetry) return 'offline';
   if (telemetry.shipment) {

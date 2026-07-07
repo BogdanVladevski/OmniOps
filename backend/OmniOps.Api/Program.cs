@@ -3,6 +3,7 @@ using OmniOps.Api.Configuration;
 using OmniOps.Api.Endpoints;
 using OmniOps.Api.Middleware;
 using OmniOps.Infrastructure.Configuration;
+using Scalar.AspNetCore;
 using Serilog;
 
 EnvironmentConfiguration.LoadEnvironmentFile();
@@ -30,12 +31,18 @@ try
 
     var app = builder.Build();
 
+    app.UseCorrelationId();
     app.UseSerilogRequestLogging();
     app.UseGlobalExceptionHandler();
 
     if (app.Environment.IsDevelopment())
     {
         app.MapOpenApi();
+        app.MapScalarApiReference(options =>
+        {
+            options.WithTitle("OmniOps API");
+            options.WithOpenApiRoutePattern("/openapi/v1.json");
+        });
     }
     else
     {
@@ -61,6 +68,17 @@ try
     app.UseRateLimiter();
 
     app.MapTelemetryEndpoints();
+    app.MapShipmentEndpoints();
+    app.MapFleetEndpoints();
+    app.MapIncidentEndpoints();
+    app.MapAnalyticsEndpoints();
+    app.MapPredictionEndpoints();
+    app.MapCopilotEndpoints();
+    app.MapTenantEndpoints();
+    app.MapNotificationEndpoints();
+    app.MapAdminEndpoints();
+    app.MapMobileEndpoints();
+    app.MapDemoEndpoints();
     app.MapHealthEndpoints();
     app.MapObservabilityEndpoints();
 
@@ -82,3 +100,5 @@ finally
 {
     Log.CloseAndFlush();
 }
+
+public partial class Program;

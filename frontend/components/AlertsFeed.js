@@ -3,13 +3,41 @@ import { View, Text, StyleSheet, ScrollView, Pressable, Modal } from 'react-nati
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFleet } from '../contexts/FleetContext';
 import { useLayout } from '../utils/layout';
+import { resolveShipmentIdForVehicle } from '../utils/fleetConfig';
 import Screen from './Screen';
+import IncidentReplay from './IncidentReplay';
+
+function alertBorderColor(alertType) {
+  if (alertType === 'GeofenceBreach') return '#5856D6';
+  if (alertType === 'Overspeed' || alertType === 'HarshBraking') return '#FF9500';
+  if (alertType === 'TemperatureExcursion') return '#FF3B30';
+  return '#FF3B30';
+}
+
+function alertIcon(alertType) {
+  if (alertType === 'GeofenceBreach') return '⬡';
+  if (alertType === 'playbook') return '🧊';
+  return '⚠';
+}
 
 export default function AlertsFeed() {
-  const { alerts } = useFleet();
+  const { alerts, vehicles } = useFleet();
   const [selectedAlert, setSelectedAlert] = useState(null);
+  const [replayAlert, setReplayAlert] = useState(null);
   const insets = useSafeAreaInsets();
   const { horizontalPadding, titleSize, bodySize, cardPadding } = useLayout();
+
+  const apiBaseUrl = process.env.EXPO_PUBLIC_API_URL;
+  const apiToken = process.env.EXPO_PUBLIC_API_TOKEN;
+
+  const openReplay = (alert) => {
+    setSelectedAlert(null);
+    setReplayAlert(alert);
+  };
+
+  const replayShipmentId = replayAlert
+    ? resolveShipmentIdForVehicle(replayAlert.vehicleId, vehicles)
+    : null;
 
   return (
     <Screen style={styles.screen}>
@@ -29,8 +57,18 @@ export default function AlertsFeed() {
         ) : (
           <ScrollView contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
             {alerts.map((alert) => (
-              <Pressable key={alert.id} style={[styles.alertCard, { padding: cardPadding }]} onPress={() => setSelectedAlert(alert)}>
-                <Text style={styles.alertVehicle}>{alert.vehicleId}</Text>
+              <Pressable
+                key={alert.id}
+                style={[styles.alertCard, { padding: cardPadding, borderLeftColor: alertBorderColor(alert.alertType) }]}
+                onPress={() => setSelectedAlert(alert)}
+              >
+                <Text style={styles.alertVehicle}>
+                  {alertIcon(alert.alertType)} {alert.vehicleId}
+                  {alert.alertType !== 'playbook' ? ` · ${alert.alertType}` : ''}
+                </Text>
+                {alert.title && alert.alertType !== 'playbook' ? (
+                  <Text style={styles.alertTitle}>{alert.title}</Text>
+                ) : null}
                 <Text style={[styles.alertPreview, { fontSize: bodySize }]} numberOfLines={3}>
                   {alert.instructions}
                 </Text>
@@ -48,12 +86,27 @@ export default function AlertsFeed() {
             <ScrollView style={styles.modalBody}>
               <Text style={[styles.modalInstructions, { fontSize: bodySize }]}>{selectedAlert?.instructions}</Text>
             </ScrollView>
+            <Pressable
+              style={styles.replayButton}
+              onPress={() => openReplay(selectedAlert)}
+            >
+              <Text style={styles.replayButtonText}>Replay Incident</Text>
+            </Pressable>
             <Pressable style={styles.closeButton} onPress={() => setSelectedAlert(null)}>
               <Text style={styles.closeButtonText}>Close</Text>
             </Pressable>
           </View>
         </View>
       </Modal>
+
+      <IncidentReplay
+        visible={!!replayAlert}
+        alert={replayAlert}
+        shipmentId={replayShipmentId}
+        apiBaseUrl={apiBaseUrl}
+        apiToken={apiToken}
+        onClose={() => setReplayAlert(null)}
+      />
     </Screen>
   );
 }
@@ -76,9 +129,9 @@ const styles = StyleSheet.create({
     borderRadius: 14,
     marginBottom: 10,
     borderLeftWidth: 4,
-    borderLeftColor: '#FF3B30',
   },
-  alertVehicle: { fontSize: 16, fontWeight: '700', color: '#1C1C1E', marginBottom: 6 },
+  alertVehicle: { fontSize: 16, fontWeight: '700', color: '#1C1C1E', marginBottom: 4 },
+  alertTitle: { fontSize: 14, fontWeight: '600', color: '#3A3A3C', marginBottom: 4 },
   alertPreview: { color: '#3A3A3C', lineHeight: 18 },
   alertTime: { fontSize: 12, color: '#8E8E93', marginTop: 8 },
   modalBackdrop: {
@@ -96,6 +149,14 @@ const styles = StyleSheet.create({
   modalTitle: { fontSize: 20, fontWeight: '700', marginBottom: 12 },
   modalBody: { marginBottom: 16, maxHeight: '70%' },
   modalInstructions: { color: '#1C1C1E', lineHeight: 22 },
+  replayButton: {
+    backgroundColor: '#FF9500',
+    borderRadius: 12,
+    paddingVertical: 12,
+    alignItems: 'center',
+    marginBottom: 10,
+  },
+  replayButtonText: { color: '#FFFFFF', fontWeight: '700', fontSize: 16 },
   closeButton: {
     backgroundColor: '#007AFF',
     borderRadius: 12,

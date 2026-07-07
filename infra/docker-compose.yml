@@ -12,12 +12,22 @@ services:
       - "5433:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-OmniOps}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   redis:
     image: redis:7-alpine
     container_name: omniops-cache
     ports:
       - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   kafka:
     image: apache/kafka:latest
@@ -39,6 +49,47 @@ services:
       KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER'
       KAFKA_LOG_DIRS: '/tmp/kraft-combined-logs'
       CLUSTER_ID: 'MkU3OEVBNTcwNTJENDM2Qk'
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server localhost:9092 >/dev/null 2>&1 || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+      start_period: 30s
+
+  api:
+    build:
+      context: ..
+      dockerfile: backend/Dockerfile
+    image: omniops-api:local
+    container_name: omniops-api
+    ports:
+      - "5031:8080"
+    env_file:
+      - ../.env
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      ASPNETCORE_URLS: http://+:8080
+      DB_HOST: postgres
+      DB_PORT: "5432"
+      DB_CONNECTION_STRING: Host=postgres;Port=5432;Database=${POSTGRES_DB:-OmniOps};Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:-123}
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      REDIS_CONNECTION_STRING: redis:6379,abortConnect=false
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      JWT_REQUIRE_AUTHENTICATION: "false"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      kafka:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:8080/health/ready"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
 
 volumes:
   postgres_data:

@@ -1,0 +1,97 @@
+name: CD
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Target environment
+        required: true
+        default: staging
+        type: choice
+        options:
+          - staging
+          - production
+      image_tag:
+        description: Image tag to deploy (defaults to latest main SHA)
+        required: false
+        type: string
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: read
+  packages: read
+
+env:
+  IMAGE_NAME: omniops-api
+  REGISTRY: ghcr.io
+  HELM_CHART_PATH: infra/helm/omniops
+
+jobs:
+  deploy:
+    name: Deploy to Kubernetes
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: ${{ github.event_name == 'workflow_dispatch' && inputs.environment || 'production' }}
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Resolve image tag
+        id: version
+        run: |
+          if [ -n "${{ github.event.inputs.image_tag }}" ]; then
+            echo "tag=${{ github.event.inputs.image_tag }}" >> "$GITHUB_OUTPUT"
+          elif [[ "${{ github.ref }}" == refs/tags/v* ]]; then
+            echo "tag=${GITHUB_REF#refs/tags/}" >> "$GITHUB_OUTPUT"
+          else
+            echo "tag=${{ github.sha }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: azure/setup-helm@v4
+        with:
+          version: v3.16.4
+
+      - name: Package Helm chart
+        run: |
+          helm package ${{ env.HELM_CHART_PATH }} --version 0.1.0 --app-version "${{ steps.version.outputs.tag }}"
+          mkdir -p dist
+          mv omniops-*.tgz dist/
+
+      - name: Upload Helm chart artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: omniops-helm-chart
+          path: dist/*.tgz
+
+      - name: Render deployment manifest (artifact)
+        run: |
+          helm template omniops ${{ env.HELM_CHART_PATH }} \
+            --namespace omniops \
+            --set namespace.create=false \
+            --set image.repository=${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }} \
+            --set image.tag=${{ steps.version.outputs.tag }} \
+            > dist/rendered-manifests.yaml
+
+      - name: Upload rendered manifests
+        uses: actions/upload-artifact@v4
+        with:
+          name: omniops-k8s-manifests
+          path: dist/rendered-manifests.yaml
+
+      # Requires KUBE_CONFIG secret and cluster access — enable when cluster is provisioned.
+      - name: Deploy with Helm (optional)
+        if: vars.KUBE_CONFIG != ''
+        env:
+          KUBE_CONFIG_B64: ${{ secrets.KUBE_CONFIG }}
+        run: |
+          echo "$KUBE_CONFIG_B64" | base64 -d > kubeconfig
+          export KUBECONFIG=kubeconfig
+          helm upgrade --install omniops ${{ env.HELM_CHART_PATH }} \
+            --namespace omniops \
+            --create-namespace \
+            --set image.repository=${{ env.REGISTRY }}/${{ github.repository_owner }}/${{ env.IMAGE_NAME }} \
+            --set image.tag=${{ steps.version.outputs.tag }} \
+            --wait --timeout 10m

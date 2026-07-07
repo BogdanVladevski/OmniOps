@@ -63,4 +63,24 @@ public class SignalRTelemetryBroadcastService : ITelemetryBroadcastService
             "Broadcast playbook instructions for vehicle {VehicleId}",
             vehicleId);
     }
+
+    public async Task BroadcastAlertAsync(
+        string vehicleId,
+        string alertType,
+        string title,
+        string message,
+        CancellationToken cancellationToken = default)
+    {
+        var payload = new
+        {
+            VehicleId = vehicleId,
+            AlertType = alertType,
+            Title = title,
+            Message = message,
+            GeneratedAt = DateTime.UtcNow
+        };
+
+        await _hubContext.Clients.Group(vehicleId).SendAsync("ReceiveAlert", payload, cancellationToken);
+        await _hubContext.Clients.Group(TelemetryHub.FleetGroupName).SendAsync("ReceiveAlert", payload, cancellationToken);
+    }
 }

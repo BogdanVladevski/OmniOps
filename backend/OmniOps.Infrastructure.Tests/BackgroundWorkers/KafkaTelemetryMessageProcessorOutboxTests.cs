@@ -6,6 +6,7 @@ using Microsoft.Extensions.Options;
 using NSubstitute;
 using OmniOps.Application.Commands;
 using OmniOps.Core.Entities;
+using OmniOps.Core.Events;
 using OmniOps.Core.Interfaces;
 using OmniOps.Infrastructure.BackgroundWorkers;
 using OmniOps.Infrastructure.Configuration;
@@ -67,13 +68,17 @@ public class KafkaTelemetryMessageProcessorOutboxTests
         deduplication.TryAcquireProcessingLockAsync(Arg.Any<Guid>(), Arg.Any<CancellationToken>())
             .Returns(true);
 
+        var geofenceDetection = Substitute.For<IGeofenceDetectionService>();
+        geofenceDetection.DetectBreachesAsync(Arg.Any<VehicleTelemetry>(), Arg.Any<CancellationToken>())
+            .Returns(Array.Empty<GeofenceBreachedEvent>());
+
         var services = new ServiceCollection();
 
         services.AddDbContext<AppDbContext>((_, options) =>
         {
             options.UseInMemoryDatabase(databaseName);
             options.AddInterceptors(
-                new OutboxSaveChangesInterceptor(),
+                new OutboxSaveChangesInterceptor(new CorrelationContext()),
                 new ThrowOnFirstSaveChangesInterceptor());
         });
 
@@ -84,6 +89,12 @@ public class KafkaTelemetryMessageProcessorOutboxTests
         services.AddSingleton(Substitute.For<IAnomalyDetectionService>());
         services.AddSingleton(Substitute.For<IPlaybookOrchestrationService>());
         services.AddSingleton(Substitute.For<IShipmentRepository>());
+        var incidentDetection = Substitute.For<IIncidentDetectionService>();
+        incidentDetection.DetectAsync(Arg.Any<VehicleTelemetry>(), Arg.Any<CancellationToken>())
+            .Returns(Array.Empty<Incident>());
+        services.AddSingleton(incidentDetection);
+        services.AddSingleton(Substitute.For<IIncidentRepository>());
+        services.AddSingleton(geofenceDetection);
         services.AddSingleton(Substitute.For<ITelemetryMetrics>());
         services.AddLogging();
 

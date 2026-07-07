@@ -1,36 +1,35 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-using System.Text.Json;
+﻿using System.Text.Json;
 using Microsoft.Extensions.Caching.Distributed;
+using Microsoft.Extensions.Options;
 using OmniOps.Core.Entities;
 using OmniOps.Core.Interfaces;
+using OmniOps.Infrastructure.Configuration;
 
 namespace OmniOps.Infrastructure.Services;
 
 public class RedisTelemetryCacheService : ITelemetryCacheService
 {
     private readonly IDistributedCache _cache;
-    private static readonly TimeSpan CacheDuration = TimeSpan.FromHours(24);
+    private readonly CacheOptions _options;
 
-    public RedisTelemetryCacheService(IDistributedCache cache)
+    public RedisTelemetryCacheService(IDistributedCache cache, IOptions<CacheOptions> options)
     {
         _cache = cache;
+        _options = options.Value;
     }
 
     public async Task SetLatestTelemetryAsync(VehicleTelemetry telemetry)
     {
         var cacheKey = $"telemetry:latest:{telemetry.VehicleId}";
-        var jsonData = JsonSerializer.Serialize(telemetry);
+        var jsonData = System.Text.Json.JsonSerializer.Serialize(telemetry);
 
-        var options = new DistributedCacheEntryOptions
+        var cacheOptions = new DistributedCacheEntryOptions
         {
-            AbsoluteExpirationRelativeToNow = CacheDuration
+            SlidingExpiration = TimeSpan.FromMinutes(_options.SlidingExpirationMinutes),
+            AbsoluteExpirationRelativeToNow = TimeSpan.FromHours(_options.AbsoluteExpirationHours)
         };
 
-        await _cache.SetStringAsync(cacheKey, jsonData, options);
+        await _cache.SetStringAsync(cacheKey, jsonData, cacheOptions);
     }
 
     public async Task<VehicleTelemetry?> GetLatestTelemetryAsync(string vehicleId)

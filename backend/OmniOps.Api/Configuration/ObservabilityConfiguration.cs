@@ -26,8 +26,10 @@ public static partial class ServiceRegistration
             tracing
                 .AddAspNetCoreInstrumentation()
                 .AddHttpClientInstrumentation()
+                .AddEntityFrameworkCoreInstrumentation()
                 .AddSource("OmniOps.Api.Simulator")
-                .AddSource("OmniOps.Infrastructure.TelemetryConsumer");
+                .AddSource("OmniOps.Infrastructure.TelemetryConsumer")
+                .AddSource("OmniOps.Infrastructure.Kafka");
 
             if (builder.Environment.IsDevelopment())
             {

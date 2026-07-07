@@ -1,12 +1,9 @@
 using System.Diagnostics;
-using System.Text.Json;
 using System.Text.RegularExpressions;
 using MediatR;
 using Microsoft.Extensions.Options;
 using OmniOps.Api.Authentication;
-using OmniOps.Application.Dtos;
 using OmniOps.Application.Queries;
-using OmniOps.Core.Entities;
 using OmniOps.Core.Interfaces;
 using OmniOps.Infrastructure.Configuration;
 using OmniOps.Infrastructure.Hubs;
@@ -76,10 +73,8 @@ public static class TelemetryEndpoints
     private static async Task<IResult> SimulateTelemetry(
         string vehicleId,
         int packets,
-        IKafkaMessageProducer kafkaProducer,
-        ITelemetryMetrics metrics,
-        ILogger<Program> logger,
-        IOptions<KafkaOptions> kafkaOptions)
+        ITelemetrySimulatorService simulator,
+        ILogger<Program> logger)
     {
         if (!IsValidVehicleId(vehicleId))
         {
@@ -95,66 +90,23 @@ public static class TelemetryEndpoints
         activity?.SetTag("vehicle.id", vehicleId);
         activity?.SetTag("packets.count", packets);
 
-        var targetTopic = kafkaOptions.Value.Topic;
-        var random = new Random();
-        var successfullySent = 0;
-
-        for (var i = 0; i < packets; i++)
+        try
         {
-            var mockTelemetry = new VehicleTelemetry
+            var result = await simulator.SimulateAsync(vehicleId, packets);
+            return Results.Ok(new
             {
-                Id = Guid.NewGuid(),
-                VehicleId = vehicleId,
-                Latitude = 41.9981 + (random.NextDouble() - 0.5) * 0.05,
-                Longitude = 21.4254 + (random.NextDouble() - 0.5) * 0.05,
-                Speed = random.Next(50, 120),
-                FuelLevel = Math.Round(80.0 - (i * 0.5), 2),
-                EngineTemperature = random.Next(85, 105),
-                Timestamp = DateTime.UtcNow
-            };
-
-            var jsonPayload = JsonSerializer.Serialize(mockTelemetry);
-            IReadOnlyDictionary<string, string>? headers = null;
-
-            var currentActivity = Activity.Current;
-            if (currentActivity?.Id is not null)
-            {
-                headers = new Dictionary<string, string>
-                {
-                    ["traceparent"] = currentActivity.Id
-                };
-            }
-
-            try
-            {
-                await kafkaProducer.ProduceAsync(targetTopic, jsonPayload, headers);
-                successfullySent++;
-            }
-            catch (Exception ex)
-            {
-                logger.LogError(ex, "Simulator failed to produce Kafka message for vehicle {VehicleId}", vehicleId);
-            }
-
-            await Task.Delay(50);
+                Message = $"Successfully queued {result.PacketsSent} mock telemetry packets into Kafka stream.",
+                result.VehicleId,
+                PacketsSent = result.PacketsSent
+            });
         }
-
-        metrics.RecordSimulatePacketsPublished(successfullySent);
-
-        return Results.Ok(new SimulateResponse
+        catch (Exception ex)
         {
-            Message = $"Successfully queued {successfullySent} mock telemetry packets into Kafka stream.",
-            VehicleId = vehicleId,
-            PacketsSent = successfullySent
-        });
+            logger.LogError(ex, "Simulate failed for {VehicleId}", vehicleId);
+            return Results.BadRequest(new { Message = ex.Message });
+        }
     }
 
     private static bool IsValidVehicleId(string vehicleId) =>
         !string.IsNullOrWhiteSpace(vehicleId) && Regex.IsMatch(vehicleId, "^[a-zA-Z0-9_-]+$");
-
-    private sealed class SimulateResponse
-    {
-        public string Message { get; init; } = string.Empty;
-        public string VehicleId { get; init; } = string.Empty;
-        public int PacketsSent { get; init; }
-    }
 }

@@ -1,6 +1,7 @@
 using MediatR;
 using Microsoft.Extensions.Logging;
 using OmniOps.Application.Commands;
+using OmniOps.Core.Domain;
 using OmniOps.Core.Entities;
 using OmniOps.Core.Enums;
 using OmniOps.Core.Events;
@@ -18,6 +19,9 @@ public class ProcessTelemetryCommandHandler : IRequestHandler<ProcessTelemetryCo
     private readonly IAnomalyDetectionService _anomalyService;
     private readonly IPlaybookOrchestrationService _playbookOrchestration;
     private readonly IShipmentRepository _shipmentRepository;
+    private readonly IGeofenceDetectionService _geofenceDetectionService;
+    private readonly IIncidentDetectionService _incidentDetectionService;
+    private readonly IIncidentRepository _incidentRepository;
     private readonly ITelemetryMetrics _metrics;
     private readonly ILogger<ProcessTelemetryCommandHandler> _logger;
 
@@ -29,6 +33,9 @@ public class ProcessTelemetryCommandHandler : IRequestHandler<ProcessTelemetryCo
         IAnomalyDetectionService anomalyService,
         IPlaybookOrchestrationService playbookOrchestration,
         IShipmentRepository shipmentRepository,
+        IGeofenceDetectionService geofenceDetectionService,
+        IIncidentDetectionService incidentDetectionService,
+        IIncidentRepository incidentRepository,
         ITelemetryMetrics metrics,
         ILogger<ProcessTelemetryCommandHandler> logger)
     {
@@ -39,6 +46,9 @@ public class ProcessTelemetryCommandHandler : IRequestHandler<ProcessTelemetryCo
         _anomalyService = anomalyService;
         _playbookOrchestration = playbookOrchestration;
         _shipmentRepository = shipmentRepository;
+        _geofenceDetectionService = geofenceDetectionService;
+        _incidentDetectionService = incidentDetectionService;
+        _incidentRepository = incidentRepository;
         _metrics = metrics;
         _logger = logger;
     }
@@ -67,6 +77,38 @@ public class ProcessTelemetryCommandHandler : IRequestHandler<ProcessTelemetryCo
             request.Telemetry.VehicleId);
 
         request.Telemetry.AddDomainEvent(new TelemetryReceivedEvent(request.Telemetry));
+
+        var geofenceBreaches = await _geofenceDetectionService.DetectBreachesAsync(
+            request.Telemetry, cancellationToken);
+        foreach (var breach in geofenceBreaches)
+        {
+            request.Telemetry.AddDomainEvent(breach);
+        }
+
+        var detectedIncidents = (await _incidentDetectionService.DetectAsync(request.Telemetry, cancellationToken)).ToList();
+        foreach (var breach in geofenceBreaches)
+        {
+            detectedIncidents.Add(new Incident
+            {
+                Id = Guid.NewGuid(),
+                OrganizationId = TenantSeed.DefaultOrganizationId,
+                FleetId = new Guid("f1000000-0000-0000-0000-000000000001"),
+                VehicleId = breach.VehicleId,
+                Type = IncidentType.GeofenceBreach,
+                Severity = IncidentSeverity.Medium,
+                Status = IncidentStatus.Open,
+                Title = $"{breach.BreachType} geofence — {breach.VehicleId}",
+                Description = $"Geofence {breach.GeofenceId} {breach.BreachType.ToString().ToLowerInvariant()}.",
+                DetectedAtUtc = request.Telemetry.Timestamp,
+                Latitude = request.Telemetry.Latitude,
+                Longitude = request.Telemetry.Longitude
+            });
+        }
+
+        foreach (var incident in detectedIncidents)
+        {
+            await _incidentRepository.AddAsync(incident, cancellationToken);
+        }
 
         try
         {
@@ -133,8 +175,8 @@ public class ProcessTelemetryCommandHandler : IRequestHandler<ProcessTelemetryCo
                 var incidentSummary = BuildIncidentSummary(
                     request.Telemetry, activeShipment, analysis.ExcursionDurationSeconds, severity);
 
-                // Attach the domain event so downstream subscribers (outbox → Kafka events,
-                // future RAG narrative in Phase 4) get severity + value-at-risk without re-querying.
+                // Attach the domain event so downstream subscribers (outbox -> Kafka events,
+                // RAG narrative) get severity + value-at-risk without re querying.
                 request.Telemetry.AddDomainEvent(new AnomalyDetectedEvent(
                     vehicleId: request.Telemetry.VehicleId,
                     severity: severity,
@@ -144,9 +186,22 @@ public class ProcessTelemetryCommandHandler : IRequestHandler<ProcessTelemetryCo
                     batchNumber: activeShipment?.BatchNumber,
                     valueAtRiskUsd: activeShipment?.ValueAtRiskUsd));
 
+                var incidentContext = new IncidentContext
+                {
+                    VehicleId = request.Telemetry.VehicleId,
+                    Severity = severity,
+                    ExcursionDurationSeconds = analysis.ExcursionDurationSeconds,
+                    TemperatureCelsius = request.Telemetry.EngineTemperature,
+                    ProductName = activeShipment?.ProductName,
+                    BatchNumber = activeShipment?.BatchNumber,
+                    ValueAtRiskUsd = activeShipment?.ValueAtRiskUsd,
+                    MinSafeTempCelsius = activeShipment?.MinSafeTempCelsius,
+                    MaxSafeTempCelsius = activeShipment?.MaxSafeTempCelsius,
+                    IncidentSummary = incidentSummary
+                };
+
                 await _playbookOrchestration.OrchestrateIncidentResponseAsync(
-                    request.Telemetry.VehicleId,
-                    incidentSummary,
+                    incidentContext,
                     cancellationToken);
             }
         }
@@ -160,6 +215,15 @@ public class ProcessTelemetryCommandHandler : IRequestHandler<ProcessTelemetryCo
         try
         {
             await _broadcastService.BroadcastTelemetryUpdateAsync(request.Telemetry, cancellationToken);
+            foreach (var incident in detectedIncidents)
+            {
+                await _broadcastService.BroadcastAlertAsync(
+                    incident.VehicleId,
+                    incident.Type.ToString(),
+                    incident.Title,
+                    incident.Description,
+                    cancellationToken);
+            }
         }
         catch (Exception ex)
         {

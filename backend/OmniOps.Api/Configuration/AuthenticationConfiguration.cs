@@ -30,6 +30,12 @@ public static partial class ServiceRegistration
 
             options.AddPolicy(AuthorizationPolicies.VehicleSimulate, policy =>
                 policy.AddRequirements(new ScopeRequirement(AuthorizationPolicies.VehicleSimulateScope)));
+
+            options.AddPolicy(AuthorizationPolicies.FleetAdmin, policy =>
+                policy.AddRequirements(new ScopeRequirement(AuthorizationPolicies.FleetAdminScope)));
+
+            options.AddPolicy(AuthorizationPolicies.PlatformAdmin, policy =>
+                policy.AddRequirements(new ScopeRequirement(AuthorizationPolicies.PlatformAdminScope)));
         });
 
         if (!jwtOptions.RequireAuthentication)

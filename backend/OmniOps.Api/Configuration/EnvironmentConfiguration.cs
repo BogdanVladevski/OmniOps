@@ -71,6 +71,14 @@ public static class EnvironmentConfiguration
         MapEnv(envVars, "Serilog:MinimumLevel:Default", "SERILOG_MINIMUM_LEVEL");
         MapEnv(envVars, "Observability:EnablePrometheusMetrics", "PROMETHEUS_METRICS_ENABLED");
         MapEnv(envVars, "Fleet:VehicleIds", "FLEET_VEHICLE_IDS");
+        MapEnv(envVars, "Cache:SlidingExpirationMinutes", "CACHE_SLIDING_EXPIRATION_MINUTES");
+        MapEnv(envVars, "Cache:AbsoluteExpirationHours", "CACHE_ABSOLUTE_EXPIRATION_HOURS");
+        MapEnv(envVars, "Llm:Enabled", "LLM_ENABLED");
+        MapEnv(envVars, "Llm:ApiKey", "OPENAI_API_KEY");
+        MapEnv(envVars, "Llm:Model", "OPENAI_MODEL");
+        MapEnv(envVars, "Llm:BaseUrl", "OPENAI_BASE_URL");
+        MapEnv(envVars, "Llm:TimeoutSeconds", "LLM_TIMEOUT_SECONDS");
+        MapEnv(envVars, "Llm:PlaybooksDirectory", "LLM_PLAYBOOKS_DIRECTORY");
 
         configurationBuilder.AddInMemoryCollection(envVars);
     }
@@ -79,7 +87,11 @@ public static class EnvironmentConfiguration
     {
         var connectionString = options.ResolveConnectionString();
 
-        if (connectionString.Contains("Port=5432;", StringComparison.Ordinal))
+        // Docker Compose maps Postgres 5432 -> host 5433; only rewrite for host-local connections.
+        var isLocalHost = connectionString.Contains("Host=127.0.0.1", StringComparison.Ordinal)
+            || connectionString.Contains("Host=localhost", StringComparison.OrdinalIgnoreCase);
+
+        if (isLocalHost && connectionString.Contains("Port=5432;", StringComparison.Ordinal))
         {
             connectionString = connectionString.Replace("Port=5432;", "Port=5433;");
         }

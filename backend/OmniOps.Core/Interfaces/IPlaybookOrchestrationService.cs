@@ -1,13 +1,15 @@
+using OmniOps.Core.Domain;
+
 namespace OmniOps.Core.Interfaces;
 
 /// <summary>
-/// Runs the incident playbook when anomaly detection fires.
-/// Current impl is a stub — swap in LangGraph, Semantic Kernel, etc. when ready.
+/// Runs the incident playbook when anomaly detection fires: retrieves the relevant SOPs for the
+/// incident and generates a specific response narrative (LLM-backed with a templated fallback),
+/// then broadcasts it over the existing SignalR path.
 /// </summary>
 public interface IPlaybookOrchestrationService
 {
     Task OrchestrateIncidentResponseAsync(
-        string vehicleId,
-        string anomalySummary,
+        IncidentContext incident,
         CancellationToken cancellationToken = default);
 }

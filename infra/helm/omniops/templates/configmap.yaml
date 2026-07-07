@@ -1,0 +1,26 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "omniops.fullname" . }}-config
+  namespace: {{ .Values.namespace.name }}
+  labels:
+    {{- include "omniops.labels" . | nindent 4 }}
+data:
+  ASPNETCORE_ENVIRONMENT: {{ .Values.env.aspnetcoreEnvironment | quote }}
+  ASPNETCORE_URLS: "http://+:8080"
+  DB_HOST: {{ .Values.config.databaseHost | quote }}
+  DB_PORT: {{ .Values.config.databasePort | quote }}
+  POSTGRES_DB: {{ .Values.config.databaseName | quote }}
+  REDIS_HOST: {{ .Values.config.redisHost | quote }}
+  REDIS_PORT: {{ .Values.config.redisPort | quote }}
+  REDIS_CONNECTION_STRING: "{{ .Values.config.redisHost }}:{{ .Values.config.redisPort }},abortConnect=false"
+  KAFKA_BOOTSTRAP_SERVERS: {{ .Values.config.kafkaBootstrapServers | quote }}
+  KAFKA_CONSUMER_GROUP_ID: {{ .Values.config.kafkaGroupId | quote }}
+  KAFKA_MAIN_TOPIC: {{ .Values.config.kafkaMainTopic | quote }}
+  KAFKA_EVENTS_TOPIC: {{ .Values.config.kafkaEventsTopic | quote }}
+  KAFKA_DLQ_TOPIC: {{ .Values.config.kafkaDlqTopic | quote }}
+  ALLOWED_CORS_ORIGINS: {{ .Values.config.allowedCorsOrigins | quote }}
+  JWT_REQUIRE_AUTHENTICATION: {{ .Values.env.jwtRequireAuthentication | quote }}
+  JWT_ISSUER: {{ .Values.secrets.jwtIssuer | quote }}
+  JWT_AUDIENCE: {{ .Values.secrets.jwtAudience | quote }}
+  PROMETHEUS_METRICS_ENABLED: {{ .Values.env.prometheusMetricsEnabled | quote }}

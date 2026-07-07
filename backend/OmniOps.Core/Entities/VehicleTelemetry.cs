@@ -13,6 +13,12 @@ namespace OmniOps.Core.Entities
         public double Longitude { get; set; }
         public double Speed { get; set; }
         public double FuelLevel { get; set; }
+        public double? Heading { get; set; }
+        public double? BatteryLevel { get; set; }
+
+        /// <summary>Extensible sensor readings as JSON, e.g. {"humidity":42.1,"doorOpen":false}.</summary>
+        public string? SensorReadingsJson { get; set; }
+
         public double EngineTemperature { get; set; }
         public DateTime Timestamp { get; set; }
 

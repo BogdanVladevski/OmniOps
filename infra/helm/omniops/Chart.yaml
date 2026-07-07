@@ -1,0 +1,12 @@
+apiVersion: v2
+name: omniops
+description: OmniOps Intelligent Fleet Operations Platform API
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+keywords:
+  - fleet
+  - telemetry
+  - kafka
+maintainers:
+  - name: OmniOps

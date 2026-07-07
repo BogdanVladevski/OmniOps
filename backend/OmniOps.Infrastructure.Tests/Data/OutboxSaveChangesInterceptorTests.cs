@@ -4,6 +4,7 @@ using OmniOps.Core.Entities;
 using OmniOps.Core.Events;
 using OmniOps.Infrastructure.Data;
 using OmniOps.Infrastructure.Data.Interceptors;
+using OmniOps.Infrastructure.Services;
 using Testcontainers.PostgreSql;
 
 namespace OmniOps.Infrastructure.Tests.Data;
@@ -23,7 +24,7 @@ public class OutboxSaveChangesInterceptorTests : IAsyncLifetime
     {
         var options = new DbContextOptionsBuilder<AppDbContext>()
             .UseNpgsql(_postgres.GetConnectionString())
-            .AddInterceptors(new OutboxSaveChangesInterceptor())
+            .AddInterceptors(new OutboxSaveChangesInterceptor(new CorrelationContext()))
             .Options;
 
         await using var context = new AppDbContext(options);
@@ -61,7 +62,7 @@ public class OutboxSaveChangesInterceptorTests : IAsyncLifetime
     {
         var options = new DbContextOptionsBuilder<AppDbContext>()
             .UseNpgsql(_postgres.GetConnectionString())
-            .AddInterceptors(new OutboxSaveChangesInterceptor())
+            .AddInterceptors(new OutboxSaveChangesInterceptor(new CorrelationContext()))
             .Options;
 
         await using var context = new AppDbContext(options);
