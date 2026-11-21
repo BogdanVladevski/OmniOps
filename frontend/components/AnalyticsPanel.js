@@ -1,48 +1,41 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
 import { useFleet } from '../contexts/FleetContext';
 import { useTheme } from '../contexts/ThemeContext';
+import { radius, spacing, typography } from '../theme/tokens';
 import { analyticsApi, fleetApi, predictionApi, telemetryApi } from '../utils/api';
 import { useLayout } from '../utils/layout';
-import Screen from './Screen';
 import RetryPanel from './ui/RetryPanel';
 import { SkeletonCard } from './ui/SkeletonLoader';
+import { BarChart, Button, Card, Grid, Page, Pill, SectionTitle, Segmented, StatTile } from './ui/kit';
 
-function MiniBarChart({ points, valueKey, label, color }) {
-  if (!points?.length) return <Text style={styles.emptyChart}>No data in window</Text>;
-  const values = points.map((p) => p[valueKey] ?? 0);
-  const max = Math.max(...values, 1);
-  return (
-    <View style={styles.chartBlock}>
-      <Text style={styles.chartLabel}>{label}</Text>
-      <View style={styles.barRow}>
-        {points.slice(-12).map((p, i) => (
-          <View key={`${p.bucketStartUtc}-${i}`} style={styles.barCol}>
-            <View style={[styles.bar, { height: `${((p[valueKey] ?? 0) / max) * 100}%`, backgroundColor: color }]} />
-          </View>
-        ))}
-      </View>
-    </View>
-  );
+const WINDOW_HOURS = 6;
+
+/** The health API returns 0–100 (older builds returned 0–1); normalise to a whole percentage. */
+function healthPercent(score) {
+  if (typeof score !== 'number') return null;
+  return Math.round(score <= 1 ? score * 100 : score);
+}
+
+function healthTone(pct) {
+  if (pct == null) return 'neutral';
+  if (pct >= 80) return 'ok';
+  if (pct >= 50) return 'warning';
+  return 'critical';
 }
 
 export default function AnalyticsPanel() {
-  const { defaultFleetId, selectedVehicleId } = useFleet();
+  const { defaultFleetId, selectedVehicleId, setSelectedVehicleId, vehicleIds } = useFleet();
   const { colors } = useTheme();
-  const { horizontalPadding, titleSize, cardPadding } = useLayout();
+  const { isTablet, isWide } = useLayout();
+  const vehicle = selectedVehicleId ?? vehicleIds[0] ?? 'Truck-001';
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [fleetAnalytics, setFleetAnalytics] = useState(null);
-  const [operational, setOperational] = useState(null);
-  const [drivers, setDrivers] = useState([]);
-  const [aggregations, setAggregations] = useState([]);
-  const [heatmap, setHeatmap] = useState([]);
-  const [health, setHealth] = useState(null);
-  const [maintenance, setMaintenance] = useState(null);
+  const [data, setData] = useState({});
 
-  const window = useMemo(() => {
+  const range = useMemo(() => {
     const to = new Date();
-    const from = new Date(to.getTime() - 6 * 60 * 60 * 1000);
+    const from = new Date(to.getTime() - WINDOW_HOURS * 60 * 60 * 1000);
     return { from: from.toISOString(), to: to.toISOString() };
   }, []);
 
@@ -50,134 +43,132 @@ export default function AnalyticsPanel() {
     setLoading(true);
     setError(null);
     try {
-      const vehicle = selectedVehicleId ?? 'Truck-001';
-      const [fleet, ops, heat, driverStats, aggs, h, m] = await Promise.all([
-        analyticsApi.fleet(defaultFleetId, window.from, window.to),
-        analyticsApi.operational(defaultFleetId, window.from, window.to),
-        fleetApi.heatmap(defaultFleetId, window.from, window.to, 0.01),
-        analyticsApi.drivers(defaultFleetId, window.from, window.to),
-        telemetryApi.aggregations(vehicle, window.from, window.to, 15),
+      const [fleet, ops, heat, drivers, aggs, health, maintenance] = await Promise.all([
+        analyticsApi.fleet(defaultFleetId, range.from, range.to),
+        analyticsApi.operational(defaultFleetId, range.from, range.to),
+        fleetApi.heatmap(defaultFleetId, range.from, range.to, 0.01),
+        analyticsApi.drivers(defaultFleetId, range.from, range.to),
+        telemetryApi.aggregations(vehicle, range.from, range.to, 5),
         predictionApi.vehicleHealth(vehicle),
         predictionApi.maintenance(vehicle),
       ]);
-      setFleetAnalytics(fleet);
-      setOperational(ops);
-      setHeatmap(heat ?? []);
-      setDrivers(driverStats ?? []);
-      setAggregations(aggs ?? []);
-      setHealth(h);
-      setMaintenance(m);
+      setData({ fleet, ops, heat: heat ?? [], drivers: drivers ?? [], aggs: aggs ?? [], health, maintenance });
     } catch (e) {
       setError(e.message);
     } finally {
       setLoading(false);
     }
-  }, [defaultFleetId, selectedVehicleId, window.from, window.to]);
+  }, [defaultFleetId, vehicle, range.from, range.to]);
 
   useEffect(() => {
     load();
   }, [load]);
 
+  const { fleet, ops, heat = [], drivers = [], aggs = [], health, maintenance } = data;
+  const pct = healthPercent(health?.score);
+  const busiest = [...heat].sort((a, b) => b.pointCount - a.pointCount).slice(0, 5);
+
   return (
-    <Screen>
-      <ScrollView contentContainerStyle={[styles.content, { paddingHorizontal: horizontalPadding }]}>
-        <View style={styles.headerRow}>
-          <Text style={[styles.heading, { fontSize: titleSize, color: colors.text }]}>Analytics (6h)</Text>
-          <Pressable onPress={load}>
-            <Text style={{ color: colors.accent, fontWeight: '600' }}>Refresh</Text>
-          </Pressable>
-        </View>
+    <Page
+      title="Analytics"
+      subtitle={`Fleet performance and vehicle health over the last ${WINDOW_HOURS} hours.`}
+      actions={<Button label="Refresh" icon="refresh" variant="secondary" onPress={load} />}
+    >
+      {error ? <RetryPanel message={error} onRetry={load} /> : null}
 
-        {error ? <RetryPanel message={error} onRetry={load} /> : null}
+      {loading && !fleet ? (
+        <>
+          <SkeletonCard />
+          <SkeletonCard lines={4} />
+        </>
+      ) : (
+        <>
+          <Grid columns={isTablet ? 4 : 2}>
+            <StatTile label="Distance driven" value={fleet ? `${Math.round(fleet.totalDistanceKm)} km` : '—'} icon="navigate-outline" tone="accent" />
+            <StatTile label="Average speed" value={fleet ? `${Math.round(fleet.avgSpeedKmh)} km/h` : '—'} icon="speedometer-outline" />
+            <StatTile label="Incidents" value={fleet ? String(fleet.incidentCount) : '—'} hint="Raised in this window" icon="alert-circle-outline" tone={fleet?.incidentCount ? 'warning' : 'ok'} />
+            <StatTile label="Open incidents" value={ops ? String(ops.openIncidents) : '—'} hint={ops ? `${ops.activeTrips} active trips` : undefined} icon="folder-open-outline" tone={ops?.openIncidents ? 'warning' : 'ok'} />
+          </Grid>
 
-        {loading ? (
-          <>
-            <SkeletonCard />
-            <SkeletonCard lines={4} />
-          </>
-        ) : (
-          <>
-            {fleetAnalytics && (
-              <View style={[styles.card, { padding: cardPadding, backgroundColor: colors.card }]}>
-                <Text style={[styles.cardTitle, { color: colors.text }]}>Fleet KPIs</Text>
-                <Text style={[styles.kpi, { color: colors.textSecondary }]}>Distance: {fleetAnalytics.totalDistanceKm} km</Text>
-                <Text style={[styles.kpi, { color: colors.textSecondary }]}>Avg speed: {fleetAnalytics.avgSpeedKmh} km/h</Text>
-                <Text style={[styles.kpi, { color: colors.textSecondary }]}>Incidents: {fleetAnalytics.incidentCount}</Text>
+          <SectionTitle title="Vehicle detail" subtitle="Pick a truck to see its health and trends" />
+          <Segmented options={vehicleIds.map((id) => ({ key: id, label: id }))} value={vehicle} onChange={setSelectedVehicleId} />
+          <View style={{ height: spacing.md }} />
+
+          <Grid columns={isWide ? 3 : 1}>
+            <Card style={styles.block}>
+              <Text style={[typography.overline, { color: colors.muted }]}>Predicted health</Text>
+              <View style={styles.healthRow}>
+                <Text style={[typography.display, { color: colors.text }]}>{pct != null ? `${pct}%` : '—'}</Text>
+                <Pill label={pct == null ? 'Unknown' : pct >= 80 ? 'Good' : pct >= 50 ? 'Watch' : 'At risk'} tone={healthTone(pct)} />
               </View>
-            )}
-
-            {operational && (
-              <View style={[styles.card, { padding: cardPadding, backgroundColor: colors.card }]}>
-                <Text style={[styles.cardTitle, { color: colors.text }]}>Operations</Text>
-                <Text style={[styles.kpi, { color: colors.textSecondary }]}>Active trips: {operational.activeTrips}</Text>
-                <Text style={[styles.kpi, { color: colors.textSecondary }]}>Completed: {operational.completedTrips}</Text>
-                <Text style={[styles.kpi, { color: colors.textSecondary }]}>Open incidents: {operational.openIncidents}</Text>
+              <View style={[styles.meter, { backgroundColor: colors.sunken }]}>
+                <View style={[styles.meterFill, { width: `${pct ?? 0}%`, backgroundColor: colors[healthTone(pct)] ?? colors.accent }]} />
               </View>
-            )}
-
-            {health && maintenance && (
-              <View style={[styles.card, { padding: cardPadding, backgroundColor: colors.card }]}>
-                <Text style={[styles.cardTitle, { color: colors.text }]}>Predictions — {selectedVehicleId ?? 'Truck-001'}</Text>
-                <Text style={[styles.kpi, { color: colors.textSecondary }]}>
-                  Health: {Math.round(health.score * 100)}% — {health.summary}
+              <Text style={[typography.caption, { color: colors.textSecondary }]}>{health?.summary}</Text>
+              {maintenance ? (
+                <Text style={[typography.caption, { color: colors.textSecondary }]}>
+                  Service: {maintenance.daysUntilService <= 0 ? 'due now' : `in ${maintenance.daysUntilService} days`} — {maintenance.recommendation}
                 </Text>
-                <Text style={[styles.kpi, { color: colors.textSecondary }]}>
-                  Maintenance: {maintenance.daysUntilService} days — {maintenance.recommendation}
-                </Text>
-              </View>
-            )}
+              ) : null}
+            </Card>
+            <Card style={styles.block}>
+              <Text style={[typography.overline, { color: colors.muted }]}>Cargo temperature (°C)</Text>
+              <BarChart values={aggs.map((a) => a.avgTemperature)} color={colors.warning} />
+            </Card>
+            <Card style={styles.block}>
+              <Text style={[typography.overline, { color: colors.muted }]}>Speed (km/h)</Text>
+              <BarChart values={aggs.map((a) => a.avgSpeed)} color={colors.accent} />
+            </Card>
+          </Grid>
 
-            {drivers.length > 0 && (
-              <View style={[styles.card, { padding: cardPadding, backgroundColor: colors.card }]}>
-                <Text style={[styles.cardTitle, { color: colors.text }]}>Driver safety</Text>
-                {drivers.slice(0, 5).map((d) => (
-                  <Text key={d.driverId} style={[styles.kpi, { color: colors.textSecondary }]}>
-                    {d.fullName}: score {d.safetyScore} · {d.tripCount} trips
-                  </Text>
-                ))}
-              </View>
-            )}
-
-            <View style={[styles.card, { padding: cardPadding, backgroundColor: colors.card }]}>
-              <Text style={[styles.cardTitle, { color: colors.text }]}>{selectedVehicleId ?? 'Vehicle'} — Speed trend</Text>
-              <MiniBarChart points={aggregations} valueKey="avgSpeed" label="Avg speed per bucket" color={colors.accent} />
+          <Grid columns={isWide ? 2 : 1}>
+            <View>
+              <SectionTitle title="Driver safety" subtitle="Higher score = safer driving" />
+              <Card padded={false}>
+                {drivers.length === 0 ? (
+                  <Text style={[typography.caption, styles.emptyLine, { color: colors.muted }]}>No driver activity in this window.</Text>
+                ) : (
+                  drivers.slice(0, 5).map((d, i) => (
+                    <View key={d.driverId} style={[styles.line, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border }]}>
+                      <Text style={[typography.bodyStrong, styles.flex, { color: colors.text }]}>{d.fullName}</Text>
+                      <Text style={[typography.caption, { color: colors.textSecondary }]}>{d.tripCount} trips</Text>
+                      <Pill label={`${d.safetyScore}`} tone={d.safetyScore >= 80 ? 'ok' : d.safetyScore >= 50 ? 'warning' : 'critical'} />
+                    </View>
+                  ))
+                )}
+              </Card>
             </View>
-
-            <View style={[styles.card, { padding: cardPadding, backgroundColor: colors.card }]}>
-              <Text style={[styles.cardTitle, { color: colors.text }]}>{selectedVehicleId ?? 'Vehicle'} — Temperature trend</Text>
-              <MiniBarChart points={aggregations} valueKey="avgTemperature" label="Avg cargo temp" color={colors.warning} />
+            <View>
+              <SectionTitle title="Busiest areas" subtitle="Where trucks spent the most time" />
+              <Card padded={false}>
+                {busiest.length === 0 ? (
+                  <Text style={[typography.caption, styles.emptyLine, { color: colors.muted }]}>No location data in this window yet.</Text>
+                ) : (
+                  busiest.map((c, i) => (
+                    <View key={i} style={[styles.line, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border }]}>
+                      <Text style={[typography.body, styles.flex, { color: colors.text }]}>
+                        {c.cellLatitude.toFixed(3)}, {c.cellLongitude.toFixed(3)}
+                      </Text>
+                      <Text style={[typography.caption, { color: colors.textSecondary }]}>{Math.round(c.avgSpeed)} km/h avg</Text>
+                      <Text style={[typography.caption, { color: colors.muted }]}>{c.pointCount} readings</Text>
+                    </View>
+                  ))
+                )}
+              </Card>
             </View>
-
-            <View style={[styles.card, { padding: cardPadding, backgroundColor: colors.card }]}>
-              <Text style={[styles.cardTitle, { color: colors.text }]}>Speed heatmap cells</Text>
-              {heatmap.length === 0 ? (
-                <Text style={[styles.emptyChart, { color: colors.muted }]}>No heatmap data yet — simulate telemetry first</Text>
-              ) : (
-                heatmap.slice(0, 8).map((cell, i) => (
-                  <Text key={i} style={[styles.kpi, { color: colors.textSecondary }]}>
-                    ({cell.cellLatitude.toFixed(3)}, {cell.cellLongitude.toFixed(3)}) — {cell.avgSpeed.toFixed(0)} km/h · {cell.pointCount} pts
-                  </Text>
-                ))
-              )}
-            </View>
-          </>
-        )}
-      </ScrollView>
-    </Screen>
+          </Grid>
+        </>
+      )}
+    </Page>
   );
 }
 
 const styles = StyleSheet.create({
-  content: { paddingTop: 8, paddingBottom: 24 },
-  headerRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  heading: { fontWeight: '700' },
-  card: { borderRadius: 14, marginBottom: 12 },
-  cardTitle: { fontSize: 16, fontWeight: '700', marginBottom: 8 },
-  kpi: { marginTop: 4 },
-  chartBlock: { marginTop: 4 },
-  chartLabel: { fontSize: 12, color: '#8E8E93', marginBottom: 6 },
-  barRow: { flexDirection: 'row', alignItems: 'flex-end', height: 80, gap: 4 },
-  barCol: { flex: 1, height: '100%', justifyContent: 'flex-end' },
-  bar: { width: '100%', minHeight: 4, borderRadius: 3 },
-  emptyChart: { fontStyle: 'italic' },
+  flex: { flex: 1 },
+  block: { gap: spacing.sm, minHeight: 190 },
+  healthRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  meter: { height: 8, borderRadius: radius.pill, overflow: 'hidden' },
+  meterFill: { height: 8, borderRadius: radius.pill },
+  line: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.lg, paddingVertical: spacing.md },
+  emptyLine: { padding: spacing.lg },
 });

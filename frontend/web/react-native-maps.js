@@ -14,8 +14,8 @@ const MapView = forwardRef(function MapView({ style, children }, ref) {
 
   return (
     <View style={[styles.map, style]}>
-      <Text style={styles.caption}>Map preview (interactive map is available in the mobile app)</Text>
       <View style={styles.markers}>{children}</View>
+      <Text style={styles.caption}>Browser preview · the interactive map runs in the OmniOps mobile app</Text>
     </View>
   );
 });
@@ -48,12 +48,13 @@ export const PROVIDER_GOOGLE = 'google';
 export default MapView;
 
 const styles = StyleSheet.create({
-  map: { backgroundColor: '#1c2733', padding: 16, justifyContent: 'flex-start' },
-  caption: { color: '#9fb3c8', fontSize: 12, marginBottom: 12 },
+  // Top padding keeps marker cards clear of the floating controls drawn over the map.
+  map: { backgroundColor: '#13233A', paddingHorizontal: 16, paddingTop: 128, paddingBottom: 16 },
+  caption: { color: '#7F93AE', fontSize: 12, marginTop: 16 },
   markers: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
   marker: {
-    flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderRadius: 10,
-    paddingVertical: 6, paddingHorizontal: 10, backgroundColor: '#243447',
+    flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderRadius: 12,
+    paddingVertical: 8, paddingHorizontal: 12, backgroundColor: '#1C2F4A',
   },
   dot: { width: 10, height: 10, borderRadius: 5 },
   markerTitle: { color: '#ffffff', fontWeight: '600', fontSize: 13 },

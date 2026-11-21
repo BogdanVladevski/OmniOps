@@ -16,9 +16,9 @@ import { demoApi } from '../utils/api';
 import { radius, spacing, typography } from '../theme/tokens';
 
 const TAB_ROUTES = [
-  { id: 'map', label: 'Open Map', tab: 'Map', keywords: 'map live tracking' },
-  { id: 'fleet', label: 'Fleet Dashboard', tab: 'Fleet', keywords: 'dashboard kpi executive' },
-  { id: 'manage', label: 'Fleet Management', tab: 'Manage', keywords: 'vehicles drivers assign' },
+  { id: 'overview', label: 'Overview', tab: 'Overview', keywords: 'dashboard kpi executive shipments home' },
+  { id: 'map', label: 'Live map', tab: 'Map', keywords: 'map live tracking' },
+  { id: 'fleet', label: 'Fleet management', tab: 'Fleet', keywords: 'vehicles drivers assign copilot' },
   { id: 'analytics', label: 'Analytics', tab: 'Analytics', keywords: 'predictions safety trends' },
   { id: 'alerts', label: 'Alerts', tab: 'Alerts', keywords: 'incidents playbook' },
   { id: 'admin', label: 'Admin', tab: 'Admin', keywords: 'api keys audit logs' },

@@ -1,169 +1,165 @@
 import React, { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, ActivityIndicator } from 'react-native';
+import { StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useFleet } from '../contexts/FleetContext';
 import { useTheme } from '../contexts/ThemeContext';
-import { fleetApi, copilotApi } from '../utils/api';
-import { statusColor } from '../utils/fleetConfig';
+import { radius, spacing, typography } from '../theme/tokens';
+import { copilotApi, fleetApi } from '../utils/api';
 import { useLayout } from '../utils/layout';
-import Screen from './Screen';
-import EmptyState from './ui/EmptyState';
+import { Button, Card, EmptyNote, Field, Grid, Page, Pill, SectionTitle, Segmented, StatTile } from './ui/kit';
 
-const STATUS_FILTERS = ['all', 'ok', 'warning', 'offline'];
+const STATUS_FILTERS = [
+  { key: 'all', label: 'All' },
+  { key: 'active', label: 'Active' },
+  { key: 'maintenance', label: 'Maintenance' },
+  { key: 'retired', label: 'Retired' },
+];
+
+const SUGGESTIONS = ['Why might a vehicle be delayed?', 'Which shipment is most at risk?', 'Summarise today’s incidents'];
+
+function statusTone(status) {
+  const s = (status ?? '').toLowerCase();
+  if (s === 'active') return 'ok';
+  if (s === 'maintenance') return 'warning';
+  return 'neutral';
+}
 
 export default function FleetManagement() {
   const { defaultFleetId, fleetMeta, dbVehicles, refreshFleetMeta } = useFleet();
   const { colors } = useTheme();
-  const { horizontalPadding, titleSize, bodySize, cardPadding } = useLayout();
+  const { isTablet, isWide } = useLayout();
   const [driverName, setDriverName] = useState('');
-  const [copilotQuestion, setCopilotQuestion] = useState('Why might a vehicle be delayed?');
-  const [copilotAnswer, setCopilotAnswer] = useState('');
-  const [loading, setLoading] = useState(false);
+  const [driverMessage, setDriverMessage] = useState(null);
+  const [question, setQuestion] = useState(SUGGESTIONS[0]);
+  const [answer, setAnswer] = useState('');
+  const [busy, setBusy] = useState(null);
   const [statusFilter, setStatusFilter] = useState('all');
   const [search, setSearch] = useState('');
 
-  const filteredVehicles = useMemo(() => {
+  const vehicles = useMemo(() => {
+    const q = search.trim().toLowerCase();
     return dbVehicles.filter((v) => {
-      const matchesSearch =
-        !search.trim() ||
-        v.externalId?.toLowerCase().includes(search.toLowerCase()) ||
-        v.registration?.toLowerCase().includes(search.toLowerCase());
+      const matchesSearch = !q || v.externalId?.toLowerCase().includes(q) || v.registration?.toLowerCase().includes(q);
       const status = (v.status ?? 'offline').toLowerCase();
-      const matchesStatus = statusFilter === 'all' || status === statusFilter;
-      return matchesSearch && matchesStatus;
+      return matchesSearch && (statusFilter === 'all' || status === statusFilter);
     });
   }, [dbVehicles, search, statusFilter]);
 
   const createDriver = async () => {
     if (!driverName.trim()) return;
-    setLoading(true);
+    setBusy('driver');
+    setDriverMessage(null);
     try {
       await fleetApi.createDriver({ fleetId: defaultFleetId, fullName: driverName.trim(), licenseNumber: null });
+      setDriverMessage({ tone: 'ok', text: `${driverName.trim()} added to the fleet.` });
       setDriverName('');
       await refreshFleetMeta();
     } catch (e) {
-      console.error(e);
+      setDriverMessage({ tone: 'critical', text: `Could not add driver: ${e.message}` });
     } finally {
-      setLoading(false);
+      setBusy(null);
     }
   };
 
   const askCopilot = async () => {
-    setLoading(true);
+    setBusy('copilot');
     try {
-      const res = await copilotApi.ask(copilotQuestion, defaultFleetId);
-      setCopilotAnswer(res.answer);
+      const res = await copilotApi.ask(question, defaultFleetId);
+      setAnswer(res.answer);
     } catch {
-      setCopilotAnswer('Copilot unavailable — check API connection.');
+      setAnswer('The copilot is unavailable right now — check the API connection.');
     } finally {
-      setLoading(false);
+      setBusy(null);
     }
   };
 
-  return (
-    <Screen>
-      <ScrollView contentContainerStyle={[styles.content, { paddingHorizontal: horizontalPadding }]}>
-        <Text style={[styles.heading, { fontSize: titleSize, color: colors.text }]}>Fleet Management</Text>
-
-        {fleetMeta && (
-          <View style={[styles.card, { padding: cardPadding, backgroundColor: colors.card }]}>
-            <Text style={[styles.cardTitle, { color: colors.text }]}>Fleet Statistics</Text>
-            <Text style={[styles.metaLine, { color: colors.textSecondary }]}>Vehicles: {fleetMeta.vehicleCount}</Text>
-            <Text style={[styles.metaLine, { color: colors.textSecondary }]}>Active trips: {fleetMeta.activeTripCount}</Text>
-            <Text style={[styles.metaLine, { color: colors.textSecondary }]}>Drivers: {fleetMeta.driverCount}</Text>
-            <Text style={[styles.metaLine, { color: colors.textSecondary }]}>Depots: {fleetMeta.depotCount}</Text>
-          </View>
-        )}
-
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>Registered Vehicles</Text>
-        <TextInput
-          style={[styles.input, { borderColor: colors.border, backgroundColor: colors.card, color: colors.text }]}
-          placeholder="Search by ID or registration"
-          placeholderTextColor={colors.muted}
-          value={search}
-          onChangeText={setSearch}
-        />
-        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.filterRow}>
-          {STATUS_FILTERS.map((f) => (
-            <Pressable
-              key={f}
-              onPress={() => setStatusFilter(f)}
-              style={[
-                styles.filterChip,
-                { borderColor: colors.border, backgroundColor: statusFilter === f ? colors.accent : colors.card },
-              ]}
-            >
-              <Text style={{ color: statusFilter === f ? '#fff' : colors.text, fontWeight: '600', fontSize: 12 }}>
-                {f.toUpperCase()}
-              </Text>
-            </Pressable>
-          ))}
-        </ScrollView>
-
-        {filteredVehicles.length === 0 ? (
-          <EmptyState title="No vehicles match" body="Adjust filters or register vehicles via the API." icon="🚚" />
-        ) : (
-          filteredVehicles.map((v) => (
-            <View key={v.id} style={[styles.card, { padding: cardPadding, backgroundColor: colors.card }]}>
-              <View style={styles.vehicleHeader}>
-                <Text style={[styles.vehicleId, { color: colors.text }]}>{v.externalId}</Text>
-                <View style={[styles.badge, { backgroundColor: statusColor((v.status ?? 'offline').toLowerCase()) }]}>
-                  <Text style={styles.badgeText}>{(v.status ?? 'offline').toUpperCase()}</Text>
-                </View>
+  const vehicleSection = (
+    <View>
+      <SectionTitle title="Registered vehicles" subtitle={`${dbVehicles.length} trucks in this fleet`} />
+      <Field placeholder="Search by truck ID or registration" value={search} onChangeText={setSearch} />
+      <View style={{ height: spacing.sm }} />
+      <Segmented options={STATUS_FILTERS} value={statusFilter} onChange={setStatusFilter} />
+      <View style={{ height: spacing.md }} />
+      {vehicles.length === 0 ? (
+        <EmptyNote icon="search-outline" title="No vehicles match" body="Try a different search or filter." />
+      ) : (
+        <Card padded={false}>
+          {vehicles.map((v, i) => (
+            <View key={v.id} style={[styles.row, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border }]}>
+              <View style={[styles.rowIcon, { backgroundColor: colors.accentMuted }]}>
+                <Ionicons name="bus-outline" size={18} color={colors.accentStrong} />
               </View>
-              <Text style={[styles.metaLine, { color: colors.textSecondary }]}>VIN: {v.vin ?? '—'} · Reg: {v.registration ?? '—'}</Text>
+              <View style={styles.flex}>
+                <Text style={[typography.bodyStrong, { color: colors.text }]}>{v.externalId}</Text>
+                <Text style={[typography.caption, { color: colors.muted }]} numberOfLines={1}>
+                  Reg {v.registration ?? '—'} · VIN {v.vin ?? '—'}
+                </Text>
+              </View>
+              <Pill label={(v.status ?? 'Offline').toString()} tone={statusTone(v.status)} />
             </View>
-          ))
-        )}
+          ))}
+        </Card>
+      )}
+    </View>
+  );
 
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>Add Driver</Text>
-        <View style={[styles.card, { padding: cardPadding, backgroundColor: colors.card }]}>
-          <TextInput
-            style={[styles.input, { borderColor: colors.border, backgroundColor: colors.background, color: colors.text }]}
-            placeholder="Driver full name"
-            placeholderTextColor={colors.muted}
-            value={driverName}
-            onChangeText={setDriverName}
-          />
-          <Pressable style={[styles.button, { backgroundColor: colors.accent }]} onPress={createDriver} disabled={loading}>
-            <Text style={styles.buttonText}>Create Driver</Text>
-          </Pressable>
+  const toolsSection = (
+    <View>
+      <SectionTitle title="Ask the fleet copilot" subtitle="Questions in plain language about your fleet" />
+      <Card style={styles.gap}>
+        <View style={styles.suggestions}>
+          {SUGGESTIONS.map((s) => (
+            <Button key={s} label={s} variant="secondary" onPress={() => setQuestion(s)} style={styles.suggestion} />
+          ))}
         </View>
+        <Field multiline value={question} onChangeText={setQuestion} />
+        <Button label={busy === 'copilot' ? 'Thinking…' : 'Ask copilot'} icon="sparkles-outline" onPress={askCopilot} disabled={busy === 'copilot'} />
+        {answer ? (
+          <View style={[styles.answer, { backgroundColor: colors.sunken }]}>
+            <Text style={[typography.body, { color: colors.text }]}>{answer}</Text>
+          </View>
+        ) : null}
+      </Card>
 
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>AI Fleet Copilot</Text>
-        <View style={[styles.card, { padding: cardPadding, backgroundColor: colors.card }]}>
-          <TextInput
-            style={[styles.input, { minHeight: 60, borderColor: colors.border, backgroundColor: colors.background, color: colors.text }]}
-            multiline
-            value={copilotQuestion}
-            onChangeText={setCopilotQuestion}
-          />
-          <Pressable style={[styles.button, { backgroundColor: colors.accent }]} onPress={askCopilot} disabled={loading}>
-            {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.buttonText}>Ask Copilot</Text>}
-          </Pressable>
-          {copilotAnswer ? (
-            <Text style={[styles.copilotAnswer, { fontSize: bodySize, color: colors.text }]}>{copilotAnswer}</Text>
-          ) : null}
+      <SectionTitle title="Add a driver" />
+      <Card style={styles.gap}>
+        <Field label="Full name" placeholder="e.g. Ana Petrovska" value={driverName} onChangeText={setDriverName} />
+        <Button label={busy === 'driver' ? 'Adding…' : 'Add driver'} icon="person-add-outline" onPress={createDriver} disabled={busy === 'driver' || !driverName.trim()} />
+        {driverMessage ? <Pill label={driverMessage.text} tone={driverMessage.tone} /> : null}
+      </Card>
+    </View>
+  );
+
+  return (
+    <Page title="Fleet" subtitle="The trucks, drivers and depots behind every shipment — plus an AI copilot for quick answers.">
+      <Grid columns={isTablet ? 4 : 2}>
+        <StatTile label="Vehicles" value={fleetMeta ? String(fleetMeta.vehicleCount) : '—'} icon="bus-outline" tone="accent" />
+        <StatTile label="Drivers" value={fleetMeta ? String(fleetMeta.driverCount) : '—'} icon="people-outline" />
+        <StatTile label="Active trips" value={fleetMeta ? String(fleetMeta.activeTripCount) : '—'} icon="navigate-outline" />
+        <StatTile label="Depots" value={fleetMeta ? String(fleetMeta.depotCount) : '—'} icon="business-outline" />
+      </Grid>
+      {isWide ? (
+        <View style={styles.columns}>
+          <View style={styles.flex}>{vehicleSection}</View>
+          <View style={styles.flex}>{toolsSection}</View>
         </View>
-      </ScrollView>
-    </Screen>
+      ) : (
+        <>
+          {vehicleSection}
+          {toolsSection}
+        </>
+      )}
+    </Page>
   );
 }
 
 const styles = StyleSheet.create({
-  content: { paddingTop: 8, paddingBottom: 24 },
-  heading: { fontWeight: '700', marginBottom: 12 },
-  sectionTitle: { fontSize: 17, fontWeight: '700', marginTop: 16, marginBottom: 8 },
-  card: { borderRadius: 14, marginBottom: 10 },
-  cardTitle: { fontSize: 16, fontWeight: '700', marginBottom: 8 },
-  vehicleHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  vehicleId: { fontSize: 16, fontWeight: '700' },
-  badge: { borderRadius: 8, paddingHorizontal: 8, paddingVertical: 4 },
-  badgeText: { color: '#fff', fontSize: 11, fontWeight: '700' },
-  metaLine: { marginTop: 4 },
-  filterRow: { marginBottom: 10, maxHeight: 40 },
-  filterChip: { borderRadius: 16, borderWidth: 1, paddingHorizontal: 12, paddingVertical: 8, marginRight: 8 },
-  input: { borderWidth: 1, borderRadius: 10, padding: 12, marginBottom: 10 },
-  button: { borderRadius: 10, padding: 12, alignItems: 'center' },
-  buttonText: { color: '#fff', fontWeight: '700' },
-  copilotAnswer: { marginTop: 12, lineHeight: 20 },
+  flex: { flex: 1 },
+  columns: { flexDirection: 'row', gap: spacing.xl, alignItems: 'flex-start' },
+  gap: { gap: spacing.md },
+  row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.lg, paddingVertical: spacing.md },
+  rowIcon: { width: 36, height: 36, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center' },
+  suggestions: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  suggestion: { paddingVertical: 6, minHeight: 32 },
+  answer: { borderRadius: radius.md, padding: spacing.lg },
 });

@@ -1,10 +1,14 @@
 import React, { useRef, useState } from 'react';
-import { Text, View, StyleSheet, ActivityIndicator, Pressable, ScrollView } from 'react-native';
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import MapView, { Circle, Marker, Polygon, PROVIDER_DEFAULT } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFleet } from '../contexts/FleetContext';
+import { useTheme } from '../contexts/ThemeContext';
+import { elevation, radius, spacing, typography } from '../theme/tokens';
 import { getVehicleStatus, statusColor } from '../utils/fleetConfig';
 import { useLayout } from '../utils/layout';
+import { Pill, TempRangeBar, timeAgo } from './ui/kit';
 
 function parsePolygon(json) {
   try {
@@ -15,25 +19,107 @@ function parsePolygon(json) {
   }
 }
 
-function BatteryIndicator({ level }) {
-  if (level == null) return null;
-  const color = level < 20 ? '#FF3B30' : level < 40 ? '#FF9500' : '#34C759';
+const STATUS = {
+  ok: { tone: 'ok', label: 'OK' },
+  warning: { tone: 'critical', label: 'Attention' },
+  offline: { tone: 'neutral', label: 'Offline' },
+};
+
+function Metric({ icon, label, value }) {
+  const { colors } = useTheme();
   return (
-    <View style={styles.batteryRow}>
-      <Text style={styles.batteryLabel}>BATTERY</Text>
-      <View style={styles.batteryTrack}>
-        <View style={[styles.batteryFill, { width: `${Math.min(level, 100)}%`, backgroundColor: color }]} />
-      </View>
-      <Text style={styles.batteryValue}>{Math.round(level)}%</Text>
+    <View style={styles.metric}>
+      <Ionicons name={icon} size={16} color={colors.muted} />
+      <Text style={[typography.overline, { color: colors.muted }]}>{label}</Text>
+      <Text style={[typography.title, { color: colors.text }]} numberOfLines={1}>{value}</Text>
     </View>
   );
 }
 
+function VehiclePanel({ vehicleId, telemetry }) {
+  const { colors } = useTheme();
+  const s = telemetry?.shipment;
+  const status = STATUS[getVehicleStatus(telemetry)];
+  if (!telemetry) {
+    return (
+      <View style={styles.panelBody}>
+        <Text style={[typography.title, { color: colors.text }]}>{vehicleId ?? 'Select a truck'}</Text>
+        <ActivityIndicator size="small" color={colors.accent} style={{ marginTop: spacing.sm }} />
+      </View>
+    );
+  }
+  const battery = telemetry.batteryLevel;
+  return (
+    <View style={styles.panelBody}>
+      <View style={styles.panelHead}>
+        <View style={styles.flex}>
+          <Text style={[typography.title, { color: colors.text }]}>{vehicleId}</Text>
+          <Text style={[typography.caption, { color: colors.muted }]}>
+            {s ? `${s.productName} · batch ${s.batchNumber}` : 'No active shipment'} · updated {timeAgo(telemetry.timestamp)}
+          </Text>
+        </View>
+        <Pill label={status.label} tone={status.tone} />
+      </View>
+      {s ? <TempRangeBar value={telemetry.engineTemperature} min={s.minSafeTempCelsius} max={s.maxSafeTempCelsius} /> : null}
+      <View style={styles.metrics}>
+        <Metric icon="speedometer-outline" label="Speed" value={`${telemetry.speed} km/h`} />
+        <Metric icon="compass-outline" label="Heading" value={telemetry.heading != null ? `${Math.round(telemetry.heading)}°` : '—'} />
+        <Metric icon="thermometer-outline" label="Cargo" value={`${telemetry.engineTemperature}°C`} />
+        <Metric
+          icon="battery-half-outline"
+          label="Sensor battery"
+          value={battery != null ? `${Math.round(battery)}%` : '—'}
+        />
+      </View>
+    </View>
+  );
+}
+
+function VehicleList({ vehicleIds, vehicles, selectedVehicleId, onSelect, horizontal }) {
+  const { colors } = useTheme();
+  const items = vehicleIds.map((id) => {
+    const t = vehicles[id];
+    const selected = id === selectedVehicleId;
+    return (
+      <Pressable
+        key={id}
+        onPress={() => onSelect(id)}
+        accessibilityRole="button"
+        accessibilityState={{ selected }}
+        style={({ hovered }) => [
+          styles.vehicleItem,
+          horizontal && styles.vehicleChip,
+          { backgroundColor: selected ? colors.accentMuted : hovered ? colors.sunken : colors.card, borderColor: selected ? colors.accent : colors.border },
+        ]}
+      >
+        <View style={[styles.dot, { backgroundColor: statusColor(getVehicleStatus(t)) }]} />
+        <View style={horizontal ? null : styles.flex}>
+          <Text style={[typography.bodyStrong, { color: colors.text }]}>{id}</Text>
+          {!horizontal ? (
+            <Text style={[typography.caption, { color: colors.muted }]} numberOfLines={1}>
+              {t ? `${t.speed} km/h · ${t.engineTemperature}°C` : 'No signal'}
+            </Text>
+          ) : null}
+        </View>
+      </Pressable>
+    );
+  });
+  if (horizontal) {
+    return (
+      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.chipRow}>
+        {items}
+      </ScrollView>
+    );
+  }
+  return <View style={styles.vehicleList}>{items}</View>;
+}
+
 export default function FleetMap() {
-  const { vehicleIds, vehicles, geofences, selectedVehicleId, setSelectedVehicleId, connectionStatus } = useFleet();
+  const { vehicleIds, vehicles, geofences, selectedVehicleId, setSelectedVehicleId } = useFleet();
+  const { colors, isDark } = useTheme();
   const mapRef = useRef(null);
   const insets = useSafeAreaInsets();
-  const { compact, horizontalPadding, titleSize } = useLayout();
+  const { isWide, horizontalPadding } = useLayout();
   const [mapType, setMapType] = useState('standard');
   const selectedTelemetry = selectedVehicleId ? vehicles[selectedVehicleId] : null;
 
@@ -50,168 +136,129 @@ export default function FleetMap() {
     }
   };
 
-  const initialRegion = {
-    latitude: 41.9965,
-    longitude: 21.4314,
-    latitudeDelta: 0.08,
-    longitudeDelta: 0.08,
-  };
+  const initialRegion = { latitude: 41.9965, longitude: 21.4314, latitudeDelta: 0.08, longitudeDelta: 0.08 };
 
-  const mapTypes = ['standard', 'satellite', 'hybrid'];
-
-  return (
-    <View style={styles.container}>
-      <MapView
-        ref={mapRef}
-        style={styles.map}
-        provider={PROVIDER_DEFAULT}
-        mapType={mapType}
-        initialRegion={initialRegion}
-        showsUserLocation
-      >
-        {geofences.map((g) => {
-          if (g.shapeType === 'Radius' && g.centerLatitude && g.centerLongitude && g.radiusMeters) {
-            return (
-              <Circle
-                key={g.id}
-                center={{ latitude: g.centerLatitude, longitude: g.centerLongitude }}
-                radius={g.radiusMeters}
-                strokeColor="rgba(0,122,255,0.8)"
-                fillColor="rgba(0,122,255,0.15)"
-              />
-            );
-          }
-          const coords = parsePolygon(g.polygonCoordinatesJson);
-          if (coords.length >= 3) {
-            return (
-              <Polygon
-                key={g.id}
-                coordinates={coords}
-                strokeColor="rgba(88,86,214,0.9)"
-                fillColor="rgba(88,86,214,0.15)"
-              />
-            );
-          }
-          return null;
-        })}
-
-        {vehicleIds.map((vehicleId) => {
-          const telemetry = vehicles[vehicleId];
-          if (!telemetry?.latitude || !telemetry?.longitude) return null;
-          const status = getVehicleStatus(telemetry);
-          const isSelected = vehicleId === selectedVehicleId;
+  const map = (
+    <MapView
+      ref={mapRef}
+      style={styles.map}
+      provider={PROVIDER_DEFAULT}
+      mapType={mapType}
+      initialRegion={initialRegion}
+      showsUserLocation
+    >
+      {geofences.map((g) => {
+        if (g.shapeType === 'Radius' && g.centerLatitude && g.centerLongitude && g.radiusMeters) {
           return (
-            <Marker
-              key={vehicleId}
-              coordinate={{ latitude: telemetry.latitude, longitude: telemetry.longitude }}
-              title={vehicleId}
-              description={`${telemetry.speed} km/h · ${telemetry.heading != null ? `${Math.round(telemetry.heading)}°` : '—'}`}
-              pinColor={statusColor(status)}
-              rotation={telemetry.heading ?? 0}
-              onPress={() => focusVehicle(vehicleId)}
-              opacity={isSelected ? 1 : 0.85}
+            <Circle
+              key={g.id}
+              center={{ latitude: g.centerLatitude, longitude: g.centerLongitude }}
+              radius={g.radiusMeters}
+              strokeColor="rgba(14,165,183,0.9)"
+              fillColor="rgba(14,165,183,0.15)"
             />
           );
-        })}
-      </MapView>
-
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={[styles.chipRow, { top: insets.top + 8 }]}
-        contentContainerStyle={[styles.chipContent, { paddingHorizontal: horizontalPadding }]}
-      >
-        {mapTypes.map((type) => (
-          <Pressable
-            key={type}
-            onPress={() => setMapType(type)}
-            style={[styles.chip, mapType === type && styles.chipSelected]}
-          >
-            <Text style={[styles.chipText, mapType === type && styles.chipTextSelected]}>
-              {type.toUpperCase()}
-            </Text>
-          </Pressable>
-        ))}
-        {vehicleIds.map((vehicleId) => {
-          const status = getVehicleStatus(vehicles[vehicleId]);
-          const isSelected = vehicleId === selectedVehicleId;
+        }
+        const coords = parsePolygon(g.polygonCoordinatesJson);
+        if (coords.length >= 3) {
           return (
-            <Pressable
-              key={vehicleId}
-              onPress={() => focusVehicle(vehicleId)}
-              style={[styles.chip, isSelected && styles.chipSelected]}
-            >
-              <View style={[styles.chipDot, { backgroundColor: statusColor(status) }]} />
-              <Text style={[styles.chipText, isSelected && styles.chipTextSelected]}>{vehicleId}</Text>
-            </Pressable>
+            <Polygon key={g.id} coordinates={coords} strokeColor="rgba(59,130,246,0.9)" fillColor="rgba(59,130,246,0.15)" />
           );
-        })}
-      </ScrollView>
+        }
+        return null;
+      })}
 
-      <View style={[styles.overlayPanel, { left: horizontalPadding, right: horizontalPadding, bottom: 12, padding: compact ? 14 : 18 }]}>
-        <Text style={[styles.title, { fontSize: titleSize }]} numberOfLines={1}>
-          Target: {selectedVehicleId ?? '—'}
-        </Text>
-        <Text style={styles.statusLabel} numberOfLines={1}>{connectionStatus}</Text>
+      {vehicleIds.map((vehicleId) => {
+        const telemetry = vehicles[vehicleId];
+        if (!telemetry?.latitude || !telemetry?.longitude) return null;
+        const isSelected = vehicleId === selectedVehicleId;
+        return (
+          <Marker
+            key={vehicleId}
+            coordinate={{ latitude: telemetry.latitude, longitude: telemetry.longitude }}
+            title={vehicleId}
+            description={`${telemetry.speed} km/h · ${telemetry.engineTemperature}°C cargo`}
+            pinColor={statusColor(getVehicleStatus(telemetry))}
+            rotation={telemetry.heading ?? 0}
+            onPress={() => focusVehicle(vehicleId)}
+            opacity={isSelected ? 1 : 0.85}
+          />
+        );
+      })}
+    </MapView>
+  );
 
-        {selectedTelemetry ? (
-          <>
-            <View style={styles.statsGrid}>
-              <View style={styles.statBox}>
-                <Text style={styles.statLabel}>SPEED</Text>
-                <Text style={styles.statValue} adjustsFontSizeToFit numberOfLines={1}>
-                  {selectedTelemetry.speed} km/h
-                </Text>
-              </View>
-              <View style={styles.statBox}>
-                <Text style={styles.statLabel}>HEADING</Text>
-                <Text style={styles.statValue} adjustsFontSizeToFit numberOfLines={1}>
-                  {selectedTelemetry.heading != null ? `${Math.round(selectedTelemetry.heading)}°` : '—'}
-                </Text>
-              </View>
-              <View style={styles.statBox}>
-                <Text style={styles.statLabel}>TEMP</Text>
-                <Text style={styles.statValue} adjustsFontSizeToFit numberOfLines={1}>
-                  {selectedTelemetry.engineTemperature}°C
-                </Text>
-              </View>
-            </View>
-            <BatteryIndicator level={selectedTelemetry.batteryLevel} />
-          </>
-        ) : (
-          <ActivityIndicator size="small" color="#007AFF" style={{ marginTop: 10 }} />
-        )}
+  const mapTypes = (
+    <View style={[styles.mapTypes, { backgroundColor: colors.card }, elevation(isDark)]}>
+      {['standard', 'satellite', 'hybrid'].map((type) => (
+        <Pressable
+          key={type}
+          onPress={() => setMapType(type)}
+          style={[styles.mapType, mapType === type && { backgroundColor: colors.accentMuted }]}
+        >
+          <Text style={[typography.label, { color: mapType === type ? colors.accentStrong : colors.textSecondary }]}>
+            {type[0].toUpperCase() + type.slice(1)}
+          </Text>
+        </Pressable>
+      ))}
+    </View>
+  );
+
+  if (isWide) {
+    return (
+      <View style={[styles.wide, { backgroundColor: colors.background }]}>
+        <View style={styles.flex}>
+          {map}
+          <View style={[styles.mapTypesWrap, { top: spacing.lg, left: spacing.lg }]}>{mapTypes}</View>
+        </View>
+        <View style={[styles.sidePanel, { backgroundColor: colors.card, borderLeftColor: colors.border }]}>
+          <Text style={[typography.headline, { color: colors.text }]}>Live map</Text>
+          <Text style={[typography.caption, { color: colors.textSecondary, marginBottom: spacing.lg }]}>
+            Where every truck is right now. Select one to see its cargo temperature.
+          </Text>
+          <VehicleList vehicleIds={vehicleIds} vehicles={vehicles} selectedVehicleId={selectedVehicleId} onSelect={focusVehicle} />
+          <View style={[styles.divider, { backgroundColor: colors.border }]} />
+          <VehiclePanel vehicleId={selectedVehicleId} telemetry={selectedTelemetry} />
+        </View>
+      </View>
+    );
+  }
+
+  return (
+    <View style={[styles.flex, { backgroundColor: colors.background }]}>
+      {map}
+      <View style={[styles.topOverlay, { top: insets.top + spacing.sm, paddingHorizontal: horizontalPadding }]}>
+        {mapTypes}
+        <VehicleList horizontal vehicleIds={vehicleIds} vehicles={vehicles} selectedVehicleId={selectedVehicleId} onSelect={focusVehicle} />
+      </View>
+      <View style={[styles.sheet, { backgroundColor: colors.card, left: horizontalPadding, right: horizontalPadding }, elevation(isDark, 2)]}>
+        <VehiclePanel vehicleId={selectedVehicleId} telemetry={selectedTelemetry} />
       </View>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#F2F2F7' },
+  flex: { flex: 1 },
   map: { ...StyleSheet.absoluteFillObject },
-  chipRow: { position: 'absolute', left: 0, right: 0, maxHeight: 48 },
-  chipContent: { alignItems: 'center' },
-  chip: {
-    flexDirection: 'row', alignItems: 'center', backgroundColor: 'rgba(255,255,255,0.95)',
-    borderRadius: 16, paddingHorizontal: 12, paddingVertical: 8, marginRight: 8,
+  wide: { flex: 1, flexDirection: 'row' },
+  sidePanel: { width: 380, borderLeftWidth: StyleSheet.hairlineWidth, padding: spacing.xl },
+  divider: { height: StyleSheet.hairlineWidth, marginVertical: spacing.lg },
+  mapTypesWrap: { position: 'absolute' },
+  mapTypes: { flexDirection: 'row', borderRadius: radius.pill, padding: 4, alignSelf: 'flex-start' },
+  mapType: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: radius.pill },
+  topOverlay: { position: 'absolute', left: 0, right: 0, gap: spacing.sm },
+  chipRow: { gap: spacing.sm },
+  vehicleList: { gap: spacing.sm },
+  vehicleItem: {
+    flexDirection: 'row', alignItems: 'center', gap: spacing.md, borderWidth: 1,
+    borderRadius: radius.md, paddingHorizontal: spacing.md, paddingVertical: 10,
   },
-  chipSelected: { borderWidth: 2, borderColor: '#007AFF' },
-  chipDot: { width: 8, height: 8, borderRadius: 4, marginRight: 6 },
-  chipText: { fontSize: 13, fontWeight: '600', color: '#3A3A3C' },
-  chipTextSelected: { color: '#007AFF' },
-  overlayPanel: {
-    position: 'absolute', backgroundColor: 'rgba(255, 255, 255, 0.95)', borderRadius: 20,
-    shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.15, shadowRadius: 10, elevation: 8,
-  },
-  title: { fontWeight: '700', color: '#1C1C1E' },
-  statusLabel: { fontSize: 13, color: '#8E8E93', marginBottom: 10, marginTop: 4 },
-  statsGrid: { flexDirection: 'row', justifyContent: 'space-between' },
-  statBox: { alignItems: 'center', flex: 1, paddingHorizontal: 4 },
-  statLabel: { fontSize: 11, fontWeight: '600', color: '#8E8E93', marginBottom: 2 },
-  statValue: { fontSize: 15, fontWeight: '700', color: '#1C1C1E' },
-  batteryRow: { flexDirection: 'row', alignItems: 'center', marginTop: 10, gap: 8 },
-  batteryLabel: { fontSize: 11, fontWeight: '600', color: '#8E8E93', width: 56 },
-  batteryTrack: { flex: 1, height: 8, backgroundColor: '#E5E5EA', borderRadius: 4, overflow: 'hidden' },
-  batteryFill: { height: 8, borderRadius: 4 },
-  batteryValue: { fontSize: 13, fontWeight: '700', color: '#1C1C1E', width: 40, textAlign: 'right' },
+  vehicleChip: { borderRadius: radius.pill, paddingVertical: 7 },
+  dot: { width: 10, height: 10, borderRadius: 5 },
+  sheet: { position: 'absolute', bottom: spacing.md, borderRadius: radius.xl, padding: spacing.lg },
+  panelBody: { gap: spacing.md },
+  panelHead: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md },
+  metrics: { flexDirection: 'row', flexWrap: 'wrap', rowGap: spacing.md },
+  metric: { width: '50%', gap: 2 },
 });

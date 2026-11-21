@@ -1,15 +1,23 @@
 import React, { useCallback, useEffect, useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, TextInput, ActivityIndicator } from 'react-native';
-import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { adminApi } from '../utils/api';
+import { StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
+import { radius, spacing, typography } from '../theme/tokens';
+import { adminApi } from '../utils/api';
 import { useLayout } from '../utils/layout';
-import Screen from './Screen';
-import EmptyState from './ui/EmptyState';
 import RetryPanel from './ui/RetryPanel';
 import { SkeletonCard } from './ui/SkeletonLoader';
+import { Button, Card, EmptyNote, Field, Page, Pill, SectionTitle, Segmented, timeAgo } from './ui/kit';
+
+const THEME_OPTIONS = [
+  { key: 'system', label: 'System' },
+  { key: 'light', label: 'Light' },
+  { key: 'dark', label: 'Dark' },
+];
 
 export default function AdminPanel() {
+  const { colors, themeMode, setThemeMode } = useTheme();
+  const { isWide } = useLayout();
   const [auditLogs, setAuditLogs] = useState([]);
   const [apiKeys, setApiKeys] = useState([]);
   const [error, setError] = useState(null);
@@ -17,18 +25,12 @@ export default function AdminPanel() {
   const [creating, setCreating] = useState(false);
   const [newKeyName, setNewKeyName] = useState('Mobile App');
   const [createdKey, setCreatedKey] = useState(null);
-  const insets = useSafeAreaInsets();
-  const { colors } = useTheme();
-  const { horizontalPadding, titleSize, bodySize, cardPadding } = useLayout();
 
   const load = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
-      const [logs, keys] = await Promise.all([
-        adminApi.auditLogs(),
-        adminApi.apiKeys(),
-      ]);
+      const [logs, keys] = await Promise.all([adminApi.auditLogs(), adminApi.apiKeys()]);
       setAuditLogs(logs ?? []);
       setApiKeys(keys ?? []);
     } catch (e) {
@@ -60,86 +62,98 @@ export default function AdminPanel() {
     }
   };
 
+  const access = (
+    <View>
+      <SectionTitle title="API keys" subtitle="Let other systems and devices connect to OmniOps" />
+      <Card style={styles.gap}>
+        <Field label="New key name" value={newKeyName} onChangeText={setNewKeyName} placeholder="e.g. Warehouse integration" />
+        <Button label={creating ? 'Generating…' : 'Generate key'} icon="key-outline" onPress={createKey} disabled={creating} />
+        {createdKey?.apiKey ? (
+          <View style={[styles.secret, { backgroundColor: colors.okSoft }]}>
+            <Text style={[typography.label, { color: colors.ok }]}>Copy this key now — it will not be shown again</Text>
+            <Text selectable style={[typography.body, styles.mono, { color: colors.text }]}>{createdKey.apiKey}</Text>
+          </View>
+        ) : null}
+      </Card>
+      <View style={{ height: spacing.md }} />
+      {loading ? (
+        <SkeletonCard lines={2} />
+      ) : apiKeys.length === 0 ? (
+        <EmptyNote icon="key-outline" title="No API keys yet" body="Generate one for an integration or a mobile device." />
+      ) : (
+        <Card padded={false}>
+          {apiKeys.map((key, i) => (
+            <View key={key.id} style={[styles.row, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border }]}>
+              <Ionicons name="key-outline" size={18} color={colors.muted} />
+              <View style={styles.flex}>
+                <Text style={[typography.bodyStrong, { color: colors.text }]}>{key.name}</Text>
+                <Text style={[typography.caption, styles.mono, { color: colors.muted }]} numberOfLines={1}>{key.keyPrefix}…</Text>
+              </View>
+              <Pill label={`${String(key.scopes ?? '').split(' ').filter(Boolean).length} scopes`} tone="info" />
+            </View>
+          ))}
+        </Card>
+      )}
+
+      <SectionTitle title="Appearance" />
+      <Card>
+        <Segmented options={THEME_OPTIONS} value={themeMode} onChange={setThemeMode} />
+      </Card>
+    </View>
+  );
+
+  const audit = (
+    <View>
+      <SectionTitle title="Audit trail" subtitle="Who changed what, and when" />
+      {loading ? (
+        <SkeletonCard lines={3} />
+      ) : auditLogs.length === 0 ? (
+        <EmptyNote icon="document-text-outline" title="No audit entries yet" body="Actions such as resolving incidents or assigning drivers are recorded here." />
+      ) : (
+        <Card padded={false}>
+          {auditLogs.map((log, i) => (
+            <View key={log.id} style={[styles.row, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border }]}>
+              <View style={[styles.dot, { backgroundColor: colors.accent }]} />
+              <View style={styles.flex}>
+                <Text style={[typography.bodyStrong, { color: colors.text }]}>{log.action} · {log.entityType}</Text>
+                <Text style={[typography.caption, { color: colors.textSecondary }]} numberOfLines={2}>{log.details ?? log.entityId}</Text>
+              </View>
+              <Text style={[typography.caption, { color: colors.muted }]}>{timeAgo(log.occurredAtUtc)}</Text>
+            </View>
+          ))}
+        </Card>
+      )}
+    </View>
+  );
+
   return (
-    <Screen style={styles.screen}>
-      <ScrollView contentContainerStyle={[styles.container, { paddingHorizontal: horizontalPadding, paddingBottom: insets.bottom + 24 }]}>
-        <Text style={[styles.heading, { fontSize: titleSize, color: colors.text }]}>Admin Portal</Text>
-        <Text style={[styles.subheading, { fontSize: bodySize, color: colors.muted }]}>
-          Audit trail and API keys (platform:admin scope in production).
-        </Text>
-
-        {error ? <RetryPanel message={error} onRetry={load} /> : null}
-
-        <Text style={[styles.section, { color: colors.text }]}>Create API Key</Text>
-        <View style={[styles.card, { padding: cardPadding, backgroundColor: colors.card }]}>
-          <TextInput
-            style={[styles.input, { borderColor: colors.border, color: colors.text }]}
-            value={newKeyName}
-            onChangeText={setNewKeyName}
-            placeholder="Key name"
-            placeholderTextColor={colors.muted}
-          />
-          <Pressable style={[styles.primaryBtn, { backgroundColor: colors.accent }]} onPress={createKey} disabled={creating}>
-            {creating ? <ActivityIndicator color="#fff" /> : <Text style={styles.primaryBtnText}>Generate Key</Text>}
-          </Pressable>
-          {createdKey?.apiKey ? (
-            <Text style={[styles.success, { color: colors.success }]}>
-              New key (copy now): {createdKey.apiKey}
-            </Text>
-          ) : null}
+    <Page
+      title="Admin"
+      subtitle="Access for integrations, the audit trail required for compliance, and display settings."
+      actions={<Button label="Refresh" icon="refresh" variant="secondary" onPress={load} />}
+    >
+      {error ? <RetryPanel message={error} onRetry={load} /> : null}
+      {isWide ? (
+        <View style={styles.columns}>
+          <View style={styles.flex}>{access}</View>
+          <View style={styles.flex}>{audit}</View>
         </View>
-
-        <Text style={[styles.section, { color: colors.text }]}>API Keys</Text>
-        {loading ? (
-          <SkeletonCard lines={2} />
-        ) : apiKeys.length === 0 ? (
-          <EmptyState title="No API keys" body="Generate a key for integrations or mobile clients." icon="🔑" />
-        ) : (
-          apiKeys.map((key) => (
-            <View key={key.id} style={[styles.card, { padding: cardPadding, backgroundColor: colors.card }]}>
-              <Text style={[styles.cardTitle, { color: colors.text }]}>{key.name}</Text>
-              <Text style={[styles.muted, { color: colors.textSecondary }]}>{key.keyPrefix}… · {key.scopes}</Text>
-            </View>
-          ))
-        )}
-
-        <Text style={[styles.section, { color: colors.text }]}>Audit Logs</Text>
-        {loading ? (
-          <SkeletonCard lines={3} />
-        ) : auditLogs.length === 0 ? (
-          <EmptyState title="No audit entries" body="Actions like incident resolve and driver assignment appear here." icon="📋" />
-        ) : (
-          auditLogs.map((log) => (
-            <View key={log.id} style={[styles.card, { padding: cardPadding, backgroundColor: colors.card }]}>
-              <Text style={[styles.cardTitle, { color: colors.text }]}>{log.action} · {log.entityType}</Text>
-              <Text style={[styles.muted, { color: colors.textSecondary }]}>{log.details ?? log.entityId}</Text>
-              <Text style={[styles.time, { color: colors.muted }]}>{new Date(log.occurredAtUtc).toLocaleString()}</Text>
-            </View>
-          ))
-        )}
-
-        <Pressable style={[styles.refresh, { backgroundColor: colors.accent }]} onPress={load}>
-          <Text style={styles.refreshText}>Refresh</Text>
-        </Pressable>
-      </ScrollView>
-    </Screen>
+      ) : (
+        <>
+          {access}
+          {audit}
+        </>
+      )}
+    </Page>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1 },
-  container: { paddingTop: 8 },
-  heading: { fontWeight: '700' },
-  subheading: { marginBottom: 16, marginTop: 4 },
-  section: { fontSize: 17, fontWeight: '700', marginTop: 20, marginBottom: 8 },
-  card: { borderRadius: 12, marginBottom: 8 },
-  cardTitle: { fontWeight: '600' },
-  muted: { marginTop: 4 },
-  time: { fontSize: 12, marginTop: 6 },
-  input: { borderWidth: 1, borderRadius: 10, padding: 12, marginBottom: 10 },
-  primaryBtn: { borderRadius: 10, padding: 12, alignItems: 'center' },
-  primaryBtnText: { color: '#FFF', fontWeight: '700' },
-  success: { marginTop: 10, fontSize: 13 },
-  refresh: { marginTop: 20, borderRadius: 12, padding: 14, alignItems: 'center' },
-  refreshText: { color: '#FFF', fontWeight: '700' },
+  flex: { flex: 1 },
+  columns: { flexDirection: 'row', gap: spacing.xl, alignItems: 'flex-start' },
+  gap: { gap: spacing.md },
+  row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.lg, paddingVertical: spacing.md },
+  dot: { width: 8, height: 8, borderRadius: 4 },
+  secret: { borderRadius: radius.md, padding: spacing.md, gap: spacing.xs },
+  mono: { fontFamily: 'monospace' },
 });
