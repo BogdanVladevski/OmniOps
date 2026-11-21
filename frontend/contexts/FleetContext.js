@@ -60,7 +60,10 @@ export function FleetProvider({ children }) {
   const mergeTelemetry = useCallback((data) => {
     if (!data?.vehicleId) return;
     setVehicles((prev) => {
-      const next = { ...prev, [data.vehicleId]: data };
+      // Live packets carry no shipment context; keep the one from the fleet snapshot.
+      const previous = prev[data.vehicleId];
+      const merged = data.shipment || !previous?.shipment ? data : { ...data, shipment: previous.shipment };
+      const next = { ...prev, [data.vehicleId]: merged };
       saveCachedVehicles(next);
       return next;
     });

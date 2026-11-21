@@ -1,102 +1,158 @@
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, Pressable, Modal } from 'react-native';
+import React, { useMemo, useState } from 'react';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFleet } from '../contexts/FleetContext';
-import { useLayout } from '../utils/layout';
+import { useTheme } from '../contexts/ThemeContext';
+import { radius, spacing, toneColors, typography } from '../theme/tokens';
+import { alertSummary, groupAlerts, SEVERITY_LABEL } from '../utils/alerts';
 import { resolveShipmentIdForVehicle } from '../utils/fleetConfig';
-import Screen from './Screen';
+import { useLayout } from '../utils/layout';
 import IncidentReplay from './IncidentReplay';
+import { Button, Card, EmptyNote, Page, Pill, Segmented, timeAgo } from './ui/kit';
 
-function alertBorderColor(alertType) {
-  if (alertType === 'GeofenceBreach') return '#5856D6';
-  if (alertType === 'Overspeed' || alertType === 'HarshBraking') return '#FF9500';
-  if (alertType === 'TemperatureExcursion') return '#FF3B30';
-  return '#FF3B30';
-}
+const FILTERS = [
+  { key: 'all', label: 'All' },
+  { key: 'critical', label: 'Critical' },
+  { key: 'warning', label: 'Warnings' },
+  { key: 'info', label: 'Info' },
+];
 
-function alertIcon(alertType) {
-  if (alertType === 'GeofenceBreach') return '⬡';
-  if (alertType === 'playbook') return '🧊';
-  return '⚠';
+function AlertRow({ group, onPress, first }) {
+  const { colors } = useTheme();
+  const t = toneColors(colors, group.meta.severity);
+  return (
+    <Pressable
+      onPress={onPress}
+      accessibilityRole="button"
+      style={({ hovered, pressed }) => [
+        styles.row,
+        !first && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border },
+        (hovered || pressed) && { backgroundColor: colors.sunken },
+      ]}
+    >
+      <View style={[styles.stripe, { backgroundColor: t.fg }]} />
+      <View style={[styles.icon, { backgroundColor: t.bg }]}>
+        <Ionicons name={group.meta.icon} size={18} color={t.fg} />
+      </View>
+      <View style={styles.flex}>
+        <View style={styles.rowHead}>
+          <Text style={[typography.bodyStrong, { color: colors.text }]} numberOfLines={1}>
+            {group.meta.label}
+          </Text>
+          {group.count > 1 ? (
+            <View style={[styles.count, { backgroundColor: colors.sunken }]}>
+              <Text style={[typography.caption, { color: colors.textSecondary, fontWeight: '700' }]}>×{group.count}</Text>
+            </View>
+          ) : null}
+        </View>
+        <Text style={[typography.caption, { color: colors.textSecondary }]} numberOfLines={2}>
+          {group.alert.vehicleId} · {alertSummary(group.alert) || group.alert.title}
+        </Text>
+      </View>
+      <View style={styles.rowEnd}>
+        <Pill label={SEVERITY_LABEL[group.meta.severity]} tone={group.meta.severity} />
+        <Text style={[typography.caption, { color: colors.muted }]}>{timeAgo(group.alert.generatedAt)}</Text>
+      </View>
+    </Pressable>
+  );
 }
 
 export default function AlertsFeed() {
   const { alerts, vehicles } = useFleet();
-  const [selectedAlert, setSelectedAlert] = useState(null);
-  const [replayAlert, setReplayAlert] = useState(null);
+  const { colors } = useTheme();
+  const { isWide } = useLayout();
   const insets = useSafeAreaInsets();
-  const { horizontalPadding, titleSize, bodySize, cardPadding } = useLayout();
+  const [filter, setFilter] = useState('all');
+  const [selected, setSelected] = useState(null);
+  const [replayAlert, setReplayAlert] = useState(null);
+
+  const groups = useMemo(() => groupAlerts(alerts), [alerts]);
+  const counts = useMemo(() => {
+    const c = { all: groups.length, critical: 0, warning: 0, info: 0 };
+    groups.forEach((g) => { c[g.meta.severity] += 1; });
+    return c;
+  }, [groups]);
+  // Most severe first, newest first within a severity.
+  const rank = { critical: 0, warning: 1, info: 2 };
+  const visible = (filter === 'all' ? groups : groups.filter((g) => g.meta.severity === filter))
+    .slice()
+    .sort((a, b) => rank[a.meta.severity] - rank[b.meta.severity]);
 
   const apiBaseUrl = process.env.EXPO_PUBLIC_API_URL;
   const apiToken = process.env.EXPO_PUBLIC_API_TOKEN;
-
-  const openReplay = (alert) => {
-    setSelectedAlert(null);
-    setReplayAlert(alert);
-  };
-
-  const replayShipmentId = replayAlert
-    ? resolveShipmentIdForVehicle(replayAlert.vehicleId, vehicles)
-    : null;
+  const replayShipmentId = replayAlert ? resolveShipmentIdForVehicle(replayAlert.vehicleId, vehicles) : null;
+  const sel = selected ? toneColors(colors, selected.meta.severity) : null;
 
   return (
-    <Screen style={styles.screen}>
-      <View style={[styles.container, { paddingHorizontal: horizontalPadding }]}>
-        <Text style={[styles.heading, { fontSize: titleSize }]}>Incident Alerts</Text>
-        <Text style={[styles.subheading, { fontSize: bodySize }]}>
-          Cold-chain excursions and incident response protocols stream here in real time.
-        </Text>
+    <Page
+      title="Alerts"
+      subtitle="Everything that needs a person's attention. Critical alerts mean medicine is outside its safe temperature; repeated events are grouped so nothing important gets buried."
+    >
+      <Segmented
+        options={FILTERS.map((f) => ({ ...f, count: counts[f.key] }))}
+        value={filter}
+        onChange={setFilter}
+      />
+      <View style={{ height: spacing.md }} />
 
-        {alerts.length === 0 ? (
-          <View style={[styles.emptyState, { padding: cardPadding + 4 }]}>
-            <Text style={styles.emptyTitle}>No incidents yet</Text>
-            <Text style={[styles.emptyBody, { fontSize: bodySize }]}>
-              Simulate telemetry to trigger cargo temperature excursion detection. Alerts appear here when a shipment breaches its safe temperature range.
-            </Text>
-          </View>
-        ) : (
-          <ScrollView contentContainerStyle={styles.list} showsVerticalScrollIndicator={false}>
-            {alerts.map((alert) => (
-              <Pressable
-                key={alert.id}
-                style={[styles.alertCard, { padding: cardPadding, borderLeftColor: alertBorderColor(alert.alertType) }]}
-                onPress={() => setSelectedAlert(alert)}
-              >
-                <Text style={styles.alertVehicle}>
-                  {alertIcon(alert.alertType)} {alert.vehicleId}
-                  {alert.alertType !== 'playbook' ? ` · ${alert.alertType}` : ''}
-                </Text>
-                {alert.title && alert.alertType !== 'playbook' ? (
-                  <Text style={styles.alertTitle}>{alert.title}</Text>
-                ) : null}
-                <Text style={[styles.alertPreview, { fontSize: bodySize }]} numberOfLines={3}>
-                  {alert.instructions}
-                </Text>
-                <Text style={styles.alertTime}>{new Date(alert.generatedAt).toLocaleString()}</Text>
-              </Pressable>
-            ))}
-          </ScrollView>
-        )}
-      </View>
+      {visible.length === 0 ? (
+        <EmptyNote
+          icon="notifications-off-outline"
+          title={alerts.length === 0 ? 'No alerts yet' : 'Nothing in this category'}
+          body={alerts.length === 0 ? 'Alerts appear here in real time when a truck or shipment needs attention.' : undefined}
+        />
+      ) : (
+        <Card padded={false} style={styles.list}>
+          {visible.map((g, i) => (
+            <AlertRow key={g.key} group={g} first={i === 0} onPress={() => setSelected(g)} />
+          ))}
+        </Card>
+      )}
 
-      <Modal visible={!!selectedAlert} animationType="slide" transparent onRequestClose={() => setSelectedAlert(null)}>
-        <View style={styles.modalBackdrop}>
-          <View style={[styles.modalCard, { paddingBottom: Math.max(insets.bottom, 16) + 12 }]}>
-            <Text style={styles.modalTitle}>{selectedAlert?.vehicleId}</Text>
-            <ScrollView style={styles.modalBody}>
-              <Text style={[styles.modalInstructions, { fontSize: bodySize }]}>{selectedAlert?.instructions}</Text>
-            </ScrollView>
-            <Pressable
-              style={styles.replayButton}
-              onPress={() => openReplay(selectedAlert)}
-            >
-              <Text style={styles.replayButtonText}>Replay Incident</Text>
-            </Pressable>
-            <Pressable style={styles.closeButton} onPress={() => setSelectedAlert(null)}>
-              <Text style={styles.closeButtonText}>Close</Text>
-            </Pressable>
-          </View>
-        </View>
+      <Modal visible={!!selected} animationType="fade" transparent onRequestClose={() => setSelected(null)}>
+        <Pressable style={[styles.backdrop, { backgroundColor: colors.overlay }, isWide && styles.backdropCentered]} onPress={() => setSelected(null)}>
+          <Pressable
+            style={[
+              styles.sheet,
+              { backgroundColor: colors.card, paddingBottom: Math.max(insets.bottom, spacing.lg) + spacing.sm },
+              isWide && styles.sheetWide,
+            ]}
+            onPress={() => {}}
+          >
+            {selected ? (
+              <>
+                <View style={styles.sheetHead}>
+                  <View style={[styles.icon, { backgroundColor: sel.bg }]}>
+                    <Ionicons name={selected.meta.icon} size={18} color={sel.fg} />
+                  </View>
+                  <View style={styles.flex}>
+                    <Text style={[typography.title, { color: colors.text }]}>{selected.meta.label}</Text>
+                    <Text style={[typography.caption, { color: colors.muted }]}>
+                      {selected.alert.vehicleId} · {new Date(selected.alert.generatedAt).toLocaleString()}
+                      {selected.count > 1 ? ` · repeated ${selected.count}×` : ''}
+                    </Text>
+                  </View>
+                  <Pill label={SEVERITY_LABEL[selected.meta.severity]} tone={selected.meta.severity} />
+                </View>
+                <ScrollView style={[styles.sheetBody, { backgroundColor: colors.sunken }]}>
+                  <Text style={[typography.body, { color: colors.text }]}>
+                    {selected.alert.instructions || selected.alert.title}
+                  </Text>
+                </ScrollView>
+                <View style={styles.sheetActions}>
+                  <Button label="Close" variant="secondary" onPress={() => setSelected(null)} style={styles.flex} />
+                  <Button
+                    label="Replay incident"
+                    icon="play"
+                    onPress={() => { setReplayAlert(selected.alert); setSelected(null); }}
+                    style={styles.flex}
+                  />
+                </View>
+              </>
+            ) : null}
+          </Pressable>
+        </Pressable>
       </Modal>
 
       <IncidentReplay
@@ -107,61 +163,24 @@ export default function AlertsFeed() {
         apiToken={apiToken}
         onClose={() => setReplayAlert(null)}
       />
-    </Screen>
+    </Page>
   );
 }
 
 const styles = StyleSheet.create({
-  screen: { flex: 1 },
-  container: { flex: 1, paddingTop: 8 },
-  heading: { fontWeight: '700', color: '#1C1C1E' },
-  subheading: { color: '#8E8E93', marginBottom: 16, marginTop: 4 },
-  emptyState: {
-    marginTop: 12,
-    backgroundColor: '#FFFFFF',
-    borderRadius: 16,
-  },
-  emptyTitle: { fontSize: 18, fontWeight: '700', color: '#1C1C1E', marginBottom: 8 },
-  emptyBody: { color: '#636366', lineHeight: 20 },
-  list: { paddingBottom: 24 },
-  alertCard: {
-    backgroundColor: '#FFFFFF',
-    borderRadius: 14,
-    marginBottom: 10,
-    borderLeftWidth: 4,
-  },
-  alertVehicle: { fontSize: 16, fontWeight: '700', color: '#1C1C1E', marginBottom: 4 },
-  alertTitle: { fontSize: 14, fontWeight: '600', color: '#3A3A3C', marginBottom: 4 },
-  alertPreview: { color: '#3A3A3C', lineHeight: 18 },
-  alertTime: { fontSize: 12, color: '#8E8E93', marginTop: 8 },
-  modalBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    justifyContent: 'flex-end',
-  },
-  modalCard: {
-    backgroundColor: '#FFFFFF',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    padding: 20,
-    maxHeight: '85%',
-  },
-  modalTitle: { fontSize: 20, fontWeight: '700', marginBottom: 12 },
-  modalBody: { marginBottom: 16, maxHeight: '70%' },
-  modalInstructions: { color: '#1C1C1E', lineHeight: 22 },
-  replayButton: {
-    backgroundColor: '#FF9500',
-    borderRadius: 12,
-    paddingVertical: 12,
-    alignItems: 'center',
-    marginBottom: 10,
-  },
-  replayButtonText: { color: '#FFFFFF', fontWeight: '700', fontSize: 16 },
-  closeButton: {
-    backgroundColor: '#007AFF',
-    borderRadius: 12,
-    paddingVertical: 12,
-    alignItems: 'center',
-  },
-  closeButtonText: { color: '#FFFFFF', fontWeight: '700', fontSize: 16 },
+  flex: { flex: 1 },
+  list: { overflow: 'hidden' },
+  row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: spacing.md, paddingHorizontal: spacing.lg },
+  stripe: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 3 },
+  icon: { width: 36, height: 36, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center' },
+  rowHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
+  rowEnd: { alignItems: 'flex-end', gap: 6 },
+  count: { paddingHorizontal: 6, paddingVertical: 1, borderRadius: radius.sm },
+  backdrop: { flex: 1, justifyContent: 'flex-end' },
+  backdropCentered: { justifyContent: 'center', alignItems: 'center' },
+  sheet: { borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl, padding: spacing.xl, gap: spacing.lg, maxHeight: '85%' },
+  sheetWide: { borderRadius: radius.xl, width: 560, maxWidth: '92%' },
+  sheetHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.md },
+  sheetBody: { borderRadius: radius.md, padding: spacing.lg, maxHeight: 360 },
+  sheetActions: { flexDirection: 'row', gap: spacing.md },
 });

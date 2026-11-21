@@ -9,6 +9,7 @@ import {
   ScrollView,
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { demoApi, getApiConfig } from '../utils/api';
 import { useTheme } from '../contexts/ThemeContext';
@@ -19,23 +20,23 @@ const STORAGE_KEY = '@omniops/onboarding_complete';
 const STEPS = [
   {
     title: 'Welcome to OmniOps',
-    body: 'Your intelligent fleet operations platform — real-time telemetry, incidents, analytics, and AI copilot in one place.',
-    icon: '🚛',
+    body: 'OmniOps protects temperature-sensitive medicines in transit. It watches every shipment\'s cargo temperature in real time and alerts your team the moment one leaves its safe range.',
+    icon: 'snow',
   },
   {
-    title: 'Connect your fleet',
-    body: 'Point the app at your API (EXPO_PUBLIC_API_URL). On a phone, localhost is rewritten to your dev machine LAN IP automatically.',
-    icon: '🔗',
+    title: 'Connected to your fleet',
+    body: 'Trucks stream their location and cargo temperature to OmniOps every few seconds. This app is connected to the endpoint below.',
+    icon: 'radio-outline',
   },
   {
-    title: 'Load demo data',
-    body: 'Seed live telemetry across the demo fleet so maps, dashboards, and alerts populate immediately.',
-    icon: '⚡',
+    title: 'See it working',
+    body: 'Load a few minutes of demo journeys so the overview, live map and alerts fill with realistic data.',
+    icon: 'play-circle-outline',
   },
   {
-    title: 'You are ready',
-    body: 'Explore the map, executive dashboard, analytics, and admin tools. Long-press Admin tab to toggle dark mode.',
-    icon: '✅',
+    title: 'You are all set',
+    body: 'Start on the Overview: it shows which shipments are safe, which need attention, and how much value is at risk. On a computer, press Ctrl K to search.',
+    icon: 'checkmark-circle-outline',
   },
 ];
 
@@ -119,7 +120,9 @@ export default function OnboardingWizard({ visible, onComplete }) {
     <Modal visible={visible} animationType="slide" presentationStyle="fullScreen">
       <View style={[styles.root, { backgroundColor: colors.background, paddingTop: insets.top + spacing.lg }]}>
         <ScrollView contentContainerStyle={styles.content}>
-          <Text style={styles.hero}>{current.icon}</Text>
+          <View style={[styles.heroIcon, { backgroundColor: colors.accentMuted }]}>
+            <Ionicons name={current.icon} size={40} color={colors.accentStrong} />
+          </View>
           <Text style={[styles.title, { color: colors.text }]}>{current.title}</Text>
           <Text style={[styles.body, { color: colors.textSecondary }]}>{current.body}</Text>
 
@@ -192,8 +195,8 @@ export default function OnboardingWizard({ visible, onComplete }) {
 
 const styles = StyleSheet.create({
   root: { flex: 1 },
-  content: { paddingHorizontal: spacing.xl, paddingBottom: spacing.xl },
-  hero: { fontSize: 56, textAlign: 'center', marginBottom: spacing.lg },
+  content: { paddingHorizontal: spacing.xl, paddingBottom: spacing.xl, width: '100%', maxWidth: 560, alignSelf: 'center' },
+  heroIcon: { width: 88, height: 88, borderRadius: 28, alignItems: 'center', justifyContent: 'center', alignSelf: 'center', marginBottom: spacing.xl },
   title: { ...typography.headline, textAlign: 'center', marginBottom: spacing.md },
   body: { ...typography.body, textAlign: 'center', marginBottom: spacing.xl },
   card: {
@@ -212,6 +215,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: spacing.xl,
     gap: spacing.md,
+    width: '100%',
+    maxWidth: 560,
+    alignSelf: 'center',
   },
   secondaryBtn: { flex: 1, alignItems: 'center', paddingVertical: spacing.md },
   primaryBtn: {
