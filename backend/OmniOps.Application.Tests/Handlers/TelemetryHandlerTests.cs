@@ -47,7 +47,7 @@ public class ProcessTelemetryCommandHandlerTests
             .Returns(Array.Empty<Core.Events.GeofenceBreachedEvent>());
         _incidentDetectionService
             .DetectAsync(Arg.Any<VehicleTelemetry>(), Arg.Any<CancellationToken>())
-            .Returns(Array.Empty<Incident>());
+            .Returns(IncidentDetectionResult.Empty);
 
         // Default: no active shipment for any vehicle.
         _shipmentRepository
@@ -188,6 +188,44 @@ public class ProcessTelemetryCommandHandlerTests
         Assert.True(result);
         Assert.Equal(2, saveAttempts);
         await _repository.Received(2).SaveChangesAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_WhenPersistenceFails_DoesNotCommitIncidentDetectionState()
+    {
+        var telemetry = CreateTelemetry();
+        var commits = 0;
+        _deduplicationService.TryAcquireProcessingLockAsync(telemetry.Id, Arg.Any<CancellationToken>())
+            .Returns(true);
+        _incidentDetectionService
+            .DetectAsync(Arg.Any<VehicleTelemetry>(), Arg.Any<CancellationToken>())
+            .Returns(new IncidentDetectionResult([], _ => { commits++; return Task.CompletedTask; }));
+        _repository.SaveChangesAsync(Arg.Any<CancellationToken>())
+            .Returns<Task>(_ => throw new InvalidOperationException("db error"));
+
+        await Assert.ThrowsAsync<TransientProcessingException>(() =>
+            _handler.Handle(new ProcessTelemetryCommand(telemetry), CancellationToken.None));
+
+        Assert.Equal(0, commits);
+    }
+
+    [Fact]
+    public async Task Handle_WhenPersistenceSucceeds_CommitsIncidentDetectionState()
+    {
+        var telemetry = CreateTelemetry();
+        var commits = 0;
+        _deduplicationService.TryAcquireProcessingLockAsync(telemetry.Id, Arg.Any<CancellationToken>())
+            .Returns(true);
+        _incidentDetectionService
+            .DetectAsync(Arg.Any<VehicleTelemetry>(), Arg.Any<CancellationToken>())
+            .Returns(new IncidentDetectionResult([], _ => { commits++; return Task.CompletedTask; }));
+        _anomalyService
+            .AnalyzeTelemetryAsync(telemetry, Arg.Any<Shipment?>(), Arg.Any<CancellationToken>())
+            .Returns(new AnomalyAnalysis(false));
+
+        await _handler.Handle(new ProcessTelemetryCommand(telemetry), CancellationToken.None);
+
+        Assert.Equal(1, commits);
     }
 
     [Fact]

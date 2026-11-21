@@ -24,11 +24,12 @@ public class IncidentDetectionService : IIncidentDetectionService
         _shipmentRepository = shipmentRepository;
     }
 
-    public async Task<IReadOnlyList<Incident>> DetectAsync(
+    public async Task<IncidentDetectionResult> DetectAsync(
         VehicleTelemetry telemetry,
         CancellationToken cancellationToken = default)
     {
         var incidents = new List<Incident>();
+        var pendingCooldownKeys = new List<string>();
         var stateKey = $"incident:state:{telemetry.VehicleId}";
         var prevJson = await _cache.GetStringAsync(stateKey, cancellationToken);
         TelemetryState? prev = prevJson is not null
@@ -40,7 +41,7 @@ public class IncidentDetectionService : IIncidentDetectionService
             await TryAddAsync(telemetry, IncidentType.Overspeed, IncidentSeverity.Medium,
                 $"Overspeed on {telemetry.VehicleId}",
                 $"Vehicle exceeded {OverspeedKmh} km/h (current {telemetry.Speed:F0} km/h).",
-                incidents, cancellationToken);
+                incidents, pendingCooldownKeys, cancellationToken);
         }
 
         if (prev is not null)
@@ -51,14 +52,14 @@ public class IncidentDetectionService : IIncidentDetectionService
                 await TryAddAsync(telemetry, IncidentType.HarshBraking, IncidentSeverity.High,
                     $"Harsh braking — {telemetry.VehicleId}",
                     $"Speed dropped {Math.Abs(speedDelta):F0} km/h between readings.",
-                    incidents, cancellationToken);
+                    incidents, pendingCooldownKeys, cancellationToken);
             }
             else if (speedDelta > HarshAccelDelta)
             {
                 await TryAddAsync(telemetry, IncidentType.HarshAcceleration, IncidentSeverity.Medium,
                     $"Harsh acceleration — {telemetry.VehicleId}",
                     $"Speed increased {speedDelta:F0} km/h between readings.",
-                    incidents, cancellationToken);
+                    incidents, pendingCooldownKeys, cancellationToken);
             }
 
             if (telemetry.Speed < 2 && prev.Speed < 2)
@@ -69,7 +70,7 @@ public class IncidentDetectionService : IIncidentDetectionService
                     await TryAddAsync(telemetry, IncidentType.LongIdle, IncidentSeverity.Low,
                         $"Long idle — {telemetry.VehicleId}",
                         $"Vehicle idle for approximately {idleMinutes:F0} minutes.",
-                        incidents, cancellationToken);
+                        incidents, pendingCooldownKeys, cancellationToken);
                 }
                 prev = prev with { IdleMinutes = idleMinutes };
             }
@@ -84,7 +85,7 @@ public class IncidentDetectionService : IIncidentDetectionService
             await TryAddAsync(telemetry, IncidentType.SensorFailure, IncidentSeverity.High,
                 $"Low battery sensor — {telemetry.VehicleId}",
                 $"Battery level at {telemetry.BatteryLevel:F0}%.",
-                incidents, cancellationToken);
+                incidents, pendingCooldownKeys, cancellationToken);
         }
 
         var shipment = await _shipmentRepository.GetActiveShipmentForVehicleAsync(
@@ -97,25 +98,39 @@ public class IncidentDetectionService : IIncidentDetectionService
                 await TryAddAsync(telemetry, IncidentType.TemperatureExcursion, IncidentSeverity.Critical,
                     $"Temperature excursion — {telemetry.VehicleId}",
                     $"Cargo temp {temp:F1}°C outside safe range {shipment.MinSafeTempCelsius}–{shipment.MaxSafeTempCelsius}°C.",
-                    incidents, cancellationToken);
+                    incidents, pendingCooldownKeys, cancellationToken);
             }
         }
 
-        await _cache.SetStringAsync(stateKey, JsonSerializer.Serialize(new TelemetryState
+        var nextStateJson = JsonSerializer.Serialize(new TelemetryState
         {
             Speed = telemetry.Speed,
             Latitude = telemetry.Latitude,
             Longitude = telemetry.Longitude,
             Timestamp = telemetry.Timestamp,
             IdleMinutes = prev?.IdleMinutes ?? 0
-        }), cancellationToken);
+        });
 
-        return incidents;
+        // State writes are deferred: if persistence fails and the packet is retried,
+        // the retry must see the same cooldowns and previous reading as this attempt did.
+        return new IncidentDetectionResult(incidents, async ct =>
+        {
+            foreach (var cooldownKey in pendingCooldownKeys)
+            {
+                await _cache.SetStringAsync(cooldownKey, "1", new DistributedCacheEntryOptions
+                {
+                    AbsoluteExpirationRelativeToNow = Cooldown
+                }, ct);
+            }
+
+            await _cache.SetStringAsync(stateKey, nextStateJson, ct);
+        });
     }
 
     private async Task TryAddAsync(
         VehicleTelemetry telemetry, IncidentType type, IncidentSeverity severity,
-        string title, string description, List<Incident> incidents, CancellationToken cancellationToken)
+        string title, string description, List<Incident> incidents, List<string> pendingCooldownKeys,
+        CancellationToken cancellationToken)
     {
         var cooldownKey = $"incident:cooldown:{telemetry.VehicleId}:{type}";
         if (await _cache.GetStringAsync(cooldownKey, cancellationToken) is not null)
@@ -124,10 +139,7 @@ public class IncidentDetectionService : IIncidentDetectionService
         }
 
         incidents.Add(Create(telemetry, type, severity, title, description));
-        await _cache.SetStringAsync(cooldownKey, "1", new DistributedCacheEntryOptions
-        {
-            AbsoluteExpirationRelativeToNow = Cooldown
-        }, cancellationToken);
+        pendingCooldownKeys.Add(cooldownKey);
     }
 
     private static Incident Create(
