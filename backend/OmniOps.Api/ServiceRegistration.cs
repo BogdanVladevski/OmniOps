@@ -30,37 +30,29 @@ public static partial class ServiceRegistration
         builder.Services.AddInfrastructure(builder.Configuration);
         builder.Services.AddKafkaResilience();
 
-        var databaseOptions = builder.Configuration
-            .GetSection(DatabaseOptions.SectionName)
-            .Get<DatabaseOptions>() ?? new DatabaseOptions();
-        var connectionString = EnvironmentConfiguration.ResolveConnectionString(databaseOptions);
-
-        var redisOptions = builder.Configuration
-            .GetSection(RedisOptions.SectionName)
-            .Get<RedisOptions>() ?? new RedisOptions();
-        var redisConnectionString = redisOptions.ResolveConnectionString();
-
-        var kafkaOptions = builder.Configuration
-            .GetSection(KafkaOptions.SectionName)
-            .Get<KafkaOptions>() ?? new KafkaOptions();
-
+        // Connection settings are resolved from IOptions at service-creation time, not read from
+        // builder.Configuration here: configuration sources added later (e.g. WebApplicationFactory
+        // overrides, which apply at Build()) must win.
         builder.Services.AddDbContext<AppDbContext>((sp, options) =>
         {
-            options.UseNpgsql(connectionString);
+            options.UseNpgsql(ResolveDatabaseConnectionString(sp));
             options.AddInterceptors(sp.GetRequiredService<OutboxSaveChangesInterceptor>());
         });
 
         builder.Services.AddSingleton<OutboxSaveChangesInterceptor>();
         builder.Services.AddSingleton<ICorrelationContext, CorrelationContext>();
 
-        builder.Services.AddStackExchangeRedisCache(options =>
-        {
-            options.Configuration = redisConnectionString;
-            options.InstanceName = redisOptions.InstanceName;
-        });
+        builder.Services.AddStackExchangeRedisCache(_ => { });
+        builder.Services
+            .AddOptions<Microsoft.Extensions.Caching.StackExchangeRedis.RedisCacheOptions>()
+            .Configure<IOptions<RedisOptions>>((cache, redis) =>
+            {
+                cache.Configuration = redis.Value.ResolveConnectionString();
+                cache.InstanceName = redis.Value.InstanceName;
+            });
 
-        builder.Services.AddSingleton<IConnectionMultiplexer>(_ =>
-            ConnectionMultiplexer.Connect(redisConnectionString));
+        builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
+            ConnectionMultiplexer.Connect(ResolveRedisConnectionString(sp)));
 
         builder.Services.AddTransient<ITelemetryCacheService, RedisTelemetryCacheService>();
         builder.Services.AddTransient<IAnomalyDetectionService, RedisAnomalyDetectionService>();
@@ -132,8 +124,8 @@ public static partial class ServiceRegistration
         ConfigureCors(builder);
         ConfigureAuthentication(builder);
         ConfigureRateLimiting(builder);
-        ConfigureHealthChecks(builder, connectionString, redisConnectionString);
-        ConfigureKafkaProducer(builder, kafkaOptions);
+        ConfigureHealthChecks(builder);
+        ConfigureKafkaProducer(builder);
         ConfigureObservability(builder);
     }
 
@@ -184,10 +176,17 @@ public static partial class ServiceRegistration
         });
     }
 
-    private static void ConfigureKafkaProducer(WebApplicationBuilder builder, KafkaOptions kafkaOptions)
+    internal static string ResolveDatabaseConnectionString(IServiceProvider sp) =>
+        EnvironmentConfiguration.ResolveConnectionString(sp.GetRequiredService<IOptions<DatabaseOptions>>().Value);
+
+    internal static string ResolveRedisConnectionString(IServiceProvider sp) =>
+        sp.GetRequiredService<IOptions<RedisOptions>>().Value.ResolveConnectionString();
+
+    private static void ConfigureKafkaProducer(WebApplicationBuilder builder)
     {
-        builder.Services.AddSingleton<IProducer<Null, string>>(_ =>
+        builder.Services.AddSingleton<IProducer<Null, string>>(sp =>
         {
+            var kafkaOptions = sp.GetRequiredService<IOptions<KafkaOptions>>().Value;
             var producerConfig = new ProducerConfig
             {
                 BootstrapServers = kafkaOptions.BootstrapServers,
@@ -196,12 +195,12 @@ public static partial class ServiceRegistration
             };
             return new ProducerBuilder<Null, string>(producerConfig).Build();
         });
-
-        EnsureKafkaTopicsExist(kafkaOptions);
     }
 
-    private static void EnsureKafkaTopicsExist(KafkaOptions kafkaOptions)
+    /// <summary>Creates Kafka topics after the host is built, using the final configuration.</summary>
+    public static void EnsureKafkaTopicsExist(WebApplication app)
     {
+        var kafkaOptions = app.Services.GetRequiredService<IOptions<KafkaOptions>>().Value;
         var adminConfig = new AdminClientConfig { BootstrapServers = kafkaOptions.BootstrapServers };
 
         try

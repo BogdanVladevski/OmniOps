@@ -6,14 +6,11 @@ namespace OmniOps.Api;
 
 public static partial class ServiceRegistration
 {
-    private static void ConfigureHealthChecks(
-        WebApplicationBuilder builder,
-        string connectionString,
-        string redisConnectionString)
+    private static void ConfigureHealthChecks(WebApplicationBuilder builder)
     {
         builder.Services.AddHealthChecks()
-            .AddNpgSql(connectionString, name: "postgres", tags: ["ready"])
-            .AddRedis(redisConnectionString, name: "redis", tags: ["ready"])
+            .AddNpgSql(ResolveDatabaseConnectionString, name: "postgres", tags: ["ready"])
+            .AddRedis(sp => sp.GetRequiredService<StackExchange.Redis.IConnectionMultiplexer>(), name: "redis", tags: ["ready"])
             .AddCheck<KafkaHealthCheck>("kafka", tags: ["ready"]);
     }
 }
