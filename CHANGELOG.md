@@ -2,6 +2,19 @@
 
 All notable changes to OmniOps are documented in this file.
 
+## [Unreleased]
+
+### Changed
+
+- Runs as one API container plus PostgreSQL. Telemetry ingestion moved from Kafka to a bounded in-process queue with the same retry rules; deduplication, excursion tracking and the latest-telemetry cache moved from Redis to process memory (single instance)
+- Cargo-temperature alerts are broadcast as `ReceiveAlert` (`TemperatureExcursion` / `TemperatureTrend`) after commit
+- Excursion state is tracked per fleet and vehicle, so same-named vehicles in different fleets no longer share a timer
+
+### Removed
+
+- Kafka, Redis, the fleet copilot and LLM incident narratives
+- Helm chart, Kubernetes notes, Prometheus/Grafana compose stack and the Kubernetes deploy workflow
+
 ## [0.6.0] — 2026-07-03
 
 ### Added

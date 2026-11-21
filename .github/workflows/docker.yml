@@ -80,16 +80,3 @@ jobs:
         with:
           sarif_file: trivy-results.sarif
         continue-on-error: true
-
-  helm-lint:
-    name: Lint Helm chart
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: azure/setup-helm@v4
-        with:
-          version: v3.16.4
-      - name: Helm lint
-        run: helm lint infra/helm/omniops
-      - name: Helm template dry-run
-        run: helm template omniops infra/helm/omniops --set image.repository=ghcr.io/example/omniops-api --set image.tag=test > /dev/null

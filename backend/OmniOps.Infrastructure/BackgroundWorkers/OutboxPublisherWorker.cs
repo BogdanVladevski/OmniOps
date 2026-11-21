@@ -2,9 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using OmniOps.Core.Interfaces;
-using OmniOps.Infrastructure.Configuration;
 using OmniOps.Infrastructure.Data;
 namespace OmniOps.Infrastructure.BackgroundWorkers;
 
@@ -12,16 +10,11 @@ public class OutboxPublisherWorker : BackgroundService
 {
     private readonly IServiceProvider _serviceProvider;
     private readonly ILogger<OutboxPublisherWorker> _logger;
-    private readonly string _eventsTopic;
 
-    public OutboxPublisherWorker(
-        IServiceProvider serviceProvider,
-        ILogger<OutboxPublisherWorker> logger,
-        IOptions<KafkaOptions> kafkaOptions)
+    public OutboxPublisherWorker(IServiceProvider serviceProvider, ILogger<OutboxPublisherWorker> logger)
     {
         _serviceProvider = serviceProvider;
         _logger = logger;
-        _eventsTopic = kafkaOptions.Value.EventsTopic;
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
@@ -56,7 +49,7 @@ public class OutboxPublisherWorker : BackgroundService
     {
         using var scope = _serviceProvider.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<AppDbContext>();
-        var producer = scope.ServiceProvider.GetRequiredService<IKafkaMessageProducer>();
+        var publisher = scope.ServiceProvider.GetRequiredService<IIntegrationEventPublisher>();
 
         var messages = await dbContext.OutboxMessages
             .Where(m => m.ProcessedOnUtc == null)
@@ -69,23 +62,21 @@ public class OutboxPublisherWorker : BackgroundService
             return;
         }
 
-        _logger.LogInformation("Publishing {Count} outbox messages to {Topic}", messages.Count, _eventsTopic);
+        _logger.LogInformation("Publishing {Count} outbox messages", messages.Count);
 
         foreach (var message in messages)
         {
             try
             {
-                await producer.ProduceAsync(
-                    _eventsTopic,
+                await publisher.PublishAsync(
+                    message.Type,
                     message.Content,
                     new Dictionary<string, string> { ["event-type"] = message.Type },
                     stoppingToken);
 
                 message.ProcessedOnUtc = DateTime.UtcNow;
                 message.Error = null;
-                _logger.LogInformation(
-                    "Published outbox message {OutboxId} to topic {Topic}",
-                    message.Id, _eventsTopic);
+                _logger.LogDebug("Published outbox message {OutboxId}", message.Id);
             }
             catch (Exception ex)
             {

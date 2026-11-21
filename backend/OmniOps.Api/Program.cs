@@ -73,7 +73,6 @@ try
     app.MapIncidentEndpoints();
     app.MapAnalyticsEndpoints();
     app.MapPredictionEndpoints();
-    app.MapCopilotEndpoints();
     app.MapTenantEndpoints();
     app.MapNotificationEndpoints();
     app.MapAdminEndpoints();
@@ -87,7 +86,6 @@ try
         app.MapAuthEndpoints();
     }
 
-    ServiceRegistration.EnsureKafkaTopicsExist(app);
     await ServiceRegistration.MigrateDatabaseAsync(app);
 
     app.Run();

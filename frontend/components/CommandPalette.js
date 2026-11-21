@@ -17,7 +17,7 @@ import { radius, spacing, typography } from '../theme/tokens';
 
 const TAB_ROUTES = [
   { id: 'live', label: 'Live map and shipments', tab: 'Live', keywords: 'map live tracking shipments home overview' },
-  { id: 'fleet', label: 'Fleet management', tab: 'Fleet', keywords: 'vehicles drivers assign copilot' },
+  { id: 'fleet', label: 'Fleet management', tab: 'Fleet', keywords: 'vehicles drivers assign' },
   { id: 'analytics', label: 'Analytics', tab: 'Analytics', keywords: 'predictions safety trends' },
   { id: 'alerts', label: 'Alerts', tab: 'Alerts', keywords: 'incidents playbook' },
   { id: 'admin', label: 'Admin', tab: 'Admin', keywords: 'api keys audit logs' },

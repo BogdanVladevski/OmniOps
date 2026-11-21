@@ -11,11 +11,9 @@ public static class DependencyInjection
         IConfiguration configuration)
     {
         services.Configure<DatabaseOptions>(configuration.GetSection(DatabaseOptions.SectionName));
-        services.Configure<KafkaOptions>(configuration.GetSection(KafkaOptions.SectionName));
-        services.Configure<RedisOptions>(configuration.GetSection(RedisOptions.SectionName));
+        services.Configure<IngestionOptions>(configuration.GetSection(IngestionOptions.SectionName));
         services.Configure<CorsOptions>(configuration.GetSection(CorsOptions.SectionName));
         services.Configure<FleetOptions>(configuration.GetSection(FleetOptions.SectionName));
-        services.Configure<LlmOptions>(configuration.GetSection(LlmOptions.SectionName));
         services.Configure<CacheOptions>(configuration.GetSection(CacheOptions.SectionName));
 
         return services;

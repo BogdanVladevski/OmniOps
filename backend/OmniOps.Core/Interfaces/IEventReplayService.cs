@@ -3,7 +3,7 @@ namespace OmniOps.Core.Interfaces;
 public interface IEventReplayService
 {
     /// <summary>
-    /// Re-publishes stored events in the requested window to the Kafka events topic without mutating aggregates.
+    /// Re-publishes stored events in the requested window to the integration event publisher without mutating aggregates.
     /// </summary>
     Task<int> ReplayAsync(
         DateTime fromUtc,

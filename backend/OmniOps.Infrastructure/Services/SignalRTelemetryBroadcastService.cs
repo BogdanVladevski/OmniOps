@@ -39,31 +39,6 @@ public class SignalRTelemetryBroadcastService : ITelemetryBroadcastService
             dto.VehicleId);
     }
 
-    public async Task BroadcastPlaybookInstructionsAsync(
-        string vehicleId,
-        string instructions,
-        CancellationToken cancellationToken = default)
-    {
-        var payload = new
-        {
-            VehicleId = vehicleId,
-            Instructions = instructions,
-            GeneratedAt = DateTime.UtcNow
-        };
-
-        await _hubContext.Clients
-            .Group(vehicleId)
-            .SendAsync("ReceivePlaybookInstructions", payload, cancellationToken);
-
-        await _hubContext.Clients
-            .Group(TelemetryHub.FleetGroupName)
-            .SendAsync("ReceivePlaybookInstructions", payload, cancellationToken);
-
-        _logger.LogInformation(
-            "Broadcast playbook instructions for vehicle {VehicleId}",
-            vehicleId);
-    }
-
     public async Task BroadcastAlertAsync(
         string vehicleId,
         string alertType,
