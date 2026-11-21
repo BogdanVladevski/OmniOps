@@ -144,6 +144,7 @@ export default function FleetMap() {
       style={styles.map}
       provider={PROVIDER_DEFAULT}
       mapType={mapType}
+      userInterfaceStyle={isDark ? 'dark' : 'light'}
       initialRegion={initialRegion}
       showsUserLocation
     >
@@ -244,10 +245,11 @@ const styles = StyleSheet.create({
   wide: { flex: 1, flexDirection: 'row' },
   sidePanel: { width: 380, borderLeftWidth: StyleSheet.hairlineWidth, padding: spacing.xl },
   divider: { height: StyleSheet.hairlineWidth, marginVertical: spacing.lg },
-  mapTypesWrap: { position: 'absolute' },
+  // zIndex keeps controls above the web map's tile/marker layers (Leaflet panes use 400–700).
+  mapTypesWrap: { position: 'absolute', zIndex: 1000 },
   mapTypes: { flexDirection: 'row', borderRadius: radius.pill, padding: 4, alignSelf: 'flex-start' },
   mapType: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: radius.pill },
-  topOverlay: { position: 'absolute', left: 0, right: 0, gap: spacing.sm },
+  topOverlay: { position: 'absolute', left: 0, right: 0, gap: spacing.sm, zIndex: 1000 },
   chipRow: { gap: spacing.sm },
   vehicleList: { gap: spacing.sm },
   vehicleItem: {
@@ -256,7 +258,7 @@ const styles = StyleSheet.create({
   },
   vehicleChip: { borderRadius: radius.pill, paddingVertical: 7 },
   dot: { width: 10, height: 10, borderRadius: 5 },
-  sheet: { position: 'absolute', bottom: spacing.md, borderRadius: radius.xl, padding: spacing.lg },
+  sheet: { position: 'absolute', bottom: spacing.md, borderRadius: radius.xl, padding: spacing.lg, zIndex: 1000 },
   panelBody: { gap: spacing.md },
   panelHead: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md },
   metrics: { flexDirection: 'row', flexWrap: 'wrap', rowGap: spacing.md },
