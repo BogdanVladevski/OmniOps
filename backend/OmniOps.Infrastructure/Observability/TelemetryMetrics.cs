@@ -13,6 +13,7 @@ public sealed class TelemetryMetrics : ITelemetryMetrics, IDisposable
     private readonly Counter<long> _anomaliesDetected;
     private readonly Counter<long> _dlqRouted;
     private readonly Counter<long> _simulatePacketsPublished;
+    private readonly Counter<long> _tenantUnresolved;
 
     public TelemetryMetrics()
     {
@@ -32,6 +33,9 @@ public sealed class TelemetryMetrics : ITelemetryMetrics, IDisposable
         _simulatePacketsPublished = _meter.CreateCounter<long>(
             "simulate.packets_published",
             description: "Mock telemetry packets published via the simulate endpoint");
+        _tenantUnresolved = _meter.CreateCounter<long>(
+            "telemetry.tenant_unresolved",
+            description: "Telemetry packets whose incidents could not be attributed to exactly one registered vehicle");
     }
 
     public void RecordTelemetryProcessed() => _processed.Add(1);
@@ -42,6 +46,9 @@ public sealed class TelemetryMetrics : ITelemetryMetrics, IDisposable
 
     public void RecordDlqRouted(string reason) =>
         _dlqRouted.Add(1, new KeyValuePair<string, object?>("reason", NormalizeReason(reason)));
+
+    public void RecordTenantUnresolved(string reason) =>
+        _tenantUnresolved.Add(1, new KeyValuePair<string, object?>("reason", reason));
 
     public void RecordSimulatePacketsPublished(int count)
     {

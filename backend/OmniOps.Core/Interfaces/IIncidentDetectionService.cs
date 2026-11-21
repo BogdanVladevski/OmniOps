@@ -1,3 +1,4 @@
+using OmniOps.Core.Domain;
 using OmniOps.Core.Entities;
 
 namespace OmniOps.Core.Interfaces;
@@ -12,6 +13,7 @@ public interface IIncidentDetectionService
     /// </summary>
     Task<IncidentDetectionResult> DetectAsync(
         VehicleTelemetry telemetry,
+        VehicleTenant tenant,
         CancellationToken cancellationToken = default);
 }
 
