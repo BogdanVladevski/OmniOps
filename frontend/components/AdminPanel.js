@@ -129,7 +129,7 @@ export default function AdminPanel() {
   return (
     <Page
       title="Admin"
-      subtitle="Access for integrations, the audit trail required for compliance, and display settings."
+
       actions={<Button label="Refresh" icon="refresh" variant="secondary" onPress={load} />}
     >
       {error ? <RetryPanel message={error} onRetry={load} /> : null}
