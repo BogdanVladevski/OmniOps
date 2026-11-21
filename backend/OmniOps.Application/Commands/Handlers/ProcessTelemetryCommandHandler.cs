@@ -85,7 +85,8 @@ public class ProcessTelemetryCommandHandler : IRequestHandler<ProcessTelemetryCo
             request.Telemetry.AddDomainEvent(breach);
         }
 
-        var detectedIncidents = (await _incidentDetectionService.DetectAsync(request.Telemetry, cancellationToken)).ToList();
+        var detection = await _incidentDetectionService.DetectAsync(request.Telemetry, cancellationToken);
+        var detectedIncidents = detection.Incidents.ToList();
         foreach (var breach in geofenceBreaches)
         {
             detectedIncidents.Add(new Incident
@@ -130,6 +131,19 @@ public class ProcessTelemetryCommandHandler : IRequestHandler<ProcessTelemetryCo
             throw new TransientProcessingException(
                 $"Failed to persist telemetry for vehicle {request.Telemetry.VehicleId}",
                 ex);
+        }
+
+        // Only now that incidents are durable may cooldowns / detector state advance.
+        // A commit failure risks a duplicate alert later, which beats a silently missed one.
+        try
+        {
+            await detection.CommitAsync(cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex,
+                "Failed to commit incident detection state for vehicle {VehicleId}",
+                request.Telemetry.VehicleId);
         }
 
         try

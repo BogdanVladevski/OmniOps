@@ -91,7 +91,7 @@ public class KafkaTelemetryMessageProcessorOutboxTests
         services.AddSingleton(Substitute.For<IShipmentRepository>());
         var incidentDetection = Substitute.For<IIncidentDetectionService>();
         incidentDetection.DetectAsync(Arg.Any<VehicleTelemetry>(), Arg.Any<CancellationToken>())
-            .Returns(Array.Empty<Incident>());
+            .Returns(IncidentDetectionResult.Empty);
         services.AddSingleton(incidentDetection);
         services.AddSingleton(Substitute.For<IIncidentRepository>());
         services.AddSingleton(geofenceDetection);
