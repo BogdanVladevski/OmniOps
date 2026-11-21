@@ -2,8 +2,8 @@ import React, { useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
 import { useFleet } from '../contexts/FleetContext';
 import { useTheme } from '../contexts/ThemeContext';
-import { radius, spacing, typography } from '../theme/tokens';
-import { copilotApi, fleetApi } from '../utils/api';
+import { spacing, typography } from '../theme/tokens';
+import { fleetApi } from '../utils/api';
 import { useLayout } from '../utils/layout';
 import { Button, Card, EmptyNote, Field, Grid, Page, Pill, SectionTitle, Segmented, StatTile } from './ui/kit';
 
@@ -13,8 +13,6 @@ const STATUS_FILTERS = [
   { key: 'maintenance', label: 'Maintenance' },
   { key: 'retired', label: 'Retired' },
 ];
-
-const SUGGESTIONS = ['Why might a vehicle be delayed?', 'Which shipment is most at risk?', 'Summarise today’s incidents'];
 
 function statusTone(status) {
   const s = (status ?? '').toLowerCase();
@@ -29,8 +27,6 @@ export default function FleetManagement() {
   const { isTablet, isWide } = useLayout();
   const [driverName, setDriverName] = useState('');
   const [driverMessage, setDriverMessage] = useState(null);
-  const [question, setQuestion] = useState(SUGGESTIONS[0]);
-  const [answer, setAnswer] = useState('');
   const [busy, setBusy] = useState(null);
   const [statusFilter, setStatusFilter] = useState('all');
   const [search, setSearch] = useState('');
@@ -55,18 +51,6 @@ export default function FleetManagement() {
       await refreshFleetMeta();
     } catch (e) {
       setDriverMessage({ tone: 'critical', text: `Could not add driver: ${e.message}` });
-    } finally {
-      setBusy(null);
-    }
-  };
-
-  const askCopilot = async () => {
-    setBusy('copilot');
-    try {
-      const res = await copilotApi.ask(question, defaultFleetId);
-      setAnswer(res.answer);
-    } catch {
-      setAnswer('The copilot is unavailable right now — check the API connection.');
     } finally {
       setBusy(null);
     }
@@ -101,22 +85,6 @@ export default function FleetManagement() {
 
   const toolsSection = (
     <View>
-      <SectionTitle title="Ask the fleet copilot" subtitle="Questions in plain language about your fleet" />
-      <Card style={styles.gap}>
-        <View style={styles.suggestions}>
-          {SUGGESTIONS.map((s) => (
-            <Button key={s} label={s} variant="secondary" onPress={() => setQuestion(s)} style={styles.suggestion} />
-          ))}
-        </View>
-        <Field multiline value={question} onChangeText={setQuestion} />
-        <Button label={busy === 'copilot' ? 'Thinking…' : 'Ask copilot'} icon="sparkles-outline" onPress={askCopilot} disabled={busy === 'copilot'} />
-        {answer ? (
-          <View style={[styles.answer, { backgroundColor: colors.sunken }]}>
-            <Text style={[typography.body, { color: colors.text }]}>{answer}</Text>
-          </View>
-        ) : null}
-      </Card>
-
       <SectionTitle title="Add a driver" />
       <Card style={styles.gap}>
         <Field label="Full name" placeholder="e.g. Ana Petrovska" value={driverName} onChangeText={setDriverName} />
@@ -154,7 +122,4 @@ const styles = StyleSheet.create({
   columns: { flexDirection: 'row', gap: spacing.xl, alignItems: 'flex-start' },
   gap: { gap: spacing.md },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.lg, paddingVertical: spacing.md },
-  suggestions: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
-  suggestion: { paddingVertical: 6, minHeight: 32 },
-  answer: { borderRadius: radius.md, padding: spacing.lg },
 });

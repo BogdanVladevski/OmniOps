@@ -95,7 +95,7 @@ public static class TelemetryEndpoints
             var result = await simulator.SimulateAsync(vehicleId, packets);
             return Results.Ok(new
             {
-                Message = $"Successfully queued {result.PacketsSent} mock telemetry packets into Kafka stream.",
+                Message = $"Successfully queued {result.PacketsSent} mock telemetry packets for processing.",
                 result.VehicleId,
                 PacketsSent = result.PacketsSent
             });

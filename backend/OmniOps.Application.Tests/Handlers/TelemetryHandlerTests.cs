@@ -18,7 +18,6 @@ public class ProcessTelemetryCommandHandlerTests
     private readonly ITelemetryBroadcastService _broadcastService = Substitute.For<ITelemetryBroadcastService>();
     private readonly IDeduplicationService _deduplicationService = Substitute.For<IDeduplicationService>();
     private readonly IAnomalyDetectionService _anomalyService = Substitute.For<IAnomalyDetectionService>();
-    private readonly IPlaybookOrchestrationService _playbookOrchestration = Substitute.For<IPlaybookOrchestrationService>();
     private readonly IShipmentRepository _shipmentRepository = Substitute.For<IShipmentRepository>();
     private readonly IGeofenceDetectionService _geofenceDetectionService = Substitute.For<IGeofenceDetectionService>();
     private readonly IIncidentDetectionService _incidentDetectionService = Substitute.For<IIncidentDetectionService>();
@@ -37,7 +36,6 @@ public class ProcessTelemetryCommandHandlerTests
             _broadcastService,
             _deduplicationService,
             _anomalyService,
-            _playbookOrchestration,
             _shipmentRepository,
             _geofenceDetectionService,
             _incidentDetectionService,
@@ -97,12 +95,12 @@ public class ProcessTelemetryCommandHandlerTests
         await _cacheService.Received(1).SetLatestTelemetryAsync(telemetry);
         await _broadcastService.Received(1)
             .BroadcastTelemetryUpdateAsync(telemetry, Arg.Any<CancellationToken>());
-        await _playbookOrchestration.DidNotReceive()
-            .OrchestrateIncidentResponseAsync(Arg.Any<IncidentContext>(), Arg.Any<CancellationToken>());
+        await _broadcastService.DidNotReceive().BroadcastAlertAsync(
+            Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
-    public async Task Handle_WhenAnomalyDetected_TriggersPlaybookOrchestration()
+    public async Task Handle_WhenAnomalyDetected_BroadcastsCargoTemperatureAlert()
     {
         var telemetry = CreateTelemetry();
         _deduplicationService.TryAcquireProcessingLockAsync(telemetry.Id, Arg.Any<CancellationToken>())
@@ -113,11 +111,12 @@ public class ProcessTelemetryCommandHandlerTests
 
         await _handler.Handle(new ProcessTelemetryCommand(telemetry), CancellationToken.None);
 
-        await _playbookOrchestration.Received(1)
-            .OrchestrateIncidentResponseAsync(
-                Arg.Is<IncidentContext>(c => c.VehicleId == telemetry.VehicleId
-                    && c.IncidentSummary.Contains(telemetry.VehicleId)),
-                Arg.Any<CancellationToken>());
+        await _broadcastService.Received(1).BroadcastAlertAsync(
+            telemetry.VehicleId,
+            CargoTemperatureAlerts.Trend,
+            Arg.Any<string>(),
+            Arg.Is<string>(m => m.Contains(telemetry.VehicleId)),
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -136,13 +135,64 @@ public class ProcessTelemetryCommandHandlerTests
 
         await _handler.Handle(new ProcessTelemetryCommand(telemetry), CancellationToken.None);
 
-        await _playbookOrchestration.Received(1)
-            .OrchestrateIncidentResponseAsync(
-                Arg.Is<IncidentContext>(c => c.ProductName == shipment.ProductName
-                    && c.BatchNumber == shipment.BatchNumber
-                    && c.IncidentSummary.Contains(shipment.ProductName)
-                    && c.IncidentSummary.Contains(shipment.BatchNumber)),
-                Arg.Any<CancellationToken>());
+        await _broadcastService.Received(1).BroadcastAlertAsync(
+            telemetry.VehicleId,
+            Arg.Any<string>(),
+            Arg.Any<string>(),
+            Arg.Is<string>(m => m.Contains(shipment.ProductName) && m.Contains(shipment.BatchNumber)),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_FirstOutOfRangeReading_IsDescribedAsOutsideRangeNotTrending()
+    {
+        // Regression: the summary used excursion duration to pick its wording, so the first
+        // out-of-range reading (duration 0s) was described as "trending toward excursion".
+        var telemetry = CreateTelemetry();
+        var shipment = CreateShipment();
+        telemetry.EngineTemperature = shipment.MaxSafeTempCelsius + 3;
+        _deduplicationService.TryAcquireProcessingLockAsync(telemetry.Id, Arg.Any<CancellationToken>())
+            .Returns(true);
+        _shipmentRepository
+            .GetActiveShipmentForVehicleAsync(TenantA.FleetId, telemetry.VehicleId, Arg.Any<CancellationToken>())
+            .Returns(shipment);
+        _anomalyService
+            .AnalyzeTelemetryAsync(telemetry, Arg.Any<Shipment?>(), Arg.Any<CancellationToken>())
+            .Returns(new AnomalyAnalysis(true, OmniOps.Core.Enums.AnomalySeverity.Warning, 0));
+
+        await _handler.Handle(new ProcessTelemetryCommand(telemetry), CancellationToken.None);
+
+        await _broadcastService.Received(1).BroadcastAlertAsync(
+            telemetry.VehicleId,
+            CargoTemperatureAlerts.Excursion,
+            Arg.Any<string>(),
+            Arg.Is<string>(m => m.Contains("outside safe range") && !m.Contains("trending")),
+            Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Handle_WhenCargoOutsideSafeRange_BroadcastsExcursionAlert()
+    {
+        var telemetry = CreateTelemetry();
+        var shipment = CreateShipment();
+        telemetry.EngineTemperature = shipment.MaxSafeTempCelsius + 5;
+        _deduplicationService.TryAcquireProcessingLockAsync(telemetry.Id, Arg.Any<CancellationToken>())
+            .Returns(true);
+        _shipmentRepository
+            .GetActiveShipmentForVehicleAsync(TenantA.FleetId, telemetry.VehicleId, Arg.Any<CancellationToken>())
+            .Returns(shipment);
+        _anomalyService
+            .AnalyzeTelemetryAsync(telemetry, Arg.Any<Shipment?>(), Arg.Any<CancellationToken>())
+            .Returns(new AnomalyAnalysis(true, OmniOps.Core.Enums.AnomalySeverity.Critical, 120));
+
+        await _handler.Handle(new ProcessTelemetryCommand(telemetry), CancellationToken.None);
+
+        await _broadcastService.Received(1).BroadcastAlertAsync(
+            telemetry.VehicleId,
+            CargoTemperatureAlerts.Excursion,
+            Arg.Is<string>(t => t.Contains("out of range")),
+            Arg.Is<string>(m => m.Contains("[CRITICAL]")),
+            Arg.Any<CancellationToken>());
     }
 
     [Fact]

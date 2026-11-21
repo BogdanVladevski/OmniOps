@@ -8,7 +8,7 @@ Step-by-step guide to run OmniOps locally on Windows, macOS, or Linux.
 
 | Tool | Version | Purpose |
 |------|---------|---------|
-| [Docker Desktop](https://www.docker.com/products/docker-desktop/) | Latest | PostgreSQL, Redis, Kafka |
+| [Docker Desktop](https://www.docker.com/products/docker-desktop/) | Latest | PostgreSQL |
 | [.NET SDK](https://dotnet.microsoft.com/download) | 9.0+ | Backend API |
 | [Node.js](https://nodejs.org/) | LTS | Expo mobile app |
 
@@ -31,8 +31,6 @@ Used by the .NET API and `docker-compose`. Key values:
 
 ```text
 DB_CONNECTION_STRING=Host=127.0.0.1;Port=5433;Database=OmniOps;Username=postgres;Password=123
-REDIS_CONNECTION_STRING=127.0.0.1:6379,abortConnect=false
-KAFKA_BOOTSTRAP_SERVERS=127.0.0.1:9092
 ```
 
 Use **semicolon-separated** Npgsql connection strings. Do not use comma syntax or single quotes — DotNetEnv will fail to parse them.
@@ -70,7 +68,7 @@ Verify containers:
 docker ps --filter "name=omniops"
 ```
 
-Expected: `omniops-db`, `omniops-cache`, `omniops-kafka`.
+Expected: `omniops-db` (and `omniops-api` if you started the full compose file). To run the API from source instead, start only the database: `docker compose -f infra/docker-compose.yml up -d postgres`.
 
 ### Postgres credential changes
 
@@ -210,8 +208,7 @@ Set `JWT_REQUIRE_AUTHENTICATION=true`, use a strong `JWT_SECRET`, and **do not**
 | `401 Unauthorized` on API or SignalR | Set `JWT_REQUIRE_AUTHENTICATION=false` for open local dev, or obtain a token via `/api/auth/token` and set `EXPO_PUBLIC_API_TOKEN` |
 | `429 Too Many Requests` on simulate | Rate limit exceeded — wait for the window to reset or adjust `SIMULATE_RATE_LIMIT_*` in `.env` |
 | PowerShell `curl -X POST` fails | Use `Invoke-RestMethod -Method POST -Uri "…"` or `curl.exe -X POST "…"` |
-| Kafka connection errors at API startup | Normal if Kafka is still booting — the consumer retries automatically |
-| `/health/ready` returns Unhealthy | Ensure Docker containers are running; check Postgres, Redis, and Kafka ports |
+| `/health/ready` returns Unhealthy | Ensure the `omniops-db` container is running and port `5433` is free |
 
 ---
 
@@ -220,7 +217,7 @@ Set `JWT_REQUIRE_AUTHENTICATION=true`, use a strong `JWT_SECRET`, and **do not**
 | Endpoint | Purpose |
 |----------|---------|
 | `GET /health/live` | Liveness — returns 200 if the process is running |
-| `GET /health/ready` | Readiness — verifies Postgres, Redis, and Kafka connectivity |
+| `GET /health/ready` | Readiness — verifies Postgres connectivity |
 
 ```powershell
 Invoke-RestMethod -Uri "http://localhost:5031/health/ready"
@@ -228,23 +225,9 @@ Invoke-RestMethod -Uri "http://localhost:5031/health/ready"
 
 ---
 
-## Observability (optional)
+## Metrics (optional)
 
-With the API running on the host:
-
-```powershell
-docker compose -f infra/docker-compose.observability.yml up -d
-```
-
-| Service | URL | Credentials |
-|---------|-----|-------------|
-| Prometheus | http://localhost:9090 | — |
-| Grafana | http://localhost:3000 | `admin` / `admin` |
-| API metrics | http://localhost:5031/metrics | — |
-
-Grafana auto-loads the **OmniOps Overview** dashboard from `infra/observability/grafana/dashboards/`.
-
-Generate traffic so metrics appear:
+Prometheus-format metrics are served at http://localhost:5031/metrics when `PROMETHEUS_METRICS_ENABLED=true`. Generate traffic so they appear:
 
 ```powershell
 Invoke-RestMethod -Method POST -Uri "http://localhost:5031/api/test/simulate/Truck-001?packets=10"
@@ -258,8 +241,4 @@ Invoke-RestMethod -Method POST -Uri "http://localhost:5031/api/test/simulate/Tru
 |---------|------|
 | API (HTTP) | `5031` |
 | PostgreSQL | `5433` |
-| Redis | `6379` |
-| Kafka | `9092` |
-| Prometheus | `9090` |
-| Grafana | `3000` |
 | Expo dev server | `19006` (default) |

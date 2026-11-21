@@ -50,16 +50,9 @@ public static class EnvironmentConfiguration
         MapEnv(envVars, "Database:Database", "POSTGRES_DB");
         MapEnv(envVars, "Database:Username", "POSTGRES_USER");
         MapEnv(envVars, "Database:Password", "POSTGRES_PASSWORD");
-        MapEnv(envVars, "Redis:ConnectionString", "REDIS_CONNECTION_STRING");
-        MapEnv(envVars, "Redis:Host", "REDIS_HOST");
-        MapEnv(envVars, "Redis:Port", "REDIS_PORT");
-        MapEnv(envVars, "Kafka:BootstrapServers", "KAFKA_BOOTSTRAP_SERVERS");
-        MapEnv(envVars, "Kafka:GroupId", "KAFKA_CONSUMER_GROUP_ID");
-        MapEnv(envVars, "Kafka:Topic", "KAFKA_MAIN_TOPIC");
-        MapEnv(envVars, "Kafka:EventsTopic", "KAFKA_EVENTS_TOPIC");
-        MapEnv(envVars, "Kafka:DlqTopic", "KAFKA_DLQ_TOPIC");
-        MapEnv(envVars, "Kafka:ProcessingRetryMaxAttempts", "KAFKA_PROCESSING_RETRY_MAX_ATTEMPTS");
-        MapEnv(envVars, "Kafka:ProcessingRetryDelayMilliseconds", "KAFKA_PROCESSING_RETRY_DELAY_MS");
+        MapEnv(envVars, "Ingestion:QueueCapacity", "INGESTION_QUEUE_CAPACITY");
+        MapEnv(envVars, "Ingestion:ProcessingRetryMaxAttempts", "INGESTION_RETRY_MAX_ATTEMPTS");
+        MapEnv(envVars, "Ingestion:ProcessingRetryDelayMilliseconds", "INGESTION_RETRY_DELAY_MS");
         MapEnv(envVars, "Cors:AllowedOrigins", "ALLOWED_CORS_ORIGINS");
         MapEnv(envVars, "Jwt:Secret", "JWT_SECRET");
         MapEnv(envVars, "Jwt:Issuer", "JWT_ISSUER");
@@ -73,12 +66,6 @@ public static class EnvironmentConfiguration
         MapEnv(envVars, "Fleet:VehicleIds", "FLEET_VEHICLE_IDS");
         MapEnv(envVars, "Cache:SlidingExpirationMinutes", "CACHE_SLIDING_EXPIRATION_MINUTES");
         MapEnv(envVars, "Cache:AbsoluteExpirationHours", "CACHE_ABSOLUTE_EXPIRATION_HOURS");
-        MapEnv(envVars, "Llm:Enabled", "LLM_ENABLED");
-        MapEnv(envVars, "Llm:ApiKey", "OPENAI_API_KEY");
-        MapEnv(envVars, "Llm:Model", "OPENAI_MODEL");
-        MapEnv(envVars, "Llm:BaseUrl", "OPENAI_BASE_URL");
-        MapEnv(envVars, "Llm:TimeoutSeconds", "LLM_TIMEOUT_SECONDS");
-        MapEnv(envVars, "Llm:PlaybooksDirectory", "LLM_PLAYBOOKS_DIRECTORY");
 
         configurationBuilder.AddInMemoryCollection(envVars);
     }

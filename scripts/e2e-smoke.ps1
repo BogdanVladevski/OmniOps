@@ -66,10 +66,6 @@ Test-Endpoint -Name "Fleet analytics" -Path ("/api/analytics/fleet/$FleetId" + "
 Test-Endpoint -Name "Operational analytics" -Path ("/api/analytics/operational/$FleetId" + "?fromUtc=$from&toUtc=$to")
 Test-Endpoint -Name "Vehicle health" -Path "/api/predictions/vehicles/$VehicleId/health"
 Test-Endpoint -Name "Vehicle maintenance" -Path "/api/predictions/vehicles/$VehicleId/maintenance"
-Test-Endpoint -Name "Copilot" -Method POST -Path "/api/copilot/ask" -Body @{
-    question = "What should I monitor for cold-chain compliance?"
-    fleetId  = $FleetId
-}
 Test-Endpoint -Name "Tenant workspaces" -Path "/api/v1/tenant/organizations/01000000-0000-0000-0000-000000000001/workspaces"
 Test-Endpoint -Name "Admin audit logs" -Path "/api/v1/admin/audit-logs"
 Test-Endpoint -Name "Admin API keys" -Path "/api/v1/admin/api-keys"

@@ -17,7 +17,6 @@ public class ProcessTelemetryCommandHandler : IRequestHandler<ProcessTelemetryCo
     private readonly ITelemetryBroadcastService _broadcastService;
     private readonly IDeduplicationService _deduplicationService;
     private readonly IAnomalyDetectionService _anomalyService;
-    private readonly IPlaybookOrchestrationService _playbookOrchestration;
     private readonly IShipmentRepository _shipmentRepository;
     private readonly IGeofenceDetectionService _geofenceDetectionService;
     private readonly IIncidentDetectionService _incidentDetectionService;
@@ -32,7 +31,6 @@ public class ProcessTelemetryCommandHandler : IRequestHandler<ProcessTelemetryCo
         ITelemetryBroadcastService broadcastService,
         IDeduplicationService deduplicationService,
         IAnomalyDetectionService anomalyService,
-        IPlaybookOrchestrationService playbookOrchestration,
         IShipmentRepository shipmentRepository,
         IGeofenceDetectionService geofenceDetectionService,
         IIncidentDetectionService incidentDetectionService,
@@ -46,7 +44,6 @@ public class ProcessTelemetryCommandHandler : IRequestHandler<ProcessTelemetryCo
         _broadcastService = broadcastService;
         _deduplicationService = deduplicationService;
         _anomalyService = anomalyService;
-        _playbookOrchestration = playbookOrchestration;
         _shipmentRepository = shipmentRepository;
         _geofenceDetectionService = geofenceDetectionService;
         _incidentDetectionService = incidentDetectionService;
@@ -157,7 +154,7 @@ public class ProcessTelemetryCommandHandler : IRequestHandler<ProcessTelemetryCo
         catch (Exception ex)
         {
             _logger.LogWarning(ex,
-                "Failed to update Redis cache for vehicle {VehicleId}",
+                "Failed to update latest-telemetry cache for vehicle {VehicleId}",
                 request.Telemetry.VehicleId);
         }
 
@@ -196,8 +193,7 @@ public class ProcessTelemetryCommandHandler : IRequestHandler<ProcessTelemetryCo
                 var incidentSummary = BuildIncidentSummary(
                     request.Telemetry, activeShipment, analysis.ExcursionDurationSeconds, severity);
 
-                // Attach the domain event so downstream subscribers (outbox -> Kafka events,
-                // RAG narrative) get severity + value-at-risk without re querying.
+                // Attach the domain event so outbox subscribers get severity + value-at-risk without re-querying.
                 request.Telemetry.AddDomainEvent(new AnomalyDetectedEvent(
                     vehicleId: request.Telemetry.VehicleId,
                     severity: severity,
@@ -207,22 +203,18 @@ public class ProcessTelemetryCommandHandler : IRequestHandler<ProcessTelemetryCo
                     batchNumber: activeShipment?.BatchNumber,
                     valueAtRiskUsd: activeShipment?.ValueAtRiskUsd));
 
-                var incidentContext = new IncidentContext
-                {
-                    VehicleId = request.Telemetry.VehicleId,
-                    Severity = severity,
-                    ExcursionDurationSeconds = analysis.ExcursionDurationSeconds,
-                    TemperatureCelsius = request.Telemetry.EngineTemperature,
-                    ProductName = activeShipment?.ProductName,
-                    BatchNumber = activeShipment?.BatchNumber,
-                    ValueAtRiskUsd = activeShipment?.ValueAtRiskUsd,
-                    MinSafeTempCelsius = activeShipment?.MinSafeTempCelsius,
-                    MaxSafeTempCelsius = activeShipment?.MaxSafeTempCelsius,
-                    IncidentSummary = incidentSummary
-                };
+                // Telemetry and incidents are committed above, so it is safe to alert now.
+                var temperature = request.Telemetry.EngineTemperature;
+                var outOfRange = activeShipment is not null
+                    && (temperature > activeShipment.MaxSafeTempCelsius || temperature < activeShipment.MinSafeTempCelsius);
 
-                await _playbookOrchestration.OrchestrateIncidentResponseAsync(
-                    incidentContext,
+                await _broadcastService.BroadcastAlertAsync(
+                    request.Telemetry.VehicleId,
+                    outOfRange ? CargoTemperatureAlerts.Excursion : CargoTemperatureAlerts.Trend,
+                    outOfRange
+                        ? $"Cargo temperature out of range — {request.Telemetry.VehicleId}"
+                        : $"Cargo temperature rising — {request.Telemetry.VehicleId}",
+                    incidentSummary,
                     cancellationToken);
             }
         }
@@ -305,7 +297,10 @@ public class ProcessTelemetryCommandHandler : IRequestHandler<ProcessTelemetryCo
                    $"reading: {telemetry.EngineTemperature}°C.";
         }
 
-        if (excursionDurationSeconds > 0)
+        var outOfRange = telemetry.EngineTemperature > shipment.MaxSafeTempCelsius
+                         || telemetry.EngineTemperature < shipment.MinSafeTempCelsius;
+
+        if (outOfRange)
         {
             return $"{tag} {shipment.ProductName} batch {shipment.BatchNumber} on {telemetry.VehicleId} " +
                    $"has been outside safe range ({shipment.MinSafeTempCelsius}–{shipment.MaxSafeTempCelsius}°C) " +
@@ -313,7 +308,7 @@ public class ProcessTelemetryCommandHandler : IRequestHandler<ProcessTelemetryCo
                    $"— est. value at risk: ${shipment.ValueAtRiskUsd:N0}.";
         }
 
-        // Warning with no recorded excursion yet = trending toward breach.
+        // Still inside the range = trending toward a breach.
         return $"{tag} {shipment.ProductName} batch {shipment.BatchNumber} on {telemetry.VehicleId} " +
                $"cargo temperature trending toward excursion at {telemetry.EngineTemperature}°C " +
                $"(safe {shipment.MinSafeTempCelsius}–{shipment.MaxSafeTempCelsius}°C) " +
@@ -321,3 +316,9 @@ public class ProcessTelemetryCommandHandler : IRequestHandler<ProcessTelemetryCo
     }
 }
 
+/// <summary>Alert types broadcast for cargo-temperature anomalies (the app maps these to labels).</summary>
+public static class CargoTemperatureAlerts
+{
+    public const string Excursion = "TemperatureExcursion";
+    public const string Trend = "TemperatureTrend";
+}

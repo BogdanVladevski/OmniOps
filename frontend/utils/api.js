@@ -140,14 +140,6 @@ export const predictionApi = {
   driverRisk: (driverId) => apiFetch(`/api/predictions/drivers/${driverId}/risk`),
 };
 
-export const copilotApi = {
-  ask: (question, fleetId) =>
-    apiFetch('/api/copilot/ask', {
-      method: 'POST',
-      body: JSON.stringify({ question, fleetId }),
-    }),
-};
-
 export const tenantApi = {
   workspaces: (organizationId) => apiFetch(`/api/v1/tenant/organizations/${organizationId}/workspaces`),
   settings: (organizationId) => apiFetch(`/api/v1/tenant/organizations/${organizationId}/settings`),

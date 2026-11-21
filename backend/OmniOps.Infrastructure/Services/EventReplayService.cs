@@ -1,26 +1,21 @@
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using OmniOps.Core.Interfaces;
-using OmniOps.Infrastructure.Configuration;
 
 namespace OmniOps.Infrastructure.Services;
 
 public class EventReplayService : IEventReplayService
 {
     private readonly IEventStore _eventStore;
-    private readonly IKafkaMessageProducer _producer;
-    private readonly KafkaOptions _kafkaOptions;
+    private readonly IIntegrationEventPublisher _publisher;
     private readonly ILogger<EventReplayService> _logger;
 
     public EventReplayService(
         IEventStore eventStore,
-        IKafkaMessageProducer producer,
-        IOptions<KafkaOptions> kafkaOptions,
+        IIntegrationEventPublisher publisher,
         ILogger<EventReplayService> logger)
     {
         _eventStore = eventStore;
-        _producer = producer;
-        _kafkaOptions = kafkaOptions.Value;
+        _publisher = publisher;
         _logger = logger;
     }
 
@@ -34,12 +29,11 @@ public class EventReplayService : IEventReplayService
 
         foreach (var stored in events)
         {
-            await _producer.ProduceAsync(
-                _kafkaOptions.EventsTopic,
+            await _publisher.PublishAsync(
+                stored.EventType,
                 stored.Payload,
                 new Dictionary<string, string>
                 {
-                    ["event-type"] = stored.EventType,
                     ["schema-version"] = stored.SchemaVersion.ToString(),
                     ["replay"] = "true"
                 },
@@ -47,8 +41,8 @@ public class EventReplayService : IEventReplayService
         }
 
         _logger.LogInformation(
-            "Replayed {Count} events from {FromUtc} to {ToUtc} to topic {Topic}",
-            events.Count, fromUtc, toUtc, _kafkaOptions.EventsTopic);
+            "Replayed {Count} events from {FromUtc} to {ToUtc}",
+            events.Count, fromUtc, toUtc);
 
         return events.Count;
     }

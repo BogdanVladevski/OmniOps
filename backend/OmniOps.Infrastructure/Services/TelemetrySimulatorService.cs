@@ -1,11 +1,8 @@
 using System.Diagnostics;
-using System.Text.Json;
 using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Options;
 using OmniOps.Core.Entities;
 using OmniOps.Core.Interfaces;
-using OmniOps.Infrastructure.Configuration;
 
 namespace OmniOps.Infrastructure.Services;
 
@@ -13,23 +10,20 @@ public partial class TelemetrySimulatorService : ITelemetrySimulatorService
 {
     private static readonly ActivitySource SimulatorSource = new("OmniOps.Api.Simulator");
 
-    private readonly IKafkaMessageProducer _kafkaProducer;
+    private readonly ITelemetryIngestionQueue _queue;
     private readonly IFleetVehicleRegistry _vehicleRegistry;
     private readonly ITelemetryMetrics _metrics;
-    private readonly KafkaOptions _kafkaOptions;
     private readonly ILogger<TelemetrySimulatorService> _logger;
 
     public TelemetrySimulatorService(
-        IKafkaMessageProducer kafkaProducer,
+        ITelemetryIngestionQueue queue,
         IFleetVehicleRegistry vehicleRegistry,
         ITelemetryMetrics metrics,
-        IOptions<KafkaOptions> kafkaOptions,
         ILogger<TelemetrySimulatorService> logger)
     {
-        _kafkaProducer = kafkaProducer;
+        _queue = queue;
         _vehicleRegistry = vehicleRegistry;
         _metrics = metrics;
-        _kafkaOptions = kafkaOptions.Value;
         _logger = logger;
     }
 
@@ -73,22 +67,14 @@ public partial class TelemetrySimulatorService : ITelemetrySimulatorService
                 Timestamp = DateTime.UtcNow
             };
 
-            var jsonPayload = JsonSerializer.Serialize(mockTelemetry);
-            IReadOnlyDictionary<string, string>? headers = null;
-            var currentActivity = Activity.Current;
-            if (currentActivity?.Id is not null)
-            {
-                headers = new Dictionary<string, string> { ["traceparent"] = currentActivity.Id };
-            }
-
             try
             {
-                await _kafkaProducer.ProduceAsync(_kafkaOptions.Topic, jsonPayload, headers, cancellationToken);
+                await _queue.EnqueueAsync(mockTelemetry, cancellationToken);
                 successfullySent++;
             }
-            catch (Exception ex)
+            catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                _logger.LogError(ex, "Simulator failed to produce Kafka message for vehicle {VehicleId}", vehicleId);
+                _logger.LogError(ex, "Simulator failed to queue telemetry for vehicle {VehicleId}", vehicleId);
             }
 
             await Task.Delay(50, cancellationToken);

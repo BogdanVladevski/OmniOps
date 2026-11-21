@@ -23,13 +23,13 @@ public sealed class TelemetryMetrics : ITelemetryMetrics, IDisposable
             description: "Telemetry packets persisted and broadcast successfully");
         _duplicatesSkipped = _meter.CreateCounter<long>(
             "telemetry.duplicate_skipped",
-            description: "Telemetry packets skipped by Redis deduplication");
+            description: "Telemetry packets skipped by packet deduplication");
         _anomaliesDetected = _meter.CreateCounter<long>(
             "telemetry.anomaly_detected",
             description: "Anomaly events raised during telemetry processing");
         _dlqRouted = _meter.CreateCounter<long>(
-            "kafka.dlq_routed",
-            description: "Messages routed to the Kafka dead-letter queue");
+            "telemetry.rejected",
+            description: "Telemetry packets rejected after validation failure or exhausted retries");
         _simulatePacketsPublished = _meter.CreateCounter<long>(
             "simulate.packets_published",
             description: "Mock telemetry packets published via the simulate endpoint");

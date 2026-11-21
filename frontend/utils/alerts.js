@@ -3,6 +3,7 @@
 const TYPES = {
   playbook: { label: 'Cold-chain response', severity: 'critical', icon: 'snow' },
   TemperatureExcursion: { label: 'Temperature excursion', severity: 'critical', icon: 'thermometer' },
+  TemperatureTrend: { label: 'Temperature rising', severity: 'warning', icon: 'trending-up' },
   SensorFailure: { label: 'Sensor problem', severity: 'warning', icon: 'hardware-chip-outline' },
   HarshBraking: { label: 'Harsh braking', severity: 'warning', icon: 'warning-outline' },
   Overspeed: { label: 'Speeding', severity: 'warning', icon: 'speedometer-outline' },

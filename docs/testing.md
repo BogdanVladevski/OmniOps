@@ -15,7 +15,7 @@ dotnet build backend/OmniOps.sln -c Release
 dotnet test backend/OmniOps.sln -c Release --logger "console;verbosity=normal"
 ```
 
-Integration tests spin up ephemeral **PostgreSQL**, **Redis**, and **Kafka** containers and exercise REST APIs without background workers.
+Integration tests spin up an ephemeral **PostgreSQL** container and exercise REST APIs without background workers.
 
 ### Frontend (mobile unit tests)
 
@@ -50,7 +50,7 @@ chmod +x scripts/e2e-smoke.sh
 ### 1. Start infrastructure + API
 
 ```powershell
-# Terminal 1 — Postgres, Redis, Kafka, API container
+# Terminal 1 — Postgres + API container
 docker compose -f infra/docker-compose.yml up -d --build
 
 # Verify readiness (PowerShell — use this in Cursor terminal on Windows)
@@ -60,7 +60,7 @@ Invoke-RestMethod http://localhost:5031/health/ready
 **Alternative (API on host):**
 
 ```powershell
-docker compose -f infra/docker-compose.yml up -d postgres redis kafka
+docker compose -f infra/docker-compose.yml up -d postgres
 cd backend/OmniOps.Api
 dotnet run
 ```
@@ -107,9 +107,9 @@ Wait ~5–10 seconds for the consumer to process.
 |-----|----------------|
 | **Map** | Vehicle markers move/update; geofence overlays; vehicle chips select target |
 | **Fleet** | Executive KPIs (active, warnings, trips, incidents); tap vehicle → **Vehicle Detail** modal (health, maintenance, trends) |
-| **Manage** | Fleet stats; vehicle search/filter; create driver; Copilot answer |
+| **Manage** | Fleet stats; vehicle search/filter; create driver |
 | **Analytics** | Fleet KPIs, operations, driver safety, speed/temp charts, predictions, heatmap |
-| **Alerts** | Playbook/incident alerts after temperature excursion simulate |
+| **Alerts** | Incident and cargo-temperature alerts after a simulate run |
 | **Admin** | Audit logs load; API keys list; **Generate Key** works; Refresh |
 
 ### 6. Trigger cold-chain incident (optional)
@@ -146,7 +146,7 @@ Integration load tests assert:
 |-------|-----|
 | API can't reach Postgres in Docker | Ensure `DB_HOST=postgres` in compose; host `dotnet run` uses `127.0.0.1:5433` |
 | Admin tab shows auth error | Set `JWT_REQUIRE_AUTHENTICATION=false` in `.env` for dev |
-| No telemetry on map | Run simulate endpoint; confirm Kafka consumer logs in API |
+| No telemetry on map | Run simulate endpoint; check the API log for "Telemetry ingestion worker started" |
 | Frontend "Missing EXPO_PUBLIC_API_URL" | Create `frontend/.env` with API URL |
 | Expo Go: Network request failed | Phone cannot use `localhost` — app auto-rewrites to LAN IP; ensure phone and PC share Wi‑Fi, API is on `:5031`, Windows Firewall allows inbound |
 | Integration tests fail | Docker Desktop must be running |

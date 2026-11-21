@@ -7,7 +7,7 @@ namespace OmniOps.Api.Tests.Integration;
 public class TelemetrySimulateIntegrationTests(OmniOpsApiFixture fixture)
 {
     [Fact]
-    public async Task SimulateTelemetry_QueuesPacketsToKafka()
+    public async Task SimulateTelemetry_QueuesPackets()
     {
         var response = await fixture.Client.PostAsync(
             "/api/test/simulate/Truck-001?packets=3",
