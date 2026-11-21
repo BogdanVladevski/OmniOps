@@ -16,18 +16,22 @@ public class ShipmentRepository : IShipmentRepository
     }
 
     public Task<Shipment?> GetActiveShipmentForVehicleAsync(
+        Guid fleetId,
         string vehicleId,
         CancellationToken cancellationToken = default)
     {
         return _context.Shipments
-            .Where(s => s.VehicleId == vehicleId && s.Status == ShipmentStatus.InTransit)
+            .Where(s => s.FleetId == fleetId && s.VehicleId == vehicleId && s.Status == ShipmentStatus.InTransit)
             .FirstOrDefaultAsync(cancellationToken);
     }
 
-    public Task<Shipment?> GetByIdAsync(Guid shipmentId, CancellationToken cancellationToken = default)
+    public Task<Shipment?> GetByIdForOrganizationAsync(
+        Guid shipmentId, Guid organizationId, CancellationToken cancellationToken = default)
     {
         return _context.Shipments
             .AsNoTracking()
-            .FirstOrDefaultAsync(s => s.Id == shipmentId, cancellationToken);
+            .Where(s => s.Id == shipmentId
+                && _context.Fleets.Any(f => f.Id == s.FleetId && f.OrganizationId == organizationId))
+            .FirstOrDefaultAsync(cancellationToken);
     }
 }

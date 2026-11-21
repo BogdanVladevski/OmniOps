@@ -89,8 +89,12 @@ public class IncidentDetectionService : IIncidentDetectionService
                 incidents, pendingCooldownKeys, cancellationToken);
         }
 
-        var shipment = await _shipmentRepository.GetActiveShipmentForVehicleAsync(
-            telemetry.VehicleId, cancellationToken);
+        // Quarantined packets have no trustworthy owner, so no shipment safe range applies;
+        // the anomaly service still runs its generic checks for them.
+        var shipment = tenant.IsUnattributed
+            ? null
+            : await _shipmentRepository.GetActiveShipmentForVehicleAsync(
+                tenant.FleetId, telemetry.VehicleId, cancellationToken);
         if (shipment is not null)
         {
             var temp = telemetry.EngineTemperature;

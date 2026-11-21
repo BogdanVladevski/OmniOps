@@ -671,6 +671,9 @@ namespace OmniOps.Infrastructure.Migrations
                     b.Property<DateTime>("ExpectedDeliveryUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<Guid>("FleetId")
+                        .HasColumnType("uuid");
+
                     b.Property<double>("MaxSafeTempCelsius")
                         .HasColumnType("double precision");
 
@@ -694,7 +697,7 @@ namespace OmniOps.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("VehicleId", "Status");
+                    b.HasIndex("FleetId", "VehicleId", "Status");
 
                     b.ToTable("Shipments");
 
@@ -705,6 +708,7 @@ namespace OmniOps.Infrastructure.Migrations
                             BatchNumber = "B-4471",
                             DepartedAtUtc = new DateTime(2026, 7, 1, 8, 0, 0, 0, DateTimeKind.Utc),
                             ExpectedDeliveryUtc = new DateTime(2026, 7, 7, 18, 0, 0, 0, DateTimeKind.Utc),
+                            FleetId = new Guid("f1000000-0000-0000-0000-000000000001"),
                             MaxSafeTempCelsius = 100.0,
                             MinSafeTempCelsius = 50.0,
                             ProductName = "Insulin Glargine",
@@ -718,6 +722,7 @@ namespace OmniOps.Infrastructure.Migrations
                             BatchNumber = "HBV-0293",
                             DepartedAtUtc = new DateTime(2026, 7, 2, 6, 30, 0, 0, DateTimeKind.Utc),
                             ExpectedDeliveryUtc = new DateTime(2026, 7, 8, 14, 0, 0, 0, DateTimeKind.Utc),
+                            FleetId = new Guid("f1000000-0000-0000-0000-000000000001"),
                             MaxSafeTempCelsius = 95.0,
                             MinSafeTempCelsius = 50.0,
                             ProductName = "Hepatitis B Vaccine",
@@ -731,6 +736,7 @@ namespace OmniOps.Infrastructure.Migrations
                             BatchNumber = "BCG-1182",
                             DepartedAtUtc = new DateTime(2026, 7, 3, 10, 0, 0, 0, DateTimeKind.Utc),
                             ExpectedDeliveryUtc = new DateTime(2026, 7, 9, 20, 0, 0, 0, DateTimeKind.Utc),
+                            FleetId = new Guid("f1000000-0000-0000-0000-000000000001"),
                             MaxSafeTempCelsius = 100.0,
                             MinSafeTempCelsius = 55.0,
                             ProductName = "BCG Vaccine",

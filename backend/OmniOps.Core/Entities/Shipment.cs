@@ -5,6 +5,9 @@ namespace OmniOps.Core.Entities;
 public class Shipment
 {
     public Guid Id { get; set; }
+
+    /// <summary>Fleet that owns the shipment. Vehicle ids are unique per fleet only, so this scopes lookups.</summary>
+    public Guid FleetId { get; set; }
     public string VehicleId { get; set; } = string.Empty;
     public string ProductName { get; set; } = string.Empty;
     public string BatchNumber { get; set; } = string.Empty;

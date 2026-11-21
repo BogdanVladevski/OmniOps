@@ -167,8 +167,11 @@ public class ProcessTelemetryCommandHandler : IRequestHandler<ProcessTelemetryCo
             Shipment? activeShipment = null;
             try
             {
-                activeShipment = await _shipmentRepository.GetActiveShipmentForVehicleAsync(
-                    request.Telemetry.VehicleId, cancellationToken);
+                if (!tenant.IsUnattributed)
+                {
+                    activeShipment = await _shipmentRepository.GetActiveShipmentForVehicleAsync(
+                        tenant.FleetId, request.Telemetry.VehicleId, cancellationToken);
+                }
             }
             catch (Exception ex)
             {

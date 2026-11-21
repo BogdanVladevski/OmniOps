@@ -10,15 +10,21 @@ public class GetFleetTelemetryQueryHandler : IRequestHandler<GetFleetTelemetryQu
     private readonly ITelemetryCacheService _cacheService;
     private readonly IFleetVehicleRegistry _fleetRegistry;
     private readonly IShipmentRepository _shipmentRepository;
+    private readonly IVehicleRepository _vehicleRepository;
+    private readonly ITenantContext _tenant;
 
     public GetFleetTelemetryQueryHandler(
         ITelemetryCacheService cacheService,
         IFleetVehicleRegistry fleetRegistry,
-        IShipmentRepository shipmentRepository)
+        IShipmentRepository shipmentRepository,
+        IVehicleRepository vehicleRepository,
+        ITenantContext tenant)
     {
         _cacheService = cacheService;
         _fleetRegistry = fleetRegistry;
         _shipmentRepository = shipmentRepository;
+        _vehicleRepository = vehicleRepository;
+        _tenant = tenant;
     }
 
     public async Task<FleetTelemetryDto> Handle(
@@ -39,8 +45,13 @@ public class GetFleetTelemetryQueryHandler : IRequestHandler<GetFleetTelemetryQu
             ShipmentInfoDto? shipmentInfo = null;
             try
             {
-                var shipment = await _shipmentRepository.GetActiveShipmentForVehicleAsync(
-                    vehicleId, cancellationToken);
+                // Only show shipment details owned by the caller's organization.
+                var fleetId = await _vehicleRepository.FindFleetIdInOrganizationAsync(
+                    vehicleId, _tenant.OrganizationId, cancellationToken);
+                var shipment = fleetId is null
+                    ? null
+                    : await _shipmentRepository.GetActiveShipmentForVehicleAsync(
+                        fleetId.Value, vehicleId, cancellationToken);
 
                 if (shipment is not null)
                 {
