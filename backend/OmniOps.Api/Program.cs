@@ -87,6 +87,7 @@ try
         app.MapAuthEndpoints();
     }
 
+    ServiceRegistration.EnsureKafkaTopicsExist(app);
     await ServiceRegistration.MigrateDatabaseAsync(app);
 
     app.Run();
