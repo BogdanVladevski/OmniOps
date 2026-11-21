@@ -1,6 +1,5 @@
 import React, { useMemo, useState } from 'react';
 import { StyleSheet, Text, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { useFleet } from '../contexts/FleetContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { radius, spacing, typography } from '../theme/tokens';
@@ -86,9 +85,6 @@ export default function FleetManagement() {
         <Card padded={false}>
           {vehicles.map((v, i) => (
             <View key={v.id} style={[styles.row, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border }]}>
-              <View style={[styles.rowIcon, { backgroundColor: colors.accentMuted }]}>
-                <Ionicons name="bus-outline" size={18} color={colors.accentStrong} />
-              </View>
               <View style={styles.flex}>
                 <Text style={[typography.bodyStrong, { color: colors.text }]}>{v.externalId}</Text>
                 <Text style={[typography.caption, { color: colors.muted }]} numberOfLines={1}>
@@ -131,7 +127,7 @@ export default function FleetManagement() {
   );
 
   return (
-    <Page title="Fleet" subtitle="The trucks, drivers and depots behind every shipment — plus an AI copilot for quick answers.">
+    <Page title="Fleet">
       <Grid columns={isTablet ? 4 : 2}>
         <StatTile label="Vehicles" value={fleetMeta ? String(fleetMeta.vehicleCount) : '—'} icon="bus-outline" tone="accent" />
         <StatTile label="Drivers" value={fleetMeta ? String(fleetMeta.driverCount) : '—'} icon="people-outline" />
@@ -158,7 +154,6 @@ const styles = StyleSheet.create({
   columns: { flexDirection: 'row', gap: spacing.xl, alignItems: 'flex-start' },
   gap: { gap: spacing.md },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.lg, paddingVertical: spacing.md },
-  rowIcon: { width: 36, height: 36, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center' },
   suggestions: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   suggestion: { paddingVertical: 6, minHeight: 32 },
   answer: { borderRadius: radius.md, padding: spacing.lg },

@@ -71,7 +71,7 @@ export default function AnalyticsPanel() {
   return (
     <Page
       title="Analytics"
-      subtitle={`Fleet performance and vehicle health over the last ${WINDOW_HOURS} hours.`}
+      subtitle={`Last ${WINDOW_HOURS} hours`}
       actions={<Button label="Refresh" icon="refresh" variant="secondary" onPress={load} />}
     >
       {error ? <RetryPanel message={error} onRetry={load} /> : null}
@@ -113,11 +113,11 @@ export default function AnalyticsPanel() {
             </Card>
             <Card style={styles.block}>
               <Text style={[typography.overline, { color: colors.muted }]}>Cargo temperature (°C)</Text>
-              <BarChart values={aggs.map((a) => a.avgTemperature)} color={colors.warning} />
+              <BarChart values={aggs.map((a) => a.avgTemperature)} />
             </Card>
             <Card style={styles.block}>
               <Text style={[typography.overline, { color: colors.muted }]}>Speed (km/h)</Text>
-              <BarChart values={aggs.map((a) => a.avgSpeed)} color={colors.accent} />
+              <BarChart values={aggs.map((a) => a.avgSpeed)} />
             </Card>
           </Grid>
 

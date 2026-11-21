@@ -1,6 +1,5 @@
 import React, { useMemo, useState } from 'react';
 import { Modal, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFleet } from '../contexts/FleetContext';
 import { useTheme } from '../contexts/ThemeContext';
@@ -31,19 +30,14 @@ function AlertRow({ group, onPress, first }) {
         (hovered || pressed) && { backgroundColor: colors.sunken },
       ]}
     >
-      <View style={[styles.stripe, { backgroundColor: t.fg }]} />
-      <View style={[styles.icon, { backgroundColor: t.bg }]}>
-        <Ionicons name={group.meta.icon} size={18} color={t.fg} />
-      </View>
+      <View style={[styles.dot, { backgroundColor: t.fg }]} />
       <View style={styles.flex}>
         <View style={styles.rowHead}>
           <Text style={[typography.bodyStrong, { color: colors.text }]} numberOfLines={1}>
             {group.meta.label}
           </Text>
           {group.count > 1 ? (
-            <View style={[styles.count, { backgroundColor: colors.sunken }]}>
-              <Text style={[typography.caption, { color: colors.textSecondary, fontWeight: '700' }]}>×{group.count}</Text>
-            </View>
+            <Text style={[typography.caption, { color: colors.muted }]}>×{group.count}</Text>
           ) : null}
         </View>
         <Text style={[typography.caption, { color: colors.textSecondary }]} numberOfLines={2}>
@@ -51,7 +45,9 @@ function AlertRow({ group, onPress, first }) {
         </Text>
       </View>
       <View style={styles.rowEnd}>
-        <Pill label={SEVERITY_LABEL[group.meta.severity]} tone={group.meta.severity} />
+        <Text style={[typography.caption, { color: group.meta.severity === 'critical' ? t.fg : colors.muted, fontWeight: '600' }]}>
+          {SEVERITY_LABEL[group.meta.severity]}
+        </Text>
         <Text style={[typography.caption, { color: colors.muted }]}>{timeAgo(group.alert.generatedAt)}</Text>
       </View>
     </Pressable>
@@ -87,7 +83,7 @@ export default function AlertsFeed() {
   return (
     <Page
       title="Alerts"
-      subtitle="Everything that needs a person's attention. Critical alerts mean medicine is outside its safe temperature; repeated events are grouped so nothing important gets buried."
+      subtitle="Critical means medicine is outside its safe temperature. Repeats are grouped."
     >
       <Segmented
         options={FILTERS.map((f) => ({ ...f, count: counts[f.key] }))}
@@ -123,9 +119,7 @@ export default function AlertsFeed() {
             {selected ? (
               <>
                 <View style={styles.sheetHead}>
-                  <View style={[styles.icon, { backgroundColor: sel.bg }]}>
-                    <Ionicons name={selected.meta.icon} size={18} color={sel.fg} />
-                  </View>
+                  <View style={[styles.dot, { backgroundColor: sel.fg }]} />
                   <View style={styles.flex}>
                     <Text style={[typography.title, { color: colors.text }]}>{selected.meta.label}</Text>
                     <Text style={[typography.caption, { color: colors.muted }]}>
@@ -171,8 +165,7 @@ const styles = StyleSheet.create({
   flex: { flex: 1 },
   list: { overflow: 'hidden' },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: spacing.md, paddingHorizontal: spacing.lg },
-  stripe: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 3 },
-  icon: { width: 36, height: 36, borderRadius: radius.md, alignItems: 'center', justifyContent: 'center' },
+  dot: { width: 8, height: 8, borderRadius: 4 },
   rowHead: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   rowEnd: { alignItems: 'flex-end', gap: 6 },
   count: { paddingHorizontal: 6, paddingVertical: 1, borderRadius: radius.sm },
