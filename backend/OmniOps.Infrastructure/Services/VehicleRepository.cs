@@ -26,6 +26,17 @@ public class VehicleRepository : IVehicleRepository
             .Take(max)
             .ToListAsync(cancellationToken);
 
+    public async Task<Guid?> FindFleetIdInOrganizationAsync(
+        string externalId, Guid organizationId, CancellationToken cancellationToken = default)
+    {
+        var fleetIds = await _context.Vehicles.AsNoTracking()
+            .Where(v => v.ExternalId == externalId && v.Fleet.OrganizationId == organizationId)
+            .Select(v => v.FleetId)
+            .Take(2)
+            .ToListAsync(cancellationToken);
+        return fleetIds.Count == 1 ? fleetIds[0] : null;
+    }
+
     public Task<IReadOnlyList<Vehicle>> GetByFleetIdAsync(Guid fleetId, CancellationToken cancellationToken = default) =>
         _context.Vehicles.AsNoTracking().Where(v => v.FleetId == fleetId).ToListAsync(cancellationToken)
             .ContinueWith(t => (IReadOnlyList<Vehicle>)t.Result, cancellationToken);

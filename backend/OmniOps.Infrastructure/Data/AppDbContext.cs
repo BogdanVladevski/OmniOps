@@ -66,7 +66,7 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<Shipment>(entity =>
         {
             entity.HasKey(e => e.Id);
-            entity.HasIndex(e => new { e.VehicleId, e.Status });
+            entity.HasIndex(e => new { e.FleetId, e.VehicleId, e.Status });
             entity.Property(e => e.ValueAtRiskUsd).HasPrecision(18, 2);
 
             // Seed 3 shipments matching the Truck-001/002/003 fleet.
@@ -76,6 +76,7 @@ public class AppDbContext : DbContext
                 new Shipment
                 {
                     Id = new Guid("a1000000-0000-0000-0000-000000000001"),
+                    FleetId = TenantSeed.DefaultFleetId,
                     VehicleId = "Truck-001",
                     ProductName = "Insulin Glargine",
                     BatchNumber = "B-4471",
@@ -89,6 +90,7 @@ public class AppDbContext : DbContext
                 new Shipment
                 {
                     Id = new Guid("a2000000-0000-0000-0000-000000000002"),
+                    FleetId = TenantSeed.DefaultFleetId,
                     VehicleId = "Truck-002",
                     ProductName = "Hepatitis B Vaccine",
                     BatchNumber = "HBV-0293",
@@ -102,6 +104,7 @@ public class AppDbContext : DbContext
                 new Shipment
                 {
                     Id = new Guid("a3000000-0000-0000-0000-000000000003"),
+                    FleetId = TenantSeed.DefaultFleetId,
                     VehicleId = "Truck-003",
                     ProductName = "BCG Vaccine",
                     BatchNumber = "BCG-1182",

@@ -21,7 +21,7 @@ public class IncidentDetectionServiceTests
 
     public IncidentDetectionServiceTests()
     {
-        _shipments.GetActiveShipmentForVehicleAsync("Truck-001", Arg.Any<CancellationToken>())
+        _shipments.GetActiveShipmentForVehicleAsync(Arg.Any<Guid>(), "Truck-001", Arg.Any<CancellationToken>())
             .Returns(new Shipment
             {
                 Id = Guid.NewGuid(),
@@ -96,6 +96,31 @@ public class IncidentDetectionServiceTests
 
         Assert.Contains(other.Incidents, i => i.Type == IncidentType.TemperatureExcursion
             && i.FleetId == otherTenant.FleetId);
+    }
+
+    [Fact]
+    public async Task DetectAsync_UsesOnlyTheOwningFleetsShipment()
+    {
+        var shipments = Substitute.For<IShipmentRepository>();
+        // Another fleet's Truck-001 carries a shipment with a range this reading violates;
+        // the owning fleet's Truck-001 has no active shipment.
+        shipments.GetActiveShipmentForVehicleAsync(Arg.Is<Guid>(g => g != Tenant.FleetId), "Truck-001", Arg.Any<CancellationToken>())
+            .Returns(new Shipment { Id = Guid.NewGuid(), VehicleId = "Truck-001", MinSafeTempCelsius = 2, MaxSafeTempCelsius = 8 });
+        var service = new IncidentDetectionService(_cache, shipments);
+
+        var result = await service.DetectAsync(Telemetry(temp: 15, speed: 60), Tenant);
+
+        Assert.DoesNotContain(result.Incidents, i => i.Type == IncidentType.TemperatureExcursion);
+        await shipments.Received(1).GetActiveShipmentForVehicleAsync(Tenant.FleetId, "Truck-001", Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task DetectAsync_Quarantined_SkipsShipmentLookup()
+    {
+        await _service.DetectAsync(Telemetry(temp: 15, speed: 60), VehicleTenant.Unattributed);
+
+        await _shipments.DidNotReceive().GetActiveShipmentForVehicleAsync(
+            Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 
     private static readonly DateTime T0 = new(2026, 11, 21, 12, 0, 0, DateTimeKind.Utc);

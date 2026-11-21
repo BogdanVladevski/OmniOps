@@ -14,6 +14,13 @@ public interface IVehicleRepository
     /// </summary>
     Task<IReadOnlyList<VehicleTenant>> FindTenantsByExternalIdAsync(
         string externalId, int max, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Fleet of the vehicle with this external id inside <paramref name="organizationId"/>, or null when the
+    /// organization has no such vehicle or has it in more than one fleet.
+    /// </summary>
+    Task<Guid?> FindFleetIdInOrganizationAsync(
+        string externalId, Guid organizationId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<Vehicle>> GetByFleetIdAsync(Guid fleetId, CancellationToken cancellationToken = default);
     Task AddAsync(Vehicle vehicle, CancellationToken cancellationToken = default);
     Task AddMaintenanceRecordAsync(VehicleMaintenanceRecord record, CancellationToken cancellationToken = default);

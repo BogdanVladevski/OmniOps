@@ -9,20 +9,25 @@ public class GetShipmentReplayQueryHandler : IRequestHandler<GetShipmentReplayQu
 {
     private readonly IShipmentRepository _shipmentRepository;
     private readonly ITelemetryRepository _telemetryRepository;
+    private readonly ITenantContext _tenant;
 
     public GetShipmentReplayQueryHandler(
         IShipmentRepository shipmentRepository,
-        ITelemetryRepository telemetryRepository)
+        ITelemetryRepository telemetryRepository,
+        ITenantContext tenant)
     {
         _shipmentRepository = shipmentRepository;
         _telemetryRepository = telemetryRepository;
+        _tenant = tenant;
     }
 
     public async Task<ShipmentReplayDto?> Handle(
         GetShipmentReplayQuery request,
         CancellationToken cancellationToken)
     {
-        var shipment = await _shipmentRepository.GetByIdAsync(request.ShipmentId, cancellationToken);
+        // Other organizations' shipments are indistinguishable from missing ones (404, not 403).
+        var shipment = await _shipmentRepository.GetByIdForOrganizationAsync(
+            request.ShipmentId, _tenant.OrganizationId, cancellationToken);
         if (shipment is null)
         {
             return null;

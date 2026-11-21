@@ -11,20 +11,23 @@ public class GetShipmentReplayQueryHandlerTests
 {
     private readonly IShipmentRepository _shipmentRepository = Substitute.For<IShipmentRepository>();
     private readonly ITelemetryRepository _telemetryRepository = Substitute.For<ITelemetryRepository>();
+    private readonly ITenantContext _tenant = Substitute.For<ITenantContext>();
     private readonly GetShipmentReplayQueryHandler _handler;
+    private static readonly Guid CallerOrgId = new("0d000000-0000-0000-0000-00000000000d");
 
     private static readonly Guid ShipmentId = Guid.Parse("a1000000-0000-0000-0000-000000000001");
     private static readonly DateTime Anchor = new(2026, 7, 5, 12, 0, 0, DateTimeKind.Utc);
 
     public GetShipmentReplayQueryHandlerTests()
     {
-        _handler = new GetShipmentReplayQueryHandler(_shipmentRepository, _telemetryRepository);
+        _tenant.OrganizationId.Returns(CallerOrgId);
+        _handler = new GetShipmentReplayQueryHandler(_shipmentRepository, _telemetryRepository, _tenant);
     }
 
     [Fact]
     public async Task Handle_WhenShipmentMissing_ReturnsNull()
     {
-        _shipmentRepository.GetByIdAsync(ShipmentId, Arg.Any<CancellationToken>())
+        _shipmentRepository.GetByIdForOrganizationAsync(ShipmentId, CallerOrgId, Arg.Any<CancellationToken>())
             .Returns((Shipment?)null);
 
         var result = await _handler.Handle(
@@ -59,7 +62,7 @@ public class GetShipmentReplayQueryHandlerTests
             CreateTelemetry(toUtc, 101)
         };
 
-        _shipmentRepository.GetByIdAsync(ShipmentId, Arg.Any<CancellationToken>())
+        _shipmentRepository.GetByIdForOrganizationAsync(ShipmentId, CallerOrgId, Arg.Any<CancellationToken>())
             .Returns(shipment);
         _telemetryRepository
             .GetByVehicleInTimeRangeAsync("Truck-001", fromUtc, toUtc, Arg.Any<CancellationToken>())
