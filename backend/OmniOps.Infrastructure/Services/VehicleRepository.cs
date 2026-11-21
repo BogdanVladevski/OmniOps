@@ -1,3 +1,4 @@
+using OmniOps.Core.Domain;
 using Microsoft.EntityFrameworkCore;
 using OmniOps.Core.Entities;
 using OmniOps.Core.Interfaces;
@@ -16,6 +17,14 @@ public class VehicleRepository : IVehicleRepository
 
     public Task<Vehicle?> GetByExternalIdAsync(string externalId, CancellationToken cancellationToken = default) =>
         _context.Vehicles.FirstOrDefaultAsync(v => v.ExternalId == externalId, cancellationToken);
+
+    public async Task<IReadOnlyList<VehicleTenant>> FindTenantsByExternalIdAsync(
+        string externalId, int max, CancellationToken cancellationToken = default) =>
+        await _context.Vehicles.AsNoTracking()
+            .Where(v => v.ExternalId == externalId)
+            .Select(v => new VehicleTenant(v.Fleet.OrganizationId, v.FleetId))
+            .Take(max)
+            .ToListAsync(cancellationToken);
 
     public Task<IReadOnlyList<Vehicle>> GetByFleetIdAsync(Guid fleetId, CancellationToken cancellationToken = default) =>
         _context.Vehicles.AsNoTracking().Where(v => v.FleetId == fleetId).ToListAsync(cancellationToken)

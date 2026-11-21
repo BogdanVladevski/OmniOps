@@ -22,6 +22,7 @@ public class ProcessTelemetryCommandHandler : IRequestHandler<ProcessTelemetryCo
     private readonly IGeofenceDetectionService _geofenceDetectionService;
     private readonly IIncidentDetectionService _incidentDetectionService;
     private readonly IIncidentRepository _incidentRepository;
+    private readonly IVehicleRepository _vehicleRepository;
     private readonly ITelemetryMetrics _metrics;
     private readonly ILogger<ProcessTelemetryCommandHandler> _logger;
 
@@ -36,6 +37,7 @@ public class ProcessTelemetryCommandHandler : IRequestHandler<ProcessTelemetryCo
         IGeofenceDetectionService geofenceDetectionService,
         IIncidentDetectionService incidentDetectionService,
         IIncidentRepository incidentRepository,
+        IVehicleRepository vehicleRepository,
         ITelemetryMetrics metrics,
         ILogger<ProcessTelemetryCommandHandler> logger)
     {
@@ -49,6 +51,7 @@ public class ProcessTelemetryCommandHandler : IRequestHandler<ProcessTelemetryCo
         _geofenceDetectionService = geofenceDetectionService;
         _incidentDetectionService = incidentDetectionService;
         _incidentRepository = incidentRepository;
+        _vehicleRepository = vehicleRepository;
         _metrics = metrics;
         _logger = logger;
     }
@@ -85,15 +88,16 @@ public class ProcessTelemetryCommandHandler : IRequestHandler<ProcessTelemetryCo
             request.Telemetry.AddDomainEvent(breach);
         }
 
-        var detection = await _incidentDetectionService.DetectAsync(request.Telemetry, cancellationToken);
+        var tenant = await ResolveTenantAsync(request.Telemetry.VehicleId, cancellationToken);
+        var detection = await _incidentDetectionService.DetectAsync(request.Telemetry, tenant, cancellationToken);
         var detectedIncidents = detection.Incidents.ToList();
         foreach (var breach in geofenceBreaches)
         {
             detectedIncidents.Add(new Incident
             {
                 Id = Guid.NewGuid(),
-                OrganizationId = TenantSeed.DefaultOrganizationId,
-                FleetId = new Guid("f1000000-0000-0000-0000-000000000001"),
+                OrganizationId = tenant.OrganizationId,
+                FleetId = tenant.FleetId,
                 VehicleId = breach.VehicleId,
                 Type = IncidentType.GeofenceBreach,
                 Severity = IncidentSeverity.Medium,
@@ -248,6 +252,40 @@ public class ProcessTelemetryCommandHandler : IRequestHandler<ProcessTelemetryCo
 
         _metrics.RecordTelemetryProcessed();
         return true;
+    }
+
+    /// <summary>
+    /// Attributes incidents to the owning organization/fleet. Anything other than exactly one
+    /// registered match is quarantined under <see cref="VehicleTenant.Unattributed"/> — the incident is
+    /// still recorded (never drop an alert) but invisible to every real tenant; logged and counted.
+    /// </summary>
+    private async Task<VehicleTenant> ResolveTenantAsync(string vehicleId, CancellationToken cancellationToken)
+    {
+        IReadOnlyList<VehicleTenant> matches;
+        try
+        {
+            matches = await _vehicleRepository.FindTenantsByExternalIdAsync(vehicleId, max: 2, cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex,
+                "Tenant lookup failed for vehicle {VehicleId}; incidents quarantined",
+                vehicleId);
+            _metrics.RecordTenantUnresolved("lookup_failed");
+            return VehicleTenant.Unattributed;
+        }
+
+        if (matches.Count == 1)
+        {
+            return matches[0];
+        }
+
+        var reason = matches.Count == 0 ? "not_registered" : "ambiguous";
+        _logger.LogWarning(
+            "Vehicle {VehicleId} could not be attributed to a single fleet ({Reason}); incidents quarantined",
+            vehicleId, reason);
+        _metrics.RecordTenantUnresolved(reason);
+        return VehicleTenant.Unattributed;
     }
 
     private static string BuildIncidentSummary(

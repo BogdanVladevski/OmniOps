@@ -4,6 +4,7 @@ public static class TenantSeed
 {
     public static readonly Guid DefaultOrganizationId = new("01000000-0000-0000-0000-000000000001");
     public static readonly Guid DefaultWorkspaceId = new("02000000-0000-0000-0000-000000000001");
+    public static readonly Guid DefaultFleetId = new("f1000000-0000-0000-0000-000000000001");
 }
 
 public class Organization

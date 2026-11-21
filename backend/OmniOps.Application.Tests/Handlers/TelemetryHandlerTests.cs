@@ -23,6 +23,9 @@ public class ProcessTelemetryCommandHandlerTests
     private readonly IGeofenceDetectionService _geofenceDetectionService = Substitute.For<IGeofenceDetectionService>();
     private readonly IIncidentDetectionService _incidentDetectionService = Substitute.For<IIncidentDetectionService>();
     private readonly IIncidentRepository _incidentRepository = Substitute.For<IIncidentRepository>();
+    private readonly IVehicleRepository _vehicleRepository = Substitute.For<IVehicleRepository>();
+    private static readonly VehicleTenant TenantA = new(
+        new Guid("0a000000-0000-0000-0000-00000000000a"), new Guid("fa000000-0000-0000-0000-00000000000a"));
     private readonly ITelemetryMetrics _metrics = Substitute.For<ITelemetryMetrics>();
     private readonly ProcessTelemetryCommandHandler _handler;
 
@@ -39,6 +42,7 @@ public class ProcessTelemetryCommandHandlerTests
             _geofenceDetectionService,
             _incidentDetectionService,
             _incidentRepository,
+            _vehicleRepository,
             _metrics,
             NullLogger<ProcessTelemetryCommandHandler>.Instance);
 
@@ -46,8 +50,13 @@ public class ProcessTelemetryCommandHandlerTests
             .DetectBreachesAsync(Arg.Any<VehicleTelemetry>(), Arg.Any<CancellationToken>())
             .Returns(Array.Empty<Core.Events.GeofenceBreachedEvent>());
         _incidentDetectionService
-            .DetectAsync(Arg.Any<VehicleTelemetry>(), Arg.Any<CancellationToken>())
+            .DetectAsync(Arg.Any<VehicleTelemetry>(), Arg.Any<VehicleTenant>(), Arg.Any<CancellationToken>())
             .Returns(IncidentDetectionResult.Empty);
+
+        // Default: every vehicle is registered to exactly one fleet (TenantA).
+        _vehicleRepository
+            .FindTenantsByExternalIdAsync(Arg.Any<string>(), Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(new[] { TenantA });
 
         // Default: no active shipment for any vehicle.
         _shipmentRepository
@@ -198,7 +207,7 @@ public class ProcessTelemetryCommandHandlerTests
         _deduplicationService.TryAcquireProcessingLockAsync(telemetry.Id, Arg.Any<CancellationToken>())
             .Returns(true);
         _incidentDetectionService
-            .DetectAsync(Arg.Any<VehicleTelemetry>(), Arg.Any<CancellationToken>())
+            .DetectAsync(Arg.Any<VehicleTelemetry>(), Arg.Any<VehicleTenant>(), Arg.Any<CancellationToken>())
             .Returns(new IncidentDetectionResult([], _ => { commits++; return Task.CompletedTask; }));
         _repository.SaveChangesAsync(Arg.Any<CancellationToken>())
             .Returns<Task>(_ => throw new InvalidOperationException("db error"));
@@ -217,7 +226,7 @@ public class ProcessTelemetryCommandHandlerTests
         _deduplicationService.TryAcquireProcessingLockAsync(telemetry.Id, Arg.Any<CancellationToken>())
             .Returns(true);
         _incidentDetectionService
-            .DetectAsync(Arg.Any<VehicleTelemetry>(), Arg.Any<CancellationToken>())
+            .DetectAsync(Arg.Any<VehicleTelemetry>(), Arg.Any<VehicleTenant>(), Arg.Any<CancellationToken>())
             .Returns(new IncidentDetectionResult([], _ => { commits++; return Task.CompletedTask; }));
         _anomalyService
             .AnalyzeTelemetryAsync(telemetry, Arg.Any<Shipment?>(), Arg.Any<CancellationToken>())
@@ -226,6 +235,75 @@ public class ProcessTelemetryCommandHandlerTests
         await _handler.Handle(new ProcessTelemetryCommand(telemetry), CancellationToken.None);
 
         Assert.Equal(1, commits);
+    }
+
+    [Fact]
+    public async Task Handle_WhenVehicleRegistered_AttributesAllIncidentsToItsTenant()
+    {
+        var telemetry = CreateTelemetry();
+        _deduplicationService.TryAcquireProcessingLockAsync(telemetry.Id, Arg.Any<CancellationToken>())
+            .Returns(true);
+        _geofenceDetectionService
+            .DetectBreachesAsync(Arg.Any<VehicleTelemetry>(), Arg.Any<CancellationToken>())
+            .Returns(new[] { new Core.Events.GeofenceBreachedEvent(Guid.NewGuid(), telemetry.VehicleId, Core.Enums.GeofenceBreachType.Exit) });
+        _anomalyService
+            .AnalyzeTelemetryAsync(telemetry, Arg.Any<Shipment?>(), Arg.Any<CancellationToken>())
+            .Returns(new AnomalyAnalysis(false));
+
+        await _handler.Handle(new ProcessTelemetryCommand(telemetry), CancellationToken.None);
+
+        await _incidentDetectionService.Received(1)
+            .DetectAsync(telemetry, TenantA, Arg.Any<CancellationToken>());
+        await _incidentRepository.Received(1).AddAsync(
+            Arg.Is<Incident>(i => i.Type == Core.Enums.IncidentType.GeofenceBreach
+                && i.OrganizationId == TenantA.OrganizationId
+                && i.FleetId == TenantA.FleetId),
+            Arg.Any<CancellationToken>());
+        _metrics.DidNotReceive().RecordTenantUnresolved(Arg.Any<string>());
+    }
+
+    [Theory]
+    [InlineData(0, "not_registered")]
+    [InlineData(2, "ambiguous")]
+    public async Task Handle_WhenVehicleNotAttributable_UsesUnattributedTenantAndRecordsMetric(int matches, string reason)
+    {
+        var telemetry = CreateTelemetry();
+        _deduplicationService.TryAcquireProcessingLockAsync(telemetry.Id, Arg.Any<CancellationToken>())
+            .Returns(true);
+        _vehicleRepository
+            .FindTenantsByExternalIdAsync(telemetry.VehicleId, Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns(Enumerable.Repeat(TenantA, matches).ToArray());
+        _anomalyService
+            .AnalyzeTelemetryAsync(telemetry, Arg.Any<Shipment?>(), Arg.Any<CancellationToken>())
+            .Returns(new AnomalyAnalysis(false));
+
+        await _handler.Handle(new ProcessTelemetryCommand(telemetry), CancellationToken.None);
+
+        await _incidentDetectionService.Received(1)
+            .DetectAsync(telemetry, VehicleTenant.Unattributed, Arg.Any<CancellationToken>());
+        _metrics.Received(1).RecordTenantUnresolved(reason);
+    }
+
+    [Fact]
+    public async Task Handle_WhenTenantLookupFails_StillDetectsAndPersists()
+    {
+        var telemetry = CreateTelemetry();
+        _deduplicationService.TryAcquireProcessingLockAsync(telemetry.Id, Arg.Any<CancellationToken>())
+            .Returns(true);
+        _vehicleRepository
+            .FindTenantsByExternalIdAsync(telemetry.VehicleId, Arg.Any<int>(), Arg.Any<CancellationToken>())
+            .Returns<IReadOnlyList<VehicleTenant>>(_ => throw new InvalidOperationException("db timeout"));
+        _anomalyService
+            .AnalyzeTelemetryAsync(telemetry, Arg.Any<Shipment?>(), Arg.Any<CancellationToken>())
+            .Returns(new AnomalyAnalysis(false));
+
+        var result = await _handler.Handle(new ProcessTelemetryCommand(telemetry), CancellationToken.None);
+
+        Assert.True(result);
+        await _incidentDetectionService.Received(1)
+            .DetectAsync(telemetry, VehicleTenant.Unattributed, Arg.Any<CancellationToken>());
+        await _repository.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
+        _metrics.Received(1).RecordTenantUnresolved("lookup_failed");
     }
 
     [Fact]

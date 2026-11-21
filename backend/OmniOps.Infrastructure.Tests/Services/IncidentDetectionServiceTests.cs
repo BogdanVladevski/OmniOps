@@ -2,6 +2,7 @@ using Microsoft.Extensions.Caching.Distributed;
 using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Options;
 using NSubstitute;
+using OmniOps.Core.Domain;
 using OmniOps.Core.Entities;
 using OmniOps.Core.Enums;
 using OmniOps.Core.Interfaces;
@@ -15,6 +16,8 @@ public class IncidentDetectionServiceTests
         new MemoryDistributedCache(Options.Create(new MemoryDistributedCacheOptions()));
     private readonly IShipmentRepository _shipments = Substitute.For<IShipmentRepository>();
     private readonly IncidentDetectionService _service;
+    private static readonly VehicleTenant Tenant = new(
+        new Guid("0b000000-0000-0000-0000-00000000000b"), new Guid("fb000000-0000-0000-0000-00000000000b"));
 
     public IncidentDetectionServiceTests()
     {
@@ -37,9 +40,9 @@ public class IncidentDetectionServiceTests
     {
         var packet = Telemetry(temp: 15, speed: 60);
 
-        var first = await _service.DetectAsync(packet);
+        var first = await _service.DetectAsync(packet, Tenant);
         // Simulate persistence failure: handler never commits, packet is retried.
-        var retry = await _service.DetectAsync(packet);
+        var retry = await _service.DetectAsync(packet, Tenant);
 
         Assert.Contains(first.Incidents, i => i.Type == IncidentType.TemperatureExcursion);
         Assert.Contains(retry.Incidents, i => i.Type == IncidentType.TemperatureExcursion);
@@ -48,10 +51,10 @@ public class IncidentDetectionServiceTests
     [Fact]
     public async Task DetectAsync_AfterCommit_SuppressesDuplicateWithinCooldown()
     {
-        var first = await _service.DetectAsync(Telemetry(temp: 15, speed: 60));
+        var first = await _service.DetectAsync(Telemetry(temp: 15, speed: 60), Tenant);
         await first.CommitAsync();
 
-        var next = await _service.DetectAsync(Telemetry(temp: 16, speed: 60, secondsLater: 10));
+        var next = await _service.DetectAsync(Telemetry(temp: 16, speed: 60, secondsLater: 10), Tenant);
 
         Assert.DoesNotContain(next.Incidents, i => i.Type == IncidentType.TemperatureExcursion);
     }
@@ -59,14 +62,40 @@ public class IncidentDetectionServiceTests
     [Fact]
     public async Task DetectAsync_WithoutCommit_RetryStillDetectsHarshBraking()
     {
-        var baseline = await _service.DetectAsync(Telemetry(temp: 5, speed: 90));
+        var baseline = await _service.DetectAsync(Telemetry(temp: 5, speed: 90), Tenant);
         await baseline.CommitAsync();
 
         var braking = Telemetry(temp: 5, speed: 40, secondsLater: 5);
-        await _service.DetectAsync(braking);
-        var retry = await _service.DetectAsync(braking);
+        await _service.DetectAsync(braking, Tenant);
+        var retry = await _service.DetectAsync(braking, Tenant);
 
         Assert.Contains(retry.Incidents, i => i.Type == IncidentType.HarshBraking);
+    }
+
+    [Fact]
+    public async Task DetectAsync_StampsIncidentsWithGivenTenant()
+    {
+        var result = await _service.DetectAsync(Telemetry(temp: 15, speed: 130), Tenant);
+
+        Assert.NotEmpty(result.Incidents);
+        Assert.All(result.Incidents, i =>
+        {
+            Assert.Equal(Tenant.OrganizationId, i.OrganizationId);
+            Assert.Equal(Tenant.FleetId, i.FleetId);
+        });
+    }
+
+    [Fact]
+    public async Task DetectAsync_SameVehicleIdInTwoFleets_CooldownsAreIsolated()
+    {
+        var otherTenant = new VehicleTenant(Guid.NewGuid(), Guid.NewGuid());
+        var first = await _service.DetectAsync(Telemetry(temp: 15, speed: 60), Tenant);
+        await first.CommitAsync();
+
+        var other = await _service.DetectAsync(Telemetry(temp: 15, speed: 60, secondsLater: 5), otherTenant);
+
+        Assert.Contains(other.Incidents, i => i.Type == IncidentType.TemperatureExcursion
+            && i.FleetId == otherTenant.FleetId);
     }
 
     private static readonly DateTime T0 = new(2026, 11, 21, 12, 0, 0, DateTimeKind.Utc);

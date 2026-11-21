@@ -1,3 +1,4 @@
+using OmniOps.Core.Domain;
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -90,10 +91,11 @@ public class KafkaTelemetryMessageProcessorOutboxTests
         services.AddSingleton(Substitute.For<IPlaybookOrchestrationService>());
         services.AddSingleton(Substitute.For<IShipmentRepository>());
         var incidentDetection = Substitute.For<IIncidentDetectionService>();
-        incidentDetection.DetectAsync(Arg.Any<VehicleTelemetry>(), Arg.Any<CancellationToken>())
+        incidentDetection.DetectAsync(Arg.Any<VehicleTelemetry>(), Arg.Any<VehicleTenant>(), Arg.Any<CancellationToken>())
             .Returns(IncidentDetectionResult.Empty);
         services.AddSingleton(incidentDetection);
         services.AddSingleton(Substitute.For<IIncidentRepository>());
+        services.AddSingleton(Substitute.For<IVehicleRepository>());
         services.AddSingleton(geofenceDetection);
         services.AddSingleton(Substitute.For<ITelemetryMetrics>());
         services.AddLogging();

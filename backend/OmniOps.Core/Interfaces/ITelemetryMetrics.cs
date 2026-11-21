@@ -7,4 +7,5 @@ public interface ITelemetryMetrics
     void RecordAnomalyDetected();
     void RecordDlqRouted(string reason);
     void RecordSimulatePacketsPublished(int count);
+    void RecordTenantUnresolved(string reason);
 }
