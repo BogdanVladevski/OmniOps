@@ -3,10 +3,10 @@ import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Image, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import * as Location from 'expo-location';
 import * as ImagePicker from 'expo-image-picker';
-import { useDriverMode } from '../../contexts/DriverModeContext';
+import { useSession } from '../../contexts/SessionContext';
+import { accountApi, driverApi } from '../../utils/api';
 import { useTheme } from '../../contexts/ThemeContext';
 import { radius, spacing, typography } from '../../theme/tokens';
-import { driverApi } from '../../utils/api';
 import {
   formatCelsius, formatRange, hasRecentReading, isOutOfRange, isRefrigerated, jobStatusMeta, jobTitle,
   parseTemperatureInput, toLocationPoint,
@@ -348,7 +348,8 @@ function JobScreen({ job, onBack, onChanged }) {
 }
 
 export default function DriverApp() {
-  const { driver, exitDriverMode } = useDriverMode();
+  const { session } = useSession();
+  const driver = { id: session.account.driverId, name: session.account.displayName };
   const { colors } = useTheme();
   const [jobs, setJobs] = useState([]);
   const [selectedId, setSelectedId] = useState(null);
@@ -384,7 +385,7 @@ export default function DriverApp() {
           <Text style={[typography.title, { color: colors.text }]}>{driver.name}</Text>
           <Text style={[typography.caption, { color: colors.muted }]}>Driver</Text>
         </View>
-        <Button label="Exit driver mode" variant="secondary" onPress={exitDriverMode} />
+        <Button label="Sign out" variant="secondary" onPress={() => accountApi.signOut()} />
       </View>
 
       {selected ? (

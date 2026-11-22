@@ -34,7 +34,7 @@ services:
       DB_HOST: postgres
       DB_PORT: "5432"
       DB_CONNECTION_STRING: Host=postgres;Port=5432;Database=${POSTGRES_DB:-OmniOps};Username=${POSTGRES_USER:-postgres};Password=${POSTGRES_PASSWORD:-123}
-      JWT_REQUIRE_AUTHENTICATION: "false"
+      JWT_REQUIRE_AUTHENTICATION: "true"
       STORAGE_ROOT_PATH: /app/data/uploads
     volumes:
       - uploads:/app/data/uploads

@@ -6,6 +6,9 @@ All notable changes to OmniOps are documented in this file.
 
 ### Added
 
+- Company accounts: sign up (company, first fleet, owner), sign in with email and password, sign out; owners and office staff see only their own company
+- Drivers connect their phone with a one-time 8-character code from the office (Admin → Connect a driver's phone); a driver sees only their own jobs and nothing of the office
+- Fleet: add trucks from the app
 - Invoicing: a delivered job becomes an invoice in a minute (customer details remembered, line pre-filled with route and order); numbers are sequential per company and unique even when issued at the same moment; issued invoices are snapshots that later edits do not change
 - Customer invoice page at `/i/{token}`: printable/save as PDF, with how to pay and the delivery's proof (loading note, delivery photos, temperature log) underneath
 - Sending: by email when SMTP is configured, otherwise copy/share the link; payment reminders 3 days before due, on the day, and 7 and 14 days overdue, once each, stopping when paid (listed for the office when the customer has no email)
@@ -19,6 +22,12 @@ All notable changes to OmniOps are documented in this file.
 - Driver mode: a phone shows the driver's jobs, shares GPS while a trip runs (queued offline, resent safely), and closes the job with a photo and the recipient's name
 - Customer tracking page at `/t/{token}`: live position and arrival estimate while on the way, delivery time and recipient afterwards; no login, nothing about the driver or other jobs, expires a week after delivery
 - Delivery photos stored on a Docker volume (`STORAGE_ROOT_PATH`)
+
+### Security
+
+- Every fleet, vehicle, driver, incident, analytics, prediction, telemetry, audit-log and live-update path is limited to the caller's company (several still assumed a single company); truck history is stored per fleet so same-named trucks in different companies never mix
+- Sign-in is required by default and the API refuses to start outside Development with it switched off; requests without a company are refused instead of becoming the demo company
+- Wrong passwords lock an account for 15 minutes after 5 tries; refresh tokens are single use
 
 ### Changed
 

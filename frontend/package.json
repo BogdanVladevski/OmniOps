@@ -38,6 +38,9 @@
     "preset": "jest-expo",
     "testMatch": [
       "**/__tests__/**/*.test.js"
+    ],
+    "setupFiles": [
+      "./jest.setup.js"
     ]
   },
   "private": true

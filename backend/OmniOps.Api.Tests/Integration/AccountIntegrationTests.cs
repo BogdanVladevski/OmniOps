@@ -44,6 +44,9 @@ public class AccountIntegrationTests(OmniOpsApiFixture fixture)
         Assert.Empty((await other.GetFromJsonAsync<JsonElement>("/api/v1/jobs/assignable")).GetProperty("vehicles").EnumerateArray());
         Assert.Empty((await other.GetFromJsonAsync<JsonElement>("/api/telemetry/fleet")).GetProperty("vehicles").EnumerateArray());
         Assert.DoesNotContain("Secret customer", await other.GetStringAsync("/api/v1/admin/audit-logs"));
+        var status = await other.GetFromJsonAsync<JsonElement>("/api/v1/demo/status");
+        Assert.Equal("Other Haulage", status.GetProperty("organizationName").GetString());
+        Assert.False(status.GetProperty("isDemoOrganization").GetBoolean());
 
         // The demo company's things do not exist for it — reading or writing.
         Assert.Equal(HttpStatusCode.NotFound, (await other.GetAsync($"/api/v1/jobs/{demoJob}")).StatusCode);

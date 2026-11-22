@@ -22,11 +22,11 @@ const STEPS = [
   {
     title: 'Welcome to OmniOps',
     body: 'Run your deliveries from one place: see where every truck is, tell customers when it arrives, and get proof of delivery the moment the goods are handed over.',
-    icon: 'snow',
+    icon: 'navigate-outline',
   },
   {
     title: 'No hardware needed',
-    body: 'Drivers use this same app on their phone in driver mode. Their phone shares the truck\'s location during a delivery. This app is connected to the server below.',
+    body: 'Drivers use this same app on their own phone, connected once with a code from the office. Their phone shares the truck\'s location during a delivery.',
     icon: 'radio-outline',
   },
   {
@@ -40,6 +40,12 @@ const STEPS = [
     icon: 'checkmark-circle-outline',
   },
 ];
+
+const SETUP_STEP = {
+  title: 'Set up your company',
+  body: 'Add your trucks and drivers under Fleet. Under Admin, create a code for each driver to connect their phone. Then create your first delivery under Jobs.',
+  icon: 'construct-outline',
+};
 
 export function useOnboarding() {
   const [visible, setVisible] = useState(false);
@@ -102,9 +108,11 @@ export default function OnboardingWizard({ visible, onComplete }) {
     }
   };
 
-  const current = STEPS[step];
+  // Only the demo company gets demo data; a real company is shown how to set up instead.
+  const isDemo = !!demoStatus?.isDemoOrganization;
+  const current = step === 2 && !isDemo ? SETUP_STEP : STEPS[step];
   const isLast = step === STEPS.length - 1;
-  const isBootstrapStep = step === 2;
+  const isBootstrapStep = step === 2 && isDemo;
 
   const next = async () => {
     if (isBootstrapStep && !bootstrapMsg) {
@@ -126,7 +134,7 @@ export default function OnboardingWizard({ visible, onComplete }) {
           <Text style={[styles.title, { color: colors.text }]}>{current.title}</Text>
           <Text style={[styles.body, { color: colors.textSecondary }]}>{current.body}</Text>
 
-          {step === 1 && (
+          {step === 1 && isDemo && (
             <View style={[styles.card, { backgroundColor: colors.card, borderColor: colors.border }]}>
               <Text style={[styles.label, { color: colors.muted }]}>API endpoint</Text>
               <Text style={[styles.mono, { color: colors.text }]} selectable>

@@ -26,6 +26,9 @@ export default function FleetManagement() {
   const { colors } = useTheme();
   const { isTablet, isWide } = useLayout();
   const [driverName, setDriverName] = useState('');
+  const [truck, setTruck] = useState({ name: '', registration: '' });
+  const [truckMessage, setTruckMessage] = useState(null);
+  const truckNameOk = /^[A-Za-z0-9_-]+$/.test(truck.name.trim());
   const [driverMessage, setDriverMessage] = useState(null);
   const [busy, setBusy] = useState(null);
   const [statusFilter, setStatusFilter] = useState('all');
@@ -51,6 +54,23 @@ export default function FleetManagement() {
       await refreshFleetMeta();
     } catch (e) {
       setDriverMessage({ tone: 'critical', text: `Could not add driver: ${e.message}` });
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const createTruck = async () => {
+    setBusy('truck');
+    setTruckMessage(null);
+    try {
+      await fleetApi.createVehicle({
+        fleetId: defaultFleetId, externalId: truck.name.trim(), registration: truck.registration.trim() || null, vin: null,
+      });
+      setTruckMessage({ tone: 'ok', text: `${truck.name.trim()} added to the fleet.` });
+      setTruck({ name: '', registration: '' });
+      await refreshFleetMeta();
+    } catch (e) {
+      setTruckMessage({ tone: 'critical', text: `Could not add truck: ${e.message}` });
     } finally {
       setBusy(null);
     }
@@ -85,6 +105,17 @@ export default function FleetManagement() {
 
   const toolsSection = (
     <View>
+      <SectionTitle title="Add a truck" />
+      <Card style={styles.gap}>
+        <Field label="Truck name" placeholder="e.g. Truck-1 or SK1234AB" value={truck.name} onChangeText={(v) => setTruck((t) => ({ ...t, name: v }))} autoCapitalize="characters" />
+        {truck.name && !truckNameOk ? (
+          <Text style={[typography.caption, { color: colors.critical }]}>Use letters, numbers, - or _ (no spaces).</Text>
+        ) : null}
+        <Field label="Registration (optional)" placeholder="e.g. SK-1234-AB" value={truck.registration} onChangeText={(v) => setTruck((t) => ({ ...t, registration: v }))} autoCapitalize="characters" />
+        <Button label={busy === 'truck' ? 'Adding…' : 'Add truck'} onPress={createTruck} disabled={busy === 'truck' || !truckNameOk} />
+        {truckMessage ? <Pill label={truckMessage.text} tone={truckMessage.tone} /> : null}
+      </Card>
+
       <SectionTitle title="Add a driver" />
       <Card style={styles.gap}>
         <Field label="Full name" placeholder="e.g. Ana Petrovska" value={driverName} onChangeText={setDriverName} />

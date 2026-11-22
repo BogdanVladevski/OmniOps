@@ -1,5 +1,6 @@
 import Constants from 'expo-constants';
 import { Platform } from 'react-native';
+import { fromResponse, getSession, setSession } from './session';
 
 const DEFAULT_FLEET_ID = 'f1000000-0000-0000-0000-000000000001';
 
@@ -33,8 +34,41 @@ export function resolveApiBaseUrl(configuredUrl) {
 export function getApiConfig() {
   const configured = process.env.EXPO_PUBLIC_API_URL ?? '';
   const apiBaseUrl = resolveApiBaseUrl(configured);
-  const apiToken = process.env.EXPO_PUBLIC_API_TOKEN ?? '';
-  return { apiBaseUrl, apiToken, defaultFleetId: DEFAULT_FLEET_ID };
+  const session = getSession();
+  // The signed-in session decides who we are; the env token is only for local tooling without sign-in.
+  const apiToken = session?.accessToken ?? process.env.EXPO_PUBLIC_API_TOKEN ?? '';
+  const defaultFleetId = session?.account?.defaultFleetId ?? DEFAULT_FLEET_ID;
+  return { apiBaseUrl, apiToken, defaultFleetId };
+}
+
+let refreshing = null;
+
+/** Renews the session once (single flight). Signs out if the session can no longer be renewed. */
+export function refreshSession() {
+  const session = getSession();
+  if (!session?.refreshToken) return Promise.resolve(false);
+  refreshing ??= (async () => {
+    try {
+      const { apiBaseUrl } = getApiConfig();
+      const response = await fetch(`${apiBaseUrl}/api/v1/account/refresh`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ refreshToken: session.refreshToken }),
+      });
+      if (response.status === 401) {
+        await setSession(null);
+        return false;
+      }
+      if (!response.ok) return false; // offline or server trouble: keep the session, try later
+      await setSession(fromResponse(await response.json()));
+      return true;
+    } catch {
+      return false;
+    } finally {
+      refreshing = null;
+    }
+  })();
+  return refreshing;
 }
 
 export function parseApiError(status, text) {
@@ -53,7 +87,7 @@ export function parseApiError(status, text) {
   return text.length > 200 ? `${text.slice(0, 200)}…` : text;
 }
 
-export async function apiFetch(path, options = {}) {
+export async function apiFetch(path, options = {}, retried = false) {
   const { apiBaseUrl, apiToken } = getApiConfig();
   if (!apiBaseUrl) throw new Error('Missing EXPO_PUBLIC_API_URL');
 
@@ -64,6 +98,10 @@ export async function apiFetch(path, options = {}) {
   };
 
   const response = await fetch(`${apiBaseUrl}${path}`, { ...options, headers });
+  // Access tokens are short-lived: renew once and retry.
+  if (response.status === 401 && !retried && getSession()?.refreshToken && (await refreshSession())) {
+    return apiFetch(path, options, true);
+  }
   if (!response.ok) {
     const text = await response.text();
     throw new Error(parseApiError(response.status, text));
@@ -83,6 +121,7 @@ export const fleetApi = {
       `/api/fleets/${fleetId}/heatmap?fromUtc=${encodeURIComponent(fromUtc)}&toUtc=${encodeURIComponent(toUtc)}&gridSize=${gridSize}`,
     ),
   createDriver: (body) => apiFetch('/api/drivers', { method: 'POST', body: JSON.stringify(body) }),
+  createVehicle: (body) => apiFetch('/api/vehicles', { method: 'POST', body: JSON.stringify(body) }),
   assignDriver: (vehicleId, driverId) =>
     apiFetch(`/api/vehicles/${vehicleId}/assign-driver`, {
       method: 'POST',
@@ -266,4 +305,21 @@ export const billingApi = {
     apiFetch(`/api/v1/invoices/${invoiceId}/send`, { method: 'POST', body: JSON.stringify({ email }) }),
   markPaid: (invoiceId, paidAt) =>
     apiFetch(`/api/v1/invoices/${invoiceId}/paid`, { method: 'POST', body: JSON.stringify({ paidAt: paidAt ?? null }) }),
+};
+
+export const accountApi = {
+  options: () => apiFetch('/api/v1/account/options'),
+  signIn: (email, password) => apiFetch('/api/v1/account/sign-in', { method: 'POST', body: JSON.stringify({ email, password }) }),
+  signUp: (body) => apiFetch('/api/v1/account/sign-up', { method: 'POST', body: JSON.stringify(body) }),
+  pair: (code) => apiFetch('/api/v1/account/pair', { method: 'POST', body: JSON.stringify({ code }) }),
+  demo: () => apiFetch('/api/v1/account/demo', { method: 'POST' }),
+  driverCode: (driverId) => apiFetch('/api/v1/account/driver-codes', { method: 'POST', body: JSON.stringify({ driverId }) }),
+  async signOut() {
+    const refreshToken = getSession()?.refreshToken;
+    await setSession(null);
+    if (refreshToken) {
+      // Best effort: the session is already gone on this device either way.
+      apiFetch('/api/v1/account/sign-out', { method: 'POST', body: JSON.stringify({ refreshToken }) }).catch(() => {});
+    }
+  },
 };
