@@ -37,6 +37,7 @@ public class GetShipmentReplayQueryHandler : IRequestHandler<GetShipmentReplayQu
         var toUtc = request.ToUtc ?? request.AnchorUtc!.Value.AddMinutes(2);
 
         var telemetry = await _telemetryRepository.GetByVehicleInTimeRangeAsync(
+            shipment.FleetId,
             shipment.VehicleId,
             fromUtc,
             toUtc,

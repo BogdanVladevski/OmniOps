@@ -16,7 +16,10 @@ public class CreateVehicleCommandValidator : AbstractValidator<CreateVehicleComm
     public CreateVehicleCommandValidator()
     {
         RuleFor(x => x.FleetId).NotEmpty();
-        RuleFor(x => x.ExternalId).NotEmpty().MaximumLength(50);
+        // Truck names travel with every GPS point, which only accepts these characters.
+        RuleFor(x => x.ExternalId).NotEmpty().MaximumLength(50).Matches("^[A-Za-z0-9_-]+$")
+            .WithMessage("Use letters, numbers, - or _ for the truck name (e.g. Truck-1 or SK1234AB).");
+        RuleFor(x => x.Registration).MaximumLength(30);
     }
 }
 

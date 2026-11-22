@@ -12,12 +12,14 @@ public interface ITelemetryRepository
     Task<IReadOnlySet<Guid>> GetExistingIdsAsync(IReadOnlyCollection<Guid> ids, CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<VehicleTelemetry>> GetByVehicleInTimeRangeAsync(
+        Guid fleetId,
         string vehicleId,
         DateTime fromUtc,
         DateTime toUtc,
         CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<TelemetryAggregationBucket>> GetAggregationsAsync(
+        Guid fleetId,
         string vehicleId,
         DateTime fromUtc,
         DateTime toUtc,
@@ -25,6 +27,7 @@ public interface ITelemetryRepository
         CancellationToken cancellationToken = default);
 
     Task<IReadOnlyList<HeatmapBucket>> GetHeatmapBucketsAsync(
+        Guid fleetId,
         IReadOnlyList<string> vehicleIds,
         DateTime fromUtc,
         DateTime toUtc,

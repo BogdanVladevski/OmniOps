@@ -13,13 +13,14 @@ public class AuditLogRepository : IAuditLogRepository
     public AuditLogRepository(AppDbContext context) => _context = context;
 
     public async Task<IReadOnlyList<AuditLog>> QueryAsync(
+        Guid organizationId,
         DateTime? fromUtc,
         DateTime? toUtc,
         string? entityType,
         int limit,
         CancellationToken cancellationToken = default)
     {
-        var query = _context.AuditLogs.AsNoTracking().AsQueryable();
+        var query = _context.AuditLogs.AsNoTracking().Where(l => l.OrganizationId == organizationId);
         if (fromUtc is not null) query = query.Where(l => l.OccurredAtUtc >= fromUtc);
         if (toUtc is not null) query = query.Where(l => l.OccurredAtUtc <= toUtc);
         if (!string.IsNullOrWhiteSpace(entityType)) query = query.Where(l => l.EntityType == entityType);

@@ -128,12 +128,17 @@ namespace OmniOps.Infrastructure.Migrations
                     b.Property<DateTime>("OccurredAtUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<Guid?>("OrganizationId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("UserId")
                         .HasColumnType("text");
 
                     b.HasKey("Id");
 
                     b.HasIndex("OccurredAtUtc");
+
+                    b.HasIndex("OrganizationId", "OccurredAtUtc");
 
                     b.ToTable("AuditLogs");
                 });
@@ -337,6 +342,43 @@ namespace OmniOps.Infrastructure.Migrations
                     b.ToTable("Drivers");
                 });
 
+            modelBuilder.Entity("OmniOps.Core.Entities.DriverPairingCode", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("CodeHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedByUserId")
+                        .HasColumnType("text");
+
+                    b.Property<Guid>("DriverId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("ExpiresAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("UsedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CodeHash")
+                        .IsUnique();
+
+                    b.ToTable("DriverPairingCodes");
+                });
+
             modelBuilder.Entity("OmniOps.Core.Entities.Fleet", b =>
                 {
                     b.Property<Guid>("Id")
@@ -361,10 +403,8 @@ namespace OmniOps.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("Name")
+                    b.HasIndex("OrganizationId", "Name")
                         .IsUnique();
-
-                    b.HasIndex("OrganizationId");
 
                     b.ToTable("Fleets");
 
@@ -1332,6 +1372,59 @@ namespace OmniOps.Infrastructure.Migrations
                     b.ToTable("TripDocuments");
                 });
 
+            modelBuilder.Entity("OmniOps.Core.Entities.UserAccount", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("DisplayName")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<Guid?>("DriverId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("Email")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<int>("FailedSignIns")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean");
+
+                    b.Property<DateTime?>("LastSignInAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("LockedUntilUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<string>("PasswordHash")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<int>("Role")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Email")
+                        .IsUnique();
+
+                    b.HasIndex("OrganizationId", "DriverId");
+
+                    b.ToTable("UserAccounts");
+                });
+
             modelBuilder.Entity("OmniOps.Core.Entities.Vehicle", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1437,6 +1530,9 @@ namespace OmniOps.Infrastructure.Migrations
                     b.Property<double?>("EngineTemperature")
                         .HasColumnType("double precision");
 
+                    b.Property<Guid?>("FleetId")
+                        .HasColumnType("uuid");
+
                     b.Property<double?>("FuelLevel")
                         .HasColumnType("double precision");
 
@@ -1465,6 +1561,8 @@ namespace OmniOps.Infrastructure.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("VehicleId", "Timestamp");
+
+                    b.HasIndex("FleetId", "VehicleId", "Timestamp");
 
                     b.ToTable("Telemetries");
                 });

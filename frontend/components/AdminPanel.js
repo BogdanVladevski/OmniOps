@@ -6,7 +6,7 @@ import { radius, spacing, typography } from '../theme/tokens';
 import { adminApi, demoApi } from '../utils/api';
 import { notifyJobsChanged } from '../utils/events';
 import { useLayout } from '../utils/layout';
-import DriverModeCard from './DriverModeCard';
+import { AccountCard, DriverCodeCard } from './AccountCards';
 import RetryPanel from './ui/RetryPanel';
 import { SkeletonCard } from './ui/SkeletonLoader';
 import { Button, Card, EmptyNote, Field, Page, Pill, SectionTitle, Segmented, timeAgo } from './ui/kit';
@@ -20,6 +20,10 @@ const THEME_OPTIONS = [
 /** Demo trucks only move when the demo is refreshed; this puts them where they would be now. */
 function DemoDayCard() {
   const { colors } = useTheme();
+  const [isDemo, setIsDemo] = useState(false);
+  useEffect(() => {
+    demoApi.status().then((s) => setIsDemo(!!s?.isDemoOrganization)).catch(() => setIsDemo(false));
+  }, []);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState(null);
   const run = async () => {
@@ -33,8 +37,11 @@ function DemoDayCard() {
       setBusy(false);
     }
   };
+  // Demo data only belongs in the demo company.
+  if (!isDemo) return null;
   return (
     <Card style={styles.demoCard}>
+      <Text style={[typography.bodyStrong, { color: colors.text }]}>Demo data</Text>
       <Text style={[typography.body, { color: colors.textSecondary }]}>
         Loads a demo delivery day, or moves the demo trucks to where they would be by now.
       </Text>
@@ -124,11 +131,13 @@ export default function AdminPanel() {
         </Card>
       )}
 
-      <SectionTitle title="Demo data" />
       <DemoDayCard />
 
-      <SectionTitle title="Driver mode" />
-      <DriverModeCard />
+      <SectionTitle title="Your account" />
+      <AccountCard />
+
+      <SectionTitle title="Connect a driver's phone" />
+      <DriverCodeCard />
 
       <SectionTitle title="Appearance" />
       <Card>

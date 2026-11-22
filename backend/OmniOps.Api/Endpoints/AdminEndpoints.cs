@@ -33,19 +33,19 @@ public static class AdminEndpoints
     private static void MapGet(RouteGroupBuilder group, string pattern, Delegate handler, bool requireAuth)
     {
         var ep = group.MapGet(pattern, handler).WithOpenApi();
-        if (requireAuth) ep.RequireAuthorization(AuthorizationPolicies.PlatformAdmin);
+        if (requireAuth) ep.RequireAuthorization(AuthorizationPolicies.FleetAdmin);
     }
 
     private static void MapPost(RouteGroupBuilder group, string pattern, Delegate handler, bool requireAuth)
     {
         var ep = group.MapPost(pattern, handler).WithOpenApi();
-        if (requireAuth) ep.RequireAuthorization(AuthorizationPolicies.PlatformAdmin);
+        if (requireAuth) ep.RequireAuthorization(AuthorizationPolicies.FleetAdmin);
     }
 
     private static void MapDelete(RouteGroupBuilder group, string pattern, Delegate handler, bool requireAuth)
     {
         var ep = group.MapDelete(pattern, handler).WithOpenApi();
-        if (requireAuth) ep.RequireAuthorization(AuthorizationPolicies.PlatformAdmin);
+        if (requireAuth) ep.RequireAuthorization(AuthorizationPolicies.FleetAdmin);
     }
 
     private sealed record ApiKeyBody(string Name, string Scopes, int? ExpiresInDays);

@@ -19,10 +19,6 @@ public static partial class ServiceRegistration
         builder.Services.AddSingleton<IAuthorizationHandler, ScopeAuthorizationHandler>();
         builder.Services.AddSingleton<IJwtTokenService, JwtTokenService>();
 
-        var jwtOptions = builder.Configuration
-            .GetSection(JwtOptions.SectionName)
-            .Get<JwtOptions>() ?? new JwtOptions();
-
         builder.Services.AddAuthorization(options =>
         {
             options.AddPolicy(AuthorizationPolicies.VehicleRead, policy =>
@@ -36,56 +32,50 @@ public static partial class ServiceRegistration
 
             options.AddPolicy(AuthorizationPolicies.PlatformAdmin, policy =>
                 policy.AddRequirements(new ScopeRequirement(AuthorizationPolicies.PlatformAdminScope)));
+
+            // Job actions from a driver's phone or the office.
+            options.AddPolicy(AuthorizationPolicies.JobWork, policy =>
+                policy.AddRequirements(new ScopeRequirement(AuthorizationPolicies.VehicleReadScope, AuthorizationPolicies.DriverScope)));
         });
 
-        if (!jwtOptions.RequireAuthentication)
-        {
-            return;
-        }
-
-        if (!jwtOptions.IsConfigured())
-        {
-            throw new InvalidOperationException(
-                "JWT_REQUIRE_AUTHENTICATION is enabled but JWT_SECRET is missing or shorter than 32 characters. " +
-                "Set JWT_SECRET in .env or disable auth with JWT_REQUIRE_AUTHENTICATION=false for local development.");
-        }
-
-        builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme)
-            .AddJwtBearer(options =>
+        // Always registered; settings are read from IOptions when the app runs (not here), so host and test
+        // configuration — applied at Build() — decide whether sign-in is enforced and with which key.
+        builder.Services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer();
+        builder.Services.AddOptions<JwtBearerOptions>(JwtBearerDefaults.AuthenticationScheme)
+            .Configure<IOptions<JwtOptions>>((options, jwt) =>
             {
+                var settings = jwt.Value;
                 options.TokenValidationParameters = new TokenValidationParameters
                 {
                     ValidateIssuer = true,
                     ValidateAudience = true,
                     ValidateLifetime = true,
                     ValidateIssuerSigningKey = true,
-                    ValidIssuer = jwtOptions.Issuer,
-                    ValidAudience = jwtOptions.Audience,
-                    IssuerSigningKey = new SymmetricSecurityKey(
-                        System.Text.Encoding.UTF8.GetBytes(jwtOptions.Secret)),
-                    ClockSkew = TimeSpan.FromMinutes(1)
+                    ValidIssuer = settings.Issuer,
+                    ValidAudience = settings.Audience,
+                    IssuerSigningKey = new SymmetricSecurityKey(System.Text.Encoding.UTF8.GetBytes(
+                        settings.IsConfigured() ? settings.Secret : new string('x', 32))),
+                    ClockSkew = TimeSpan.FromMinutes(1),
                 };
-
                 options.Events = new JwtBearerEvents
                 {
+                    // SignalR sends the token in the query string (WebSockets cannot set headers).
                     OnMessageReceived = context =>
                     {
                         var accessToken = context.Request.Query["access_token"];
-                        var path = context.HttpContext.Request.Path;
-
-                        if (!string.IsNullOrEmpty(accessToken)
-                            && path.StartsWithSegments("/api/stream/telemetry"))
+                        if (!string.IsNullOrEmpty(accessToken) && context.HttpContext.Request.Path.StartsWithSegments("/api/stream/telemetry"))
                         {
                             context.Token = accessToken;
                         }
 
                         return Task.CompletedTask;
-                    }
+                    },
                 };
             });
     }
 
     public const string PublicTrackingPolicy = "public-tracking";
+    public const string AccountPolicy = "account";
 
     private static void ConfigureRateLimiting(WebApplicationBuilder builder)
     {
@@ -103,6 +93,19 @@ public static partial class ServiceRegistration
                     {
                         PermitLimit = rateLimitOptions.PermitLimit,
                         Window = TimeSpan.FromSeconds(rateLimitOptions.WindowSeconds),
+                        QueueLimit = 0
+                    }));
+
+            // Sign-up, sign-in and driver codes: slow down password and code guessing.
+            options.AddPolicy(AccountPolicy, httpContext =>
+                RateLimitPartition.GetFixedWindowLimiter(
+                    partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                    factory: _ => new FixedWindowRateLimiterOptions
+                    {
+                        // Read per request so host/test configuration applies.
+                        PermitLimit = httpContext.RequestServices.GetRequiredService<IConfiguration>()
+                            .GetValue("AccountRateLimit:PermitLimit", 10),
+                        Window = TimeSpan.FromMinutes(1),
                         QueueLimit = 0
                     }));
 

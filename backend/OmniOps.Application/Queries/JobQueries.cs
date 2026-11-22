@@ -15,7 +15,7 @@ public enum JobScope
 
 public record GetJobsQuery(JobScope Scope, Guid? DriverId = null) : IRequest<IReadOnlyList<JobDto>>, IAuthorizedRequest
 {
-    public string RequiredPolicy => AuthorizationPolicies.VehicleRead;
+    public string RequiredPolicy => AuthorizationPolicies.JobWork;
 }
 
 public record GetJobQuery(Guid JobId) : IRequest<JobDetailDto>, IAuthorizedRequest

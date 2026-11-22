@@ -8,8 +8,12 @@ namespace OmniOps.Api.Authentication;
 
 public interface IRefreshTokenService
 {
-    Task<string> IssueAsync(string userId, CancellationToken cancellationToken = default);
-    Task<string?> RotateAsync(string refreshToken, CancellationToken cancellationToken = default);
+    Task<string> IssueAsync(string userId, CancellationToken cancellationToken = default, TimeSpan? lifetime = null);
+
+    /// <summary>Single use: the old token is revoked and a new one (same lifetime) issued. Null if invalid.</summary>
+    Task<(string Token, string UserId)?> RotateAsync(string refreshToken, CancellationToken cancellationToken = default);
+
+    Task RevokeAsync(string refreshToken, CancellationToken cancellationToken = default);
 }
 
 public class RefreshTokenService : IRefreshTokenService
@@ -18,7 +22,7 @@ public class RefreshTokenService : IRefreshTokenService
 
     public RefreshTokenService(AppDbContext context) => _context = context;
 
-    public async Task<string> IssueAsync(string userId, CancellationToken cancellationToken = default)
+    public async Task<string> IssueAsync(string userId, CancellationToken cancellationToken = default, TimeSpan? lifetime = null)
     {
         var token = Convert.ToBase64String(RandomNumberGenerator.GetBytes(48));
         await _context.RefreshTokens.AddAsync(new RefreshToken
@@ -27,20 +31,30 @@ public class RefreshTokenService : IRefreshTokenService
             UserId = userId,
             TokenHash = Hash(token),
             CreatedAtUtc = DateTime.UtcNow,
-            ExpiresAtUtc = DateTime.UtcNow.AddDays(7)
+            ExpiresAtUtc = DateTime.UtcNow.Add(lifetime ?? TimeSpan.FromDays(7))
         }, cancellationToken);
         await _context.SaveChangesAsync(cancellationToken);
         return token;
     }
 
-    public async Task<string?> RotateAsync(string refreshToken, CancellationToken cancellationToken = default)
+    public async Task<(string Token, string UserId)?> RotateAsync(string refreshToken, CancellationToken cancellationToken = default)
     {
         var hash = Hash(refreshToken);
         var stored = await _context.RefreshTokens.FirstOrDefaultAsync(
             t => t.TokenHash == hash && !t.Revoked && t.ExpiresAtUtc > DateTime.UtcNow, cancellationToken);
         if (stored is null) return null;
         stored.Revoked = true;
-        return await IssueAsync(stored.UserId, cancellationToken);
+        var lifetime = stored.ExpiresAtUtc - stored.CreatedAtUtc;
+        return (await IssueAsync(stored.UserId, cancellationToken, lifetime), stored.UserId);
+    }
+
+    public async Task RevokeAsync(string refreshToken, CancellationToken cancellationToken = default)
+    {
+        var hash = Hash(refreshToken);
+        var stored = await _context.RefreshTokens.FirstOrDefaultAsync(t => t.TokenHash == hash, cancellationToken);
+        if (stored is null) return;
+        stored.Revoked = true;
+        await _context.SaveChangesAsync(cancellationToken);
     }
 
     private static string Hash(string token) =>

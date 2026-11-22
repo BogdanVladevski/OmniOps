@@ -5,6 +5,7 @@ import { useFleet } from '../contexts/FleetContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { radius, spacing, toneColors, typography } from '../theme/tokens';
 import { alertSummary, groupAlerts, SEVERITY_LABEL } from '../utils/alerts';
+import { getApiConfig } from '../utils/api';
 import { resolveShipmentIdForVehicle } from '../utils/fleetConfig';
 import { useLayout } from '../utils/layout';
 import IncidentReplay from './IncidentReplay';
@@ -76,7 +77,7 @@ export default function AlertsFeed() {
     .sort((a, b) => rank[a.meta.severity] - rank[b.meta.severity]);
 
   const apiBaseUrl = process.env.EXPO_PUBLIC_API_URL;
-  const apiToken = process.env.EXPO_PUBLIC_API_TOKEN;
+  const { apiToken } = getApiConfig();
   const replayShipmentId = replayAlert ? resolveShipmentIdForVehicle(replayAlert.vehicleId, vehicles) : null;
   const sel = selected ? toneColors(colors, selected.meta.severity) : null;
 

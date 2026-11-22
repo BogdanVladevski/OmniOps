@@ -17,6 +17,8 @@ public class ShipmentReplayRepositoryTests : IAsyncLifetime
 
     private static readonly Guid ShipmentId = Guid.Parse("a1000000-0000-0000-0000-000000000001");
     private static readonly DateTime WindowStart = new(2026, 7, 5, 11, 55, 0, DateTimeKind.Utc);
+    private static readonly Guid FleetA = new("fa000000-0000-0000-0000-0000000000a1");
+    private static readonly Guid FleetB = new("fb000000-0000-0000-0000-0000000000b1");
     private static readonly DateTime WindowEnd = new(2026, 7, 5, 12, 2, 0, DateTimeKind.Utc);
 
     public async Task InitializeAsync()
@@ -44,6 +46,7 @@ public class ShipmentReplayRepositoryTests : IAsyncLifetime
     public async Task GetByVehicleInTimeRangeAsync_ReturnsRowsInTimestampOrder_BoundedToWindow()
     {
         var results = await _repository.GetByVehicleInTimeRangeAsync(
+            FleetA,
             "Truck-001",
             WindowStart,
             WindowEnd);
@@ -64,6 +67,7 @@ public class ShipmentReplayRepositoryTests : IAsyncLifetime
     public async Task GetByVehicleInTimeRangeAsync_ExcludesRowsOutsideWindow()
     {
         var results = await _repository.GetByVehicleInTimeRangeAsync(
+            FleetA,
             "Truck-001",
             WindowStart.AddMinutes(1),
             WindowEnd.AddMinutes(-1));
@@ -72,12 +76,30 @@ public class ShipmentReplayRepositoryTests : IAsyncLifetime
         Assert.Equal(102, results[0].EngineTemperature);
     }
 
+    [Fact]
+    public async Task GetByVehicleInTimeRangeAsync_IgnoresTheSameTruckIdInAnotherFleet()
+    {
+        // Regression: history was keyed by truck id only, so two companies' "Truck-001" were mixed.
+        _context.Telemetries.Add(new VehicleTelemetry
+        {
+            Id = Guid.NewGuid(), FleetId = FleetB, VehicleId = "Truck-001", Latitude = 1, Longitude = 1,
+            EngineTemperature = 5, Timestamp = WindowStart.AddSeconds(30),
+        });
+        await _context.SaveChangesAsync();
+
+        var results = await _repository.GetByVehicleInTimeRangeAsync(FleetA, "Truck-001", WindowStart, WindowEnd);
+
+        Assert.Equal(3, results.Count);
+        Assert.DoesNotContain(results, r => r.FleetId == FleetB);
+    }
+
     private async Task SeedTelemetryAsync()
     {
         _context.Telemetries.AddRange(
             new VehicleTelemetry
             {
                 Id = Guid.NewGuid(),
+                FleetId = FleetA,
                 VehicleId = "Truck-001",
                 Latitude = 42.0,
                 Longitude = 21.4,
@@ -89,6 +111,7 @@ public class ShipmentReplayRepositoryTests : IAsyncLifetime
             new VehicleTelemetry
             {
                 Id = Guid.NewGuid(),
+                FleetId = FleetA,
                 VehicleId = "Truck-001",
                 Latitude = 42.01,
                 Longitude = 21.41,
@@ -100,6 +123,7 @@ public class ShipmentReplayRepositoryTests : IAsyncLifetime
             new VehicleTelemetry
             {
                 Id = Guid.NewGuid(),
+                FleetId = FleetA,
                 VehicleId = "Truck-001",
                 Latitude = 42.02,
                 Longitude = 21.42,
@@ -111,6 +135,7 @@ public class ShipmentReplayRepositoryTests : IAsyncLifetime
             new VehicleTelemetry
             {
                 Id = Guid.NewGuid(),
+                FleetId = FleetA,
                 VehicleId = "Truck-001",
                 Latitude = 42.03,
                 Longitude = 21.43,
@@ -122,6 +147,7 @@ public class ShipmentReplayRepositoryTests : IAsyncLifetime
             new VehicleTelemetry
             {
                 Id = Guid.NewGuid(),
+                FleetId = FleetA,
                 VehicleId = "Truck-002",
                 Latitude = 41.9,
                 Longitude = 21.3,

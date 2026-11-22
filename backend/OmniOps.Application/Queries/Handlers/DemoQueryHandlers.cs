@@ -7,39 +7,46 @@ using OmniOps.Core.Interfaces;
 
 namespace OmniOps.Application.Queries.Handlers;
 
+/// <summary>Describes the caller's own company (never another one) and whether it is the seeded demo.</summary>
 public class GetDemoStatusQueryHandler : IRequestHandler<GetDemoStatusQuery, DemoStatusDto>
 {
-    private static readonly Guid DefaultFleetId = Guid.Parse("f1000000-0000-0000-0000-000000000001");
-
     private readonly IFleetRepository _fleets;
     private readonly IVehicleRepository _vehicles;
     private readonly IIncidentRepository _incidents;
     private readonly ITenantRepository _tenants;
+    private readonly IAccountRepository _accounts;
+    private readonly ITenantContext _tenant;
 
     public GetDemoStatusQueryHandler(
         IFleetRepository fleets,
         IVehicleRepository vehicles,
         IIncidentRepository incidents,
-        ITenantRepository tenants)
+        ITenantRepository tenants,
+        IAccountRepository accounts,
+        ITenantContext tenant)
     {
         _fleets = fleets;
         _vehicles = vehicles;
         _incidents = incidents;
         _tenants = tenants;
+        _accounts = accounts;
+        _tenant = tenant;
     }
 
     public async Task<DemoStatusDto> Handle(GetDemoStatusQuery request, CancellationToken cancellationToken)
     {
-        var org = await _tenants.GetOrganizationAsync(TenantSeed.DefaultOrganizationId, cancellationToken);
-        var fleet = await _fleets.GetByIdAsync(DefaultFleetId, cancellationToken);
-        var vehicles = await _vehicles.GetByFleetIdAsync(DefaultFleetId, cancellationToken);
-        var incidents = await _incidents.GetByFleetAsync(DefaultFleetId, IncidentStatus.Open, cancellationToken);
+        var organizationId = _tenant.OrganizationId;
+        var org = await _tenants.GetOrganizationAsync(organizationId, cancellationToken);
+        var fleetId = await _accounts.DefaultFleetIdAsync(organizationId, cancellationToken) ?? Guid.Empty;
+        var fleet = await _fleets.GetByIdAsync(fleetId, cancellationToken);
+        var vehicles = fleet is null ? [] : await _vehicles.GetByFleetIdAsync(fleetId, cancellationToken);
+        var incidents = fleet is null ? [] : await _incidents.GetByFleetAsync(fleetId, IncidentStatus.Open, cancellationToken);
 
         return new DemoStatusDto(
-            org?.Name ?? "OmniOps Demo Org",
-            TenantSeed.DefaultOrganizationId,
-            DefaultFleetId,
-            fleet?.Name ?? "Cold-Chain North",
+            org?.Name ?? string.Empty,
+            organizationId,
+            fleetId,
+            fleet?.Name ?? string.Empty,
             vehicles.Count,
             incidents.Count,
             org?.Slug == "omniops-demo");

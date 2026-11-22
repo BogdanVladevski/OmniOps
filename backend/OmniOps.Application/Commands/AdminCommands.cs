@@ -8,10 +8,10 @@ namespace OmniOps.Application.Commands;
 public record CreateApiKeyCommand(string Name, string Scopes, int? ExpiresInDays)
     : IRequest<CreateApiKeyResponse>, IAuthorizedRequest, ITransactionalRequest
 {
-    public string RequiredPolicy => AuthorizationPolicies.PlatformAdmin;
+    public string RequiredPolicy => AuthorizationPolicies.FleetAdmin;
 }
 
 public record RevokeApiKeyCommand(Guid ApiKeyId) : IRequest<bool>, IAuthorizedRequest, ITransactionalRequest
 {
-    public string RequiredPolicy => AuthorizationPolicies.PlatformAdmin;
+    public string RequiredPolicy => AuthorizationPolicies.FleetAdmin;
 }

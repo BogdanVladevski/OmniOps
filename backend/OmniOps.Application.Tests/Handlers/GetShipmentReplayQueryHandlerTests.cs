@@ -65,7 +65,7 @@ public class GetShipmentReplayQueryHandlerTests
         _shipmentRepository.GetByIdForOrganizationAsync(ShipmentId, CallerOrgId, Arg.Any<CancellationToken>())
             .Returns(shipment);
         _telemetryRepository
-            .GetByVehicleInTimeRangeAsync("Truck-001", fromUtc, toUtc, Arg.Any<CancellationToken>())
+            .GetByVehicleInTimeRangeAsync(shipment.FleetId, "Truck-001", fromUtc, toUtc, Arg.Any<CancellationToken>())
             .Returns(points);
 
         var result = await _handler.Handle(

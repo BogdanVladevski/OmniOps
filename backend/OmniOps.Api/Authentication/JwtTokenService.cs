@@ -12,7 +12,13 @@ public interface IJwtTokenService
     string GenerateToken(IEnumerable<string> scopes, TokenTenantContext? tenant = null, TimeSpan? lifetime = null);
 }
 
-public record TokenTenantContext(string? Subject, Guid? OrganizationId, Guid? WorkspaceId);
+public record TokenTenantContext(
+    string? Subject,
+    Guid? OrganizationId,
+    Guid? WorkspaceId,
+    Guid? DriverId = null,
+    string? Role = null,
+    string? Name = null);
 
 public class JwtTokenService : IJwtTokenService
 {
@@ -56,6 +62,12 @@ public class JwtTokenService : IJwtTokenService
             claims.Add(new Claim("org_id", orgId.ToString()));
         if (tenant?.WorkspaceId is Guid workspaceId)
             claims.Add(new Claim("workspace_id", workspaceId.ToString()));
+        if (tenant?.DriverId is Guid driverId)
+            claims.Add(new Claim("driver_id", driverId.ToString()));
+        if (tenant?.Role is { } role)
+            claims.Add(new Claim("role", role));
+        if (tenant?.Name is { } name)
+            claims.Add(new Claim("name", name));
 
         var token = new JwtSecurityToken(
             issuer: _options.Issuer,

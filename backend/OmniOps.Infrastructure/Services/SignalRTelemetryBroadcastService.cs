@@ -21,17 +21,18 @@ public class SignalRTelemetryBroadcastService : ITelemetryBroadcastService
     }
 
     public async Task BroadcastTelemetryUpdateAsync(
+        Guid organizationId,
         VehicleTelemetry telemetry,
         CancellationToken cancellationToken = default)
     {
         var dto = TelemetryDto.FromEntity(telemetry);
 
         await _hubContext.Clients
-            .Group(dto.VehicleId)
+            .Group(TelemetryHub.VehicleGroup(organizationId, dto.VehicleId))
             .SendAsync("ReceiveTelemetryUpdate", dto, cancellationToken);
 
         await _hubContext.Clients
-            .Group(TelemetryHub.FleetGroupName)
+            .Group(TelemetryHub.OrganizationGroup(organizationId))
             .SendAsync("ReceiveTelemetryUpdate", dto, cancellationToken);
 
         _logger.LogInformation(
@@ -40,6 +41,7 @@ public class SignalRTelemetryBroadcastService : ITelemetryBroadcastService
     }
 
     public async Task BroadcastAlertAsync(
+        Guid organizationId,
         string vehicleId,
         string alertType,
         string title,
@@ -55,7 +57,7 @@ public class SignalRTelemetryBroadcastService : ITelemetryBroadcastService
             GeneratedAt = DateTime.UtcNow
         };
 
-        await _hubContext.Clients.Group(vehicleId).SendAsync("ReceiveAlert", payload, cancellationToken);
-        await _hubContext.Clients.Group(TelemetryHub.FleetGroupName).SendAsync("ReceiveAlert", payload, cancellationToken);
+        await _hubContext.Clients.Group(TelemetryHub.VehicleGroup(organizationId, vehicleId)).SendAsync("ReceiveAlert", payload, cancellationToken);
+        await _hubContext.Clients.Group(TelemetryHub.OrganizationGroup(organizationId)).SendAsync("ReceiveAlert", payload, cancellationToken);
     }
 }

@@ -31,13 +31,18 @@ function alertFingerprint(alert) {
 }
 
 export function FleetProvider({ children }) {
-  const vehicleIds = useMemo(() => parseFleetVehicles(), []);
   const { apiBaseUrl, apiToken, defaultFleetId } = getApiConfig();
   const [vehicles, setVehicles] = useState({});
   const [alerts, setAlerts] = useState([]);
   const [geofences, setGeofences] = useState([]);
   const [fleetMeta, setFleetMeta] = useState(null);
   const [dbVehicles, setDbVehicles] = useState([]);
+  // The signed-in company's own trucks; the configured list is only a fallback until they load.
+  const configuredIds = useMemo(() => parseFleetVehicles(), []);
+  const vehicleIds = useMemo(
+    () => (dbVehicles.length ? dbVehicles.map((v) => v.externalId) : configuredIds),
+    [dbVehicles, configuredIds],
+  );
   const [selectedVehicleId, setSelectedVehicleId] = useState(vehicleIds[0] ?? null);
   const [connectionStatus, setConnectionStatus] = useState('Connecting to tracking engine...');
   const [syncStatus, setSyncStatus] = useState('idle');
@@ -86,7 +91,8 @@ export function FleetProvider({ children }) {
   const loadFleetSnapshot = useCallback(async () => {
     if (!apiBaseUrl) return;
     try {
-      const headers = apiToken ? { Authorization: `Bearer ${apiToken}` } : {};
+      const token = getApiConfig().apiToken;
+      const headers = token ? { Authorization: `Bearer ${token}` } : {};
       const response = await fetch(`${apiBaseUrl}/api/telemetry/fleet`, { headers });
       if (!response.ok) return;
       const payload = await response.json();
@@ -136,7 +142,8 @@ export function FleetProvider({ children }) {
 
     const hubUrl = `${apiBaseUrl}/api/stream/telemetry`;
     const connection = new SignalR.HubConnectionBuilder()
-      .withUrl(hubUrl, apiToken ? { accessTokenFactory: () => apiToken } : undefined)
+      // Read the token on every (re)connect so a renewed session is used.
+      .withUrl(hubUrl, { accessTokenFactory: () => getApiConfig().apiToken })
       .withAutomaticReconnect()
       .configureLogging(SignalR.LogLevel.Information)
       .build();

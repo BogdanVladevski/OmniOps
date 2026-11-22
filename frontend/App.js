@@ -5,7 +5,9 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { FleetProvider, useFleet } from './contexts/FleetContext';
 import { ThemeProvider, useTheme } from './contexts/ThemeContext';
-import { DriverModeProvider, useDriverMode } from './contexts/DriverModeContext';
+import { SessionProvider, useSession } from './contexts/SessionContext';
+import AuthScreens from './components/AuthScreens';
+import { isDriver } from './utils/session';
 import ErrorBoundary from './components/ui/ErrorBoundary';
 import OfflineBanner from './components/ui/OfflineBanner';
 import OnboardingWizard, { useOnboarding } from './components/OnboardingWizard';
@@ -50,18 +52,14 @@ function Navigator({ onSearch }) {
 }
 
 function AppShell() {
-  const { driver, ready } = useDriverMode();
+  const { session, ready } = useSession();
   const { isDark } = useTheme();
   if (!ready) return null;
-  if (driver) {
-    return (
-      <>
-        <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor="transparent" translucent />
-        <DriverApp />
-      </>
-    );
-  }
-  return <OfficeShell />;
+  const bar = <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor="transparent" translucent />;
+  if (!session) return <>{bar}<AuthScreens /></>;
+  if (isDriver(session)) return <>{bar}<DriverApp /></>;
+  // Keyed by account so switching accounts starts from a clean slate (no other company's data on screen).
+  return <OfficeShell key={session.account.userId} />;
 }
 
 function OfficeShell() {
@@ -125,9 +123,9 @@ export default function App() {
     <SafeAreaProvider>
       <ThemeProvider>
         <ErrorBoundary>
-          <DriverModeProvider>
+          <SessionProvider>
             <AppShell />
-          </DriverModeProvider>
+          </SessionProvider>
         </ErrorBoundary>
       </ThemeProvider>
     </SafeAreaProvider>

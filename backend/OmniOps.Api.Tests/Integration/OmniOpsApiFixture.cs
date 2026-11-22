@@ -1,3 +1,6 @@
+using System.Net.Http.Headers;
+using System.Net.Http.Json;
+using System.Text.Json;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
@@ -33,7 +36,9 @@ public sealed class OmniOpsApiFixture : IAsyncLifetime
                     config.AddInMemoryCollection(new Dictionary<string, string?>
                     {
                         ["Database:ConnectionString"] = _postgres.GetConnectionString(),
-                        ["Jwt:RequireAuthentication"] = "false",
+                        // Tests run the way production does: everything behind sign-in.
+                        ["Jwt:RequireAuthentication"] = "true",
+                        ["AccountRateLimit:PermitLimit"] = "10000",
                         ["Jwt:Secret"] = "integration-test-secret-at-least-32-chars",
                         ["Fleet:VehicleIds"] = "Truck-001,Truck-002,Truck-003",
                         ["Storage:RootPath"] = StorageRoot,
@@ -58,6 +63,22 @@ public sealed class OmniOpsApiFixture : IAsyncLifetime
         });
 
         _ = await Client.GetAsync("/health/live");
+
+        // Default client: the seeded demo company's owner (development-only demo sign-in).
+        var demo = await (await Client.PostAsync("/api/v1/account/demo", null)).Content.ReadFromJsonAsync<JsonElement>();
+        Client.DefaultRequestHeaders.Authorization =
+            new AuthenticationHeaderValue("Bearer", demo.GetProperty("accessToken").GetString());
+    }
+
+    /// <summary>A client with no sign-in.</summary>
+    public HttpClient AnonymousClient() => Factory.CreateClient(new WebApplicationFactoryClientOptions { AllowAutoRedirect = false });
+
+    /// <summary>A client signed in with this session's access token.</summary>
+    public HttpClient ClientFor(string accessToken)
+    {
+        var client = AnonymousClient();
+        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", accessToken);
+        return client;
     }
 
     public async Task DisposeAsync()

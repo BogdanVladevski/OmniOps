@@ -8,20 +8,20 @@ namespace OmniOps.Application.Queries.Handlers;
 public class GetFleetTelemetryQueryHandler : IRequestHandler<GetFleetTelemetryQuery, FleetTelemetryDto>
 {
     private readonly ITelemetryCacheService _cacheService;
-    private readonly IFleetVehicleRegistry _fleetRegistry;
+    private readonly IJobRepository _jobs;
     private readonly IShipmentRepository _shipmentRepository;
     private readonly IVehicleRepository _vehicleRepository;
     private readonly ITenantContext _tenant;
 
     public GetFleetTelemetryQueryHandler(
         ITelemetryCacheService cacheService,
-        IFleetVehicleRegistry fleetRegistry,
+        IJobRepository jobs,
         IShipmentRepository shipmentRepository,
         IVehicleRepository vehicleRepository,
         ITenantContext tenant)
     {
         _cacheService = cacheService;
-        _fleetRegistry = fleetRegistry;
+        _jobs = jobs;
         _shipmentRepository = shipmentRepository;
         _vehicleRepository = vehicleRepository;
         _tenant = tenant;
@@ -31,12 +31,13 @@ public class GetFleetTelemetryQueryHandler : IRequestHandler<GetFleetTelemetryQu
         GetFleetTelemetryQuery request,
         CancellationToken cancellationToken)
     {
-        var vehicleIds = _fleetRegistry.GetConfiguredVehicleIds();
+        // The caller's own trucks (not a server-wide list), each looked up within its fleet.
+        var owned = await _jobs.ListVehiclesAsync(_tenant.OrganizationId, cancellationToken);
         var vehicles = new List<TelemetryDto>();
 
-        foreach (var vehicleId in vehicleIds)
+        foreach (var vehicle in owned)
         {
-            var telemetry = await _cacheService.GetLatestTelemetryAsync(vehicleId);
+            var telemetry = await _cacheService.GetLatestTelemetryAsync(vehicle.FleetId, vehicle.ExternalId);
             if (telemetry is null)
             {
                 continue;
@@ -45,13 +46,8 @@ public class GetFleetTelemetryQueryHandler : IRequestHandler<GetFleetTelemetryQu
             ShipmentInfoDto? shipmentInfo = null;
             try
             {
-                // Only show shipment details owned by the caller's organization.
-                var fleetId = await _vehicleRepository.FindFleetIdInOrganizationAsync(
-                    vehicleId, _tenant.OrganizationId, cancellationToken);
-                var shipment = fleetId is null
-                    ? null
-                    : await _shipmentRepository.GetActiveShipmentForVehicleAsync(
-                        fleetId.Value, vehicleId, cancellationToken);
+                var shipment = await _shipmentRepository.GetActiveShipmentForVehicleAsync(
+                    vehicle.FleetId, vehicle.ExternalId, cancellationToken);
 
                 if (shipment is not null)
                 {
@@ -80,7 +76,7 @@ public class GetFleetTelemetryQueryHandler : IRequestHandler<GetFleetTelemetryQu
         return new FleetTelemetryDto
         {
             Vehicles = vehicles,
-            Summary = BuildSummary(vehicleIds.Count, vehicles)
+            Summary = BuildSummary(owned.Count, vehicles)
         };
     }
 

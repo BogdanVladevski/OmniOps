@@ -53,6 +53,10 @@ public static partial class ServiceRegistration
         builder.Services.AddTransient<IDriverRepository, DriverRepository>();
         builder.Services.AddTransient<ITripRepository, TripRepository>();
         builder.Services.AddTransient<IJobRepository, JobRepository>();
+        builder.Services.AddScoped<ITenantScope, TenantScope>();
+        builder.Services.AddTransient<IAccountRepository, AccountRepository>();
+        builder.Services.AddSingleton<IPasswordHasher>(_ => new Pbkdf2PasswordHasher());
+        builder.Services.AddTransient<AccountTokenIssuer>();
         builder.Services.AddSingleton<IFileStore>(sp =>
         {
             var root = sp.GetRequiredService<IOptions<StorageOptions>>().Value.RootPath;

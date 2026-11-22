@@ -31,7 +31,8 @@ public record GetStoredEventsQuery(
     DateTime ToUtc,
     string? EventType = null) : IRequest<IReadOnlyList<StoredEventDto>>, IAuthorizedRequest
 {
-    public string RequiredPolicy => AuthorizationPolicies.VehicleRead;
+    // The event store spans every organization: operators only.
+    public string RequiredPolicy => AuthorizationPolicies.PlatformAdmin;
 }
 
 public record GetTelemetryAggregationsQuery(

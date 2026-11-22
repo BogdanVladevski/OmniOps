@@ -13,7 +13,7 @@ public static class DemoEndpoints
     {
         var v1 = app.MapGroup("/api/v1/demo").WithTags("Demo");
 
-        v1.MapGet("/status", async (IMediator mediator) =>
+        var status = v1.MapGet("/status", async (IMediator mediator) =>
             Results.Ok(await mediator.Send(new GetDemoStatusQuery()))).WithOpenApi();
 
         // Writes demo jobs into the caller's organization, so it needs the same access as the job board.
@@ -22,6 +22,7 @@ public static class DemoEndpoints
         if (app.Services.GetRequiredService<IOptions<JwtOptions>>().Value.RequireAuthentication)
         {
             bootstrap.RequireAuthorization(AuthorizationPolicies.VehicleRead);
+            status.RequireAuthorization(AuthorizationPolicies.VehicleRead);
         }
     }
 

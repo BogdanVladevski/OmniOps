@@ -18,11 +18,11 @@ public class HeuristicPredictionService : IPredictionService
     }
 
     public async Task<VehicleHealthPrediction> PredictVehicleHealthAsync(
-        string vehicleExternalId, CancellationToken cancellationToken = default)
+        Guid fleetId, string vehicleExternalId, CancellationToken cancellationToken = default)
     {
-        var telemetry = await _cache.GetLatestTelemetryAsync(vehicleExternalId);
+        var telemetry = await _cache.GetLatestTelemetryAsync(fleetId, vehicleExternalId);
         var maintenanceCount = await _context.VehicleMaintenanceRecords
-            .CountAsync(m => m.Vehicle.ExternalId == vehicleExternalId, cancellationToken);
+            .CountAsync(m => m.Vehicle.FleetId == fleetId && m.Vehicle.ExternalId == vehicleExternalId, cancellationToken);
 
         var score = 100.0;
         if (telemetry?.FuelLevel < 25) score -= 15;
@@ -36,9 +36,10 @@ public class HeuristicPredictionService : IPredictionService
     }
 
     public async Task<MaintenancePrediction> PredictMaintenanceAsync(
-        string vehicleExternalId, CancellationToken cancellationToken = default)
+        Guid fleetId, string vehicleExternalId, CancellationToken cancellationToken = default)
     {
-        var vehicle = await _context.Vehicles.FirstOrDefaultAsync(v => v.ExternalId == vehicleExternalId, cancellationToken);
+        var vehicle = await _context.Vehicles.FirstOrDefaultAsync(
+            v => v.FleetId == fleetId && v.ExternalId == vehicleExternalId, cancellationToken);
         var lastService = vehicle is null
             ? null
             : await _context.VehicleMaintenanceRecords
@@ -63,9 +64,9 @@ public class HeuristicPredictionService : IPredictionService
     }
 
     public async Task<FuelPrediction> PredictFuelAsync(
-        string vehicleExternalId, CancellationToken cancellationToken = default)
+        Guid fleetId, string vehicleExternalId, CancellationToken cancellationToken = default)
     {
-        var telemetry = await _cache.GetLatestTelemetryAsync(vehicleExternalId);
+        var telemetry = await _cache.GetLatestTelemetryAsync(fleetId, vehicleExternalId);
         var fuel = telemetry?.FuelLevel ?? 50;
         var range = fuel * 8;
         return new FuelPrediction(vehicleExternalId, range,
@@ -73,9 +74,9 @@ public class HeuristicPredictionService : IPredictionService
     }
 
     public async Task<BatteryPrediction> PredictBatteryAsync(
-        string vehicleExternalId, CancellationToken cancellationToken = default)
+        Guid fleetId, string vehicleExternalId, CancellationToken cancellationToken = default)
     {
-        var telemetry = await _cache.GetLatestTelemetryAsync(vehicleExternalId);
+        var telemetry = await _cache.GetLatestTelemetryAsync(fleetId, vehicleExternalId);
         var level = telemetry?.BatteryLevel ?? 80;
         var degradation = Math.Clamp(100 - level, 0, 100);
         return new BatteryPrediction(vehicleExternalId, degradation,

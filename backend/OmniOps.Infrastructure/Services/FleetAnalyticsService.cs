@@ -29,7 +29,7 @@ public class FleetAnalyticsService : IFleetAnalyticsService
 
         foreach (var id in externalIds)
         {
-            var points = await _telemetryRepository.GetByVehicleInTimeRangeAsync(id, fromUtc, toUtc, cancellationToken);
+            var points = await _telemetryRepository.GetByVehicleInTimeRangeAsync(fleetId, id, fromUtc, toUtc, cancellationToken);
             for (var i = 1; i < points.Count; i++)
             {
                 totalDistance += HaversineKm(
