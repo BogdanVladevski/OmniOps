@@ -98,4 +98,11 @@ export default {
   'done.title': 'Zugestellt',
   'done.by': 'Empfangen von {name}',
   'done.pending': 'Auf diesem Handy gespeichert. Wird gesendet, sobald Empfang da ist.',
+
+  'wait.arrivePickup': 'Ich bin an der Ladestelle',
+  'wait.arriveDelivery': 'Ich bin beim Kunden',
+  'wait.hint': 'Tippe, wenn du am Tor bist. Musst du warten, wird die Zeit für die Rechnung erfasst.',
+  'wait.since': 'Angekommen um {time}. Wartezeit: {duration}.',
+  'unit.h': 'Std.',
+  'unit.min': 'Min.',
 };

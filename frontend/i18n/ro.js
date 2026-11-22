@@ -98,4 +98,11 @@ export default {
   'done.title': 'Livrată',
   'done.by': 'Primit de {name}',
   'done.pending': 'Salvat pe acest telefon. Va fi trimis când există semnal.',
+
+  'wait.arrivePickup': 'Am ajuns la încărcare',
+  'wait.arriveDelivery': 'Am ajuns la client',
+  'wait.hint': 'Apasă când ajungi la poartă. Dacă trebuie să aștepți, timpul este înregistrat pentru factură.',
+  'wait.since': 'Sosit la {time}. Așteptare: {duration}.',
+  'unit.h': 'h',
+  'unit.min': 'min',
 };

@@ -98,4 +98,11 @@ export default {
   'done.title': 'Teslim edildi',
   'done.by': 'Teslim alan: {name}',
   'done.pending': 'Bu telefonda kayıtlı. Sinyal olduğunda gönderilecek.',
+
+  'wait.arrivePickup': 'Yükleme noktasına vardım',
+  'wait.arriveDelivery': 'Müşteriye vardım',
+  'wait.hint': 'Kapıya vardığınızda dokunun. Beklemeniz gerekirse süre fatura için kaydedilir.',
+  'wait.since': 'Varış: {time}. Bekleme: {duration}.',
+  'unit.h': 'sa',
+  'unit.min': 'dk',
 };

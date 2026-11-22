@@ -19,6 +19,7 @@ import { enqueuePoints, flushPoints, pendingPoints } from '../../utils/locationQ
 import { applyPending, outbox } from '../../utils/outbox';
 import { checkPhoto } from '../../utils/photoQuality';
 import { signatureDataUri } from '../../utils/signature';
+import { formatDuration, minutesSince } from '../../utils/waiting';
 import Screen from '../Screen';
 import { Button, Card, EmptyNote, Field, Pill } from '../ui/kit';
 import SignaturePad from './SignaturePad';
@@ -220,6 +221,34 @@ function Chip({ label, selected, onPress }) {
   );
 }
 
+/** "I've arrived" at a stop, then a running "Waiting: 1 h 05 min" so the driver sees it is being recorded. */
+function ArrivalCard({ stop, arrivedAt, busy, onArrive }) {
+  const { colors } = useTheme();
+  const { t, time } = useLanguage();
+  const [, tick] = useState(0);
+  useEffect(() => {
+    if (!arrivedAt) return undefined;
+    const timer = setInterval(() => tick((n) => n + 1), 30000);
+    return () => clearInterval(timer);
+  }, [arrivedAt]);
+  if (arrivedAt) {
+    const duration = formatDuration(minutesSince(arrivedAt), { h: t('unit.h'), min: t('unit.min') });
+    return <Text style={[typography.label, { color: colors.textSecondary }]}>{t('wait.since', { time: time(arrivedAt), duration })}</Text>;
+  }
+  return (
+    <Card style={styles.gapMd}>
+      <Text style={[typography.body, { color: colors.textSecondary }]}>{t('wait.hint')}</Text>
+      <Button
+        label={busy ? t('pleaseWait') : t(stop === 'pickup' ? 'wait.arrivePickup' : 'wait.arriveDelivery')}
+        variant="secondary"
+        onPress={onArrive}
+        disabled={busy}
+        style={styles.big}
+      />
+    </Card>
+  );
+}
+
 function JobScreen({ job, onBack, act }) {
   const { colors } = useTheme();
   const { t, time, dateTime } = useLanguage();
@@ -314,6 +343,11 @@ function JobScreen({ job, onBack, act }) {
 
   const start = () => run('start', () => act('start', job.id));
 
+  const arrive = (stop) => () => run(`arrive-${stop}`, async () => {
+    const coords = await currentCoords();
+    await act('arrive', job.id, { stop, latitude: coords?.latitude ?? null, longitude: coords?.longitude ?? null });
+  });
+
   const deliver = () => run('deliver', async () => {
     // Best effort: the office gets the full route before the job closes (anything unsent follows later).
     await flushPoints(job.id).catch(() => {});
@@ -363,6 +397,10 @@ function JobScreen({ job, onBack, act }) {
             .filter(Boolean).join(' · ')}
         </Text>
       </View>
+
+      {job.status === 'Planned' ? (
+        <ArrivalCard stop="pickup" arrivedAt={job.pickupArrivedAtUtc} busy={busy === 'arrive-pickup'} onArrive={arrive('pickup')} />
+      ) : null}
 
       {open ? (
         <Card style={styles.gapMd}>
@@ -420,6 +458,7 @@ function JobScreen({ job, onBack, act }) {
       {onTheWay ? (
         <>
           <TrackingLine tracking={tracking} />
+          <ArrivalCard stop="delivery" arrivedAt={job.deliveryArrivedAtUtc} busy={busy === 'arrive-delivery'} onArrive={arrive('delivery')} />
           <Card style={styles.gapMd}>
             <Text style={[typography.title, { color: colors.text }]}>{t('pod.title')}</Text>
             <Text style={[typography.body, { color: colors.textSecondary }]}>

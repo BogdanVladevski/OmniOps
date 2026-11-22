@@ -4,6 +4,8 @@ import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useTheme } from '../contexts/ThemeContext';
 import { radius, spacing, toneColors, typography } from '../theme/tokens';
 import { apiUrl, geocode, jobsApi } from '../utils/api';
+import { evidence, formatDuration, stopName } from '../utils/waiting';
+import { money } from '../utils/invoices';
 import { notifyJobsChanged } from '../utils/events';
 import { shareLink } from '../utils/share';
 import {
@@ -96,6 +98,8 @@ function NewJobSheet({ visible, onClose, onCreated }) {
     try {
       // Coordinates let the customer page show a map pin and an arrival estimate; the job works without them.
       const place = await geocode(form.destination).catch(() => null);
+      // The pickup's location lets a driver's "I've arrived" there count as evidence for waiting time.
+      const pickup = form.origin.trim() ? await geocode(form.origin).catch(() => null) : null;
       const job = await jobsApi.create({
         vehicleId: form.vehicleId,
         driverId: form.driverId,
@@ -105,6 +109,8 @@ function NewJobSheet({ visible, onClose, onCreated }) {
         destination: form.destination.trim(),
         destinationLatitude: place?.latitude ?? null,
         destinationLongitude: place?.longitude ?? null,
+        originLatitude: pickup?.latitude ?? null,
+        originLongitude: pickup?.longitude ?? null,
         minTempCelsius: range?.[0] ?? null,
         maxTempCelsius: range?.[1] ?? null,
       });
@@ -196,6 +202,41 @@ function DocumentGroup({ title, empty, job, documents }) {
   );
 }
 
+function WaitingSection({ waits }) {
+  const { colors } = useTheme();
+  if (!waits.length) return null;
+  const clock = (iso) => new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  return (
+    <View style={styles.gapSm}>
+      <Text style={[typography.title, { color: colors.text }]}>Waiting time</Text>
+      <Card padded={false}>
+        {waits.map((w, i) => {
+          const over = w.chargedMinutes > 0;
+          return (
+            <View key={w.stop} style={[styles.waitRow, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border }]}>
+              <View style={styles.row}>
+                <Text style={[typography.bodyStrong, styles.flex, { color: colors.text }]}>{stopName(w.stop)}</Text>
+                <Text style={[typography.number, { color: over ? colors.warning : colors.text }]}>{formatDuration(w.waitedMinutes)}</Text>
+              </View>
+              <Text style={[typography.caption, { color: colors.textSecondary }]}>
+                Arrived {clock(w.arrivedAtUtc)}
+                {w.releasedAtUtc ? ` · released ${clock(w.releasedAtUtc)}` : ' · still waiting'}
+                {` · ${formatDuration(w.freeMinutes)} free`}
+                {over ? ` · ${formatDuration(w.chargedMinutes)} chargeable` : ''}
+                {w.amount != null ? ` · ${money(w.amount, w.currency)}` : ''}
+              </Text>
+              <Text style={[typography.caption, { color: w.verified ? colors.muted : colors.warning }]}>{evidence(w)}</Text>
+              {over && w.ratePerHour == null ? (
+                <Text style={[typography.caption, { color: colors.muted }]}>Set a waiting rate in Invoices → Invoice settings to charge for it.</Text>
+              ) : null}
+            </View>
+          );
+        })}
+      </Card>
+    </View>
+  );
+}
+
 function JobSheet({ jobId, onClose, onNotice, onInvoice }) {
   const { colors } = useTheme();
   const [detail, setDetail] = useState(null);
@@ -246,6 +287,7 @@ function JobSheet({ jobId, onClose, onNotice, onInvoice }) {
           {temp ? (
             <Text style={[typography.label, { color: toneColors(colors, temp.tone).fg }]}>{temp.label}</Text>
           ) : null}
+          <WaitingSection waits={detail?.waits ?? []} />
           <DocumentGroup title="Loading note" empty="No loading note photographed." job={job} documents={docs('PickupDocument')} />
           {isRefrigerated(job) ? (
             <View style={styles.gapSm}>
@@ -456,11 +498,13 @@ const styles = StyleSheet.create({
   jobRight: { alignItems: 'flex-end', gap: 2, maxWidth: '45%' },
   formRow: { flexDirection: 'row', gap: spacing.sm, flexWrap: 'wrap' },
   gapSm: { gap: spacing.xs },
+  row: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   choices: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   choice: { borderWidth: 1, borderRadius: radius.md, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, minWidth: 110 },
   detailRow: { flexDirection: 'row', justifyContent: 'space-between', gap: spacing.lg, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm },
   detailValue: { flex: 1, textAlign: 'right' },
   photos: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  waitRow: { paddingHorizontal: spacing.lg, paddingVertical: spacing.md, gap: 2 },
   photo: { width: 120, height: 120, borderRadius: radius.md, borderWidth: StyleSheet.hairlineWidth },
   readingRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
 });

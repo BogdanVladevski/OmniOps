@@ -98,4 +98,11 @@ export default {
   'done.title': 'Delivered',
   'done.by': 'Received by {name}',
   'done.pending': 'Saved on this phone. It will be sent when there is signal.',
+
+  'wait.arrivePickup': "I've arrived at the pickup",
+  'wait.arriveDelivery': "I've arrived at the customer",
+  'wait.hint': 'Tap when you reach the gate. If you have to wait, the time is recorded for the invoice.',
+  'wait.since': 'Arrived at {time}. Waiting: {duration}.',
+  'unit.h': 'h',
+  'unit.min': 'min',
 };

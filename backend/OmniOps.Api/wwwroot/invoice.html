@@ -163,6 +163,20 @@
             });
             proof.append(box);
           });
+          if (d.stopTimes && d.stopTimes.length) {
+            proof.append(el('h2', 'Times at the stops'));
+            var st = el('table'); var sb = el('tbody');
+            d.stopTimes.forEach(function (s) {
+              var mins = s.waitedMinutes, dur = mins < 60 ? mins + ' min' : Math.floor(mins / 60) + ' h ' + String(mins % 60).padStart(2, '0') + ' min';
+              var how = s.source === 'Gps' ? 'arrival by GPS at the address' : 'arrival confirmed by the driver' + (s.verified ? ' at the address' : '');
+              var tr = el('tr');
+              tr.append(el('td', s.stop === 'pickup' ? 'Loading' : 'Unloading'),
+                el('td', 'arrived ' + when(s.arrivedAtUtc) + (s.releasedAtUtc ? ', released ' + when(s.releasedAtUtc) : ''), 'sub'),
+                el('td', dur, 'num'), el('td', how, 'muted'));
+              sb.append(tr);
+            });
+            st.append(sb); proof.append(st);
+          }
           var problems = d.documents.filter(function (x) { return x.kind === 'Exception'; });
           if (problems.length) {
             proof.append(el('h2', 'Reported by the driver'));

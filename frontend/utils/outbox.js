@@ -20,7 +20,10 @@ export function applyPending(job, items) {
   if (!mine.length) return job;
   const next = { ...job, pendingCount: mine.length };
   for (const item of mine) {
-    if (item.type === 'start' && next.status === 'Planned') {
+    if (item.type === 'arrive') {
+      const field = item.payload.stop === 'pickup' ? 'pickupArrivedAtUtc' : 'deliveryArrivedAtUtc';
+      if (!next[field] || item.at < next[field]) next[field] = item.at;
+    } else if (item.type === 'start' && next.status === 'Planned') {
       next.status = 'InProgress';
       next.startedAtUtc = item.at;
     } else if (item.type === 'deliver' && next.status === 'InProgress') {
@@ -71,6 +74,8 @@ export function createOutbox({ storage = AsyncStorage, api = driverApi, photos =
         return api.start(item.jobId, at);
       case 'deliver':
         return api.deliver(item.jobId, { ...item.payload, deliveredAt: at });
+      case 'arrive':
+        return api.arrived(item.jobId, { ...item.payload, arrivedAt: at });
       case 'document': {
         const { kind, coords, temperatureCelsius, note } = item.payload;
         const uri = await photos.loadPhoto(item.photoRef);

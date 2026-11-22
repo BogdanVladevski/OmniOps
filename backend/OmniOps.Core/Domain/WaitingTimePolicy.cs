@@ -35,6 +35,9 @@ public static class WaitingTimePolicy
     /// <summary>Further than this, the truck has left again (the gap avoids flapping at the edge).</summary>
     public const double LeftStopMeters = 600;
 
+    /// <summary>One reading this far away means the truck has certainly gone (no second reading needed).</summary>
+    public const double CertainlyGoneMeters = 5000;
+
     /// <summary>A driver's tap this far from the address is shown but not treated as proof.</summary>
     public const double TapTrustedWithinMeters = 1000;
 
@@ -45,23 +48,31 @@ public static class WaitingTimePolicy
         DeliveryEta.DistanceKm(lat1, lon1, lat2, lon2) * 1000;
 
     /// <summary>
-    /// Follows GPS points (oldest first) near a stop: the first point inside sets the arrival; a point well outside
-    /// afterwards clears it (the truck came and left). Returns the arrival after these points.
+    /// Follows GPS points (oldest first) near a stop: the first point inside sets the arrival; leaving afterwards
+    /// clears it (the truck came and went). Leaving needs two readings in a row away from the stop, or one far away,
+    /// so a single bad GPS fix never erases a real wait. Returns the arrival after these points.
     /// </summary>
     public static DateTime? TrackArrival(
         DateTime? arrival, IEnumerable<(DateTime At, double Latitude, double Longitude)> points, double stopLatitude, double stopLongitude)
     {
+        var awayInARow = 0;
         foreach (var (at, lat, lon) in points)
         {
             var distance = DistanceMeters(lat, lon, stopLatitude, stopLongitude);
             if (distance <= AtStopMeters)
             {
+                awayInARow = 0;
                 // A point that arrives late but was taken earlier moves the arrival back.
                 arrival = arrival is { } current && current <= at ? current : at;
             }
             else if (distance > LeftStopMeters && arrival is { } since && at > since)
             {
-                arrival = null;
+                awayInARow++;
+                if (awayInARow >= 2 || distance > CertainlyGoneMeters)
+                {
+                    arrival = null;
+                    awayInARow = 0;
+                }
             }
         }
 

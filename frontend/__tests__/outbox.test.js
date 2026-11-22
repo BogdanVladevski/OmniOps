@@ -106,6 +106,15 @@ describe('applyPending', () => {
     });
   });
 
+  it('shows an arrival before it is sent, keeping the earlier one', () => {
+    const shown = applyPending({ id: 'j1', status: 'InProgress', deliveryArrivedAtUtc: '2026-11-22T10:00:00Z' }, [
+      { jobId: 'j1', type: 'arrive', at: '2026-11-22T10:05:00Z', payload: { stop: 'delivery' } },
+      { jobId: 'j1', type: 'arrive', at: '2026-11-22T07:00:00Z', payload: { stop: 'pickup' } },
+    ]);
+    expect(shown.deliveryArrivedAtUtc).toBe('2026-11-22T10:00:00Z');
+    expect(shown.pickupArrivedAtUtc).toBe('2026-11-22T07:00:00Z');
+  });
+
   it('leaves a job with nothing waiting untouched', () => {
     expect(applyPending(job, [])).toBe(job);
   });

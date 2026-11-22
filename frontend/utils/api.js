@@ -266,6 +266,9 @@ export const driverApi = {
     apiFetch(`/api/v1/driver/jobs/${jobId}/start`, { method: 'POST', body: JSON.stringify({ startedAt: startedAt ?? null }) }),
   sendLocations: (jobId, points) =>
     apiFetch(`/api/v1/driver/jobs/${jobId}/locations`, { method: 'POST', body: JSON.stringify({ points }) }),
+  /** "I've arrived" at the pickup or the delivery: { stop, arrivedAt, latitude, longitude }. */
+  arrived: (jobId, body) =>
+    apiFetch(`/api/v1/driver/jobs/${jobId}/arrived`, { method: 'POST', body: JSON.stringify(body) }),
   deliver: (jobId, body) =>
     apiFetch(`/api/v1/driver/jobs/${jobId}/deliver`, { method: 'POST', body: JSON.stringify(body) }),
 

@@ -98,4 +98,11 @@ export default {
   'done.title': 'Isporučeno',
   'done.by': 'Primio/la: {name}',
   'done.pending': 'Sačuvano na ovom telefonu. Biće poslato kada bude signala.',
+
+  'wait.arrivePickup': 'Stigao sam na utovar',
+  'wait.arriveDelivery': 'Stigao sam kod kupca',
+  'wait.hint': 'Dodirnite kada stignete na kapiju. Ako morate da čekate, vreme se beleži za fakturu.',
+  'wait.since': 'Stigao u {time}. Čekanje: {duration}.',
+  'unit.h': 'h',
+  'unit.min': 'min',
 };

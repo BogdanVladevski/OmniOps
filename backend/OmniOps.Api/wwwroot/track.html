@@ -146,7 +146,18 @@
       } else if (d.status === 'OnTheWay') {
         set('statusText', 'On the way');
         var etaPassed = d.etaUtc && new Date(d.etaUtc).getTime() < Date.now() - 5 * 60000;
-        if (stale) {
+        if (d.arrivedAtUtc) {
+          // At the customer: say since when, and — if the carrier charges for waiting — from when it is charged.
+          set('statusText', 'Arrived');
+          set('headline', 'Arrived at ' + time(d.arrivedAtUtc));
+          var waited = minutesAgo(d.arrivedAtUtc);
+          var dur = waited < 60 ? waited + ' min' : Math.floor(waited / 60) + ' h ' + String(waited % 60).padStart(2, '0') + ' min';
+          var charged = d.waitingChargedFromUtc ? new Date(d.waitingChargedFromUtc) : null;
+          set('subline', 'The truck has been at the delivery address for ' + dur + '.'
+            + (charged ? (charged.getTime() <= Date.now()
+              ? ' Free unloading time ended at ' + time(d.waitingChargedFromUtc) + '; waiting time is now charged.'
+              : ' Unloading is free until ' + time(d.waitingChargedFromUtc) + '; waiting after that is charged.') : ''));
+        } else if (stale) {
           // An estimate from an old position is not news; say what we actually know.
           set('headline', 'On the way to ' + to);
           set('subline', 'No update from the truck since ' + time(d.positionAtUtc) + '. This can happen in areas with poor signal.'

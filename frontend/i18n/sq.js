@@ -98,4 +98,11 @@ export default {
   'done.title': 'E dorëzuar',
   'done.by': 'Marrë nga {name}',
   'done.pending': 'Ruajtur në këtë telefon. Do të dërgohet kur të ketë sinjal.',
+
+  'wait.arrivePickup': 'Mbërrita te ngarkimi',
+  'wait.arriveDelivery': 'Mbërrita te klienti',
+  'wait.hint': 'Shtypni kur arrini te porta. Nëse duhet të prisni, koha regjistrohet për faturën.',
+  'wait.since': 'Mbërritur në {time}. Pritje: {duration}.',
+  'unit.h': 'orë',
+  'unit.min': 'min',
 };

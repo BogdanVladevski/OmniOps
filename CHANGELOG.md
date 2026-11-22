@@ -6,6 +6,11 @@ All notable changes to OmniOps are documented in this file.
 
 ### Added
 
+- Waiting time (detention) at pickup and delivery, recorded by the driver's phone: the delivery wait starts when GPS reaches the customer's address (or the driver taps "I've arrived") and ends at hand-over; the pickup wait runs from the driver's arrival tap until the trip starts. A tap far from the address is shown but not treated as proof
+- Companies set free waiting time and an hourly rate (Invoices → Invoice settings); waiting past the free time is charged per started 15 minutes and offered as a ready-priced line when invoicing the job, with the arrival and release times in the description. Without a rate, waiting is recorded but not charged
+- The office is alerted when a truck's free waiting time runs out; the receiver's tracking page shows when the truck arrived and from when waiting is charged; the invoice page lists the times at each stop
+- Jobs can store the pickup's location (looked up from the "From" address) so a driver's arrival there can be checked
+- `POST /api/v1/driver/jobs/{id}/arrived` (`stop`: `pickup` | `delivery`)
 - Driver app works without signal: starting a trip, photos, temperature readings, signatures, problem reports and confirming delivery are saved on the phone and sent in order when there is a connection; the phone shows what is still waiting and never claims something was sent before it was. Times recorded are when the driver did it, not when it arrived
 - Receiver signs on the driver's phone; the signature (with the signer's name) is proof of delivery on its own and appears on the job and the customer's invoice page
 - Problem reports: damage, shortage, wrong goods or refusal, with a photo and a short description, at loading or delivery; the office is alerted, and they appear on the job and the invoice page

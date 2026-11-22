@@ -38,8 +38,22 @@ public class WaitingTimePolicyTests
     [Fact]
     public void ComingBackLater_StartsANewArrival()
     {
-        var arrival = WaitingTimePolicy.TrackArrival(null, [At(0, 100), At(10, 2000), At(70, 150)], StopLat, StopLon);
+        var arrival = WaitingTimePolicy.TrackArrival(null, [At(0, 100), At(10, 2000), At(20, 3000), At(70, 150)], StopLat, StopLon);
         Assert.Equal(T0.AddMinutes(70), arrival);
+    }
+
+    [Fact]
+    public void OneStrayGpsReading_DoesNotEraseAWait()
+    {
+        // Phones sometimes report a position a kilometre off for one reading (reflections in a yard).
+        var arrival = WaitingTimePolicy.TrackArrival(null, [At(0, 100), At(20, 1200), At(25, 80), At(40, 1500), At(45, 60)], StopLat, StopLon);
+        Assert.Equal(T0, arrival);
+    }
+
+    [Fact]
+    public void OneReadingFarAway_MeansTheTruckHasGone()
+    {
+        Assert.Null(WaitingTimePolicy.TrackArrival(null, [At(0, 100), At(40, 12_000)], StopLat, StopLon));
     }
 
     [Fact]
@@ -120,5 +134,30 @@ public class WaitingTimePolicyTests
     {
         var job = new Trip { Status = TripStatus.Cancelled, DeliveryArrivedAtUtc = T0 };
         Assert.Equal(0, Assert.Single(WaitingTimePolicy.Waits(job, 120, 30m, T0.AddHours(10))).WaitedMinutes);
+    }
+}
+
+public class WaitingTermsTests
+{
+    [Fact]
+    public void InvoiceLines_StateTimesInTheCompanysTimeZone()
+    {
+        var arrived = new DateTime(2026, 11, 22, 9, 0, 0, DateTimeKind.Utc); // 10:00 in Skopje (UTC+1 in winter)
+        var job = new Trip
+        {
+            Status = TripStatus.Completed, Destination = "Bitola", DestinationLatitude = 41.03, DestinationLongitude = 21.33,
+            DeliveryArrivedAtUtc = arrived, DeliveryArrivalSource = ArrivalSource.Gps, CompletedAtUtc = arrived.AddMinutes(150),
+        };
+        var terms = new OmniOps.Application.Services.WaitingTerms(120, 30m, "EUR", OmniOps.Application.Services.WaitingTerms.ZoneOf("Europe/Skopje"));
+
+        var line = Assert.Single(terms.SuggestedLines(job, arrived.AddDays(1)));
+        Assert.Equal("Waiting time at unloading, Bitola: arrived 22 Nov 10:00, released 22 Nov 12:30 (2 h 30 min, 2 h free), 30 min charged", line.Description);
+        Assert.Equal(0.5m, line.Quantity);
+    }
+
+    [Fact]
+    public void AnUnknownTimeZone_FallsBackToUtc_AndSaysSo()
+    {
+        Assert.Equal(TimeZoneInfo.Utc, OmniOps.Application.Services.WaitingTerms.ZoneOf("Mars/Olympus"));
     }
 }

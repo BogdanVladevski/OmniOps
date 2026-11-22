@@ -98,4 +98,11 @@ export default {
   'done.title': 'Dostarczone',
   'done.by': 'Odebrał(a): {name}',
   'done.pending': 'Zapisane na tym telefonie. Zostanie wysłane, gdy będzie zasięg.',
+
+  'wait.arrivePickup': 'Jestem na załadunku',
+  'wait.arriveDelivery': 'Jestem u klienta',
+  'wait.hint': 'Dotknij, gdy dojedziesz do bramy. Jeśli musisz czekać, czas zostanie zapisany do faktury.',
+  'wait.since': 'Przyjazd o {time}. Oczekiwanie: {duration}.',
+  'unit.h': 'godz.',
+  'unit.min': 'min',
 };
