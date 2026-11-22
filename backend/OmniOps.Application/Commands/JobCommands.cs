@@ -25,7 +25,7 @@ public record CreateJobCommand(
 /// <summary>Driver starts the job. Repeating it is harmless (phones retry).</summary>
 public record StartJobCommand(Guid JobId) : IRequest<JobDto>, IAuthorizedRequest
 {
-    public string RequiredPolicy => AuthorizationPolicies.VehicleRead;
+    public string RequiredPolicy => AuthorizationPolicies.JobWork;
 }
 
 public record JobLocationPoint(
@@ -46,7 +46,7 @@ public record JobLocationPoint(
 public record RecordJobLocationsCommand(Guid JobId, IReadOnlyList<JobLocationPoint> Points)
     : IRequest<JobLocationsResultDto>, IAuthorizedRequest
 {
-    public string RequiredPolicy => AuthorizationPolicies.VehicleRead;
+    public string RequiredPolicy => AuthorizationPolicies.JobWork;
 }
 
 /// <summary>
@@ -74,7 +74,7 @@ public record AddJobDocumentCommand(
         ["image/heic"] = "heic",
     };
 
-    public string RequiredPolicy => AuthorizationPolicies.VehicleRead;
+    public string RequiredPolicy => AuthorizationPolicies.JobWork;
 }
 
 /// <summary>
@@ -84,5 +84,5 @@ public record AddJobDocumentCommand(
 public record DeliverJobCommand(Guid JobId, string RecipientName, string? Note, double? Latitude, double? Longitude)
     : IRequest<JobDto>, IAuthorizedRequest
 {
-    public string RequiredPolicy => AuthorizationPolicies.VehicleRead;
+    public string RequiredPolicy => AuthorizationPolicies.JobWork;
 }

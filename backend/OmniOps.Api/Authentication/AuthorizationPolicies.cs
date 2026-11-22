@@ -6,6 +6,8 @@ public static class AuthorizationPolicies
     public const string VehicleSimulate = Core.Authorization.AuthorizationPolicies.VehicleSimulate;
     public const string FleetAdmin = Core.Authorization.AuthorizationPolicies.FleetAdmin;
     public const string PlatformAdmin = Core.Authorization.AuthorizationPolicies.PlatformAdmin;
+    public const string JobWork = Core.Authorization.AuthorizationPolicies.JobWork;
+    public const string DriverScope = Core.Authorization.AuthorizationPolicies.DriverScope;
     public const string VehicleReadScope = Core.Authorization.AuthorizationPolicies.VehicleReadScope;
     public const string VehicleSimulateScope = Core.Authorization.AuthorizationPolicies.VehicleSimulateScope;
     public const string FleetAdminScope = Core.Authorization.AuthorizationPolicies.FleetAdminScope;

@@ -55,9 +55,15 @@ try
     var jwtOptions = app.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<JwtOptions>>().Value;
     if (!app.Environment.IsDevelopment() && !jwtOptions.RequireAuthentication)
     {
-        app.Logger.LogCritical(
-            "Running in non-Development environment with authentication DISABLED. " +
-            "Set JWT_REQUIRE_AUTHENTICATION=true before deploying to production.");
+        // Fail fast: without sign-in every request would act as the demo organization.
+        throw new InvalidOperationException(
+            "Authentication is disabled outside Development. Set JWT_REQUIRE_AUTHENTICATION=true and a JWT_SECRET of at least 32 characters.");
+    }
+
+    if (jwtOptions.RequireAuthentication && !jwtOptions.IsConfigured())
+    {
+        throw new InvalidOperationException(
+            "JWT_REQUIRE_AUTHENTICATION is on but JWT_SECRET is missing or shorter than 32 characters.");
     }
 
     if (jwtOptions.RequireAuthentication)
@@ -80,6 +86,7 @@ try
     app.MapMobileEndpoints();
     app.MapJobEndpoints();
     app.MapBillingEndpoints();
+    app.MapAccountEndpoints();
     app.MapDemoEndpoints();
     app.MapHealthEndpoints();
     app.MapObservabilityEndpoints();

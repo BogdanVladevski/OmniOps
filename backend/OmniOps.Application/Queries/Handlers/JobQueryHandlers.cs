@@ -28,8 +28,10 @@ public class GetJobsQueryHandler : IRequestHandler<GetJobsQuery, IReadOnlyList<J
             _ => (Enum.GetValues<TripStatus>(), null),
         };
 
+        // A driver always gets their own jobs, whatever driver id the request names.
+        var driverId = _tenant.DriverId ?? request.DriverId;
         var jobs = await _jobs.ListAsync(
-            _tenant.OrganizationId, statuses, request.DriverId, completedSince, MaxJobs, cancellationToken);
+            _tenant.OrganizationId, statuses, driverId, completedSince, MaxJobs, cancellationToken);
         return jobs.Select(JobDto.FromEntity).ToList();
     }
 }

@@ -33,6 +33,8 @@ public static class GlobalExceptionMiddleware
                     ArgumentException => (int)HttpStatusCode.BadRequest,
                     KeyNotFoundException => (int)HttpStatusCode.NotFound,
                     BusinessRuleException => (int)HttpStatusCode.Conflict,
+                    AuthenticationFailedException => (int)HttpStatusCode.Unauthorized,
+                    UnauthorizedAccessException => (int)HttpStatusCode.Forbidden,
                     TransientProcessingException => (int)HttpStatusCode.ServiceUnavailable,
                     _ => (int)HttpStatusCode.InternalServerError
                 };
@@ -44,6 +46,8 @@ public static class GlobalExceptionMiddleware
                     {
                         ValidationException => "Validation failed.",
                         BusinessRuleException => exception.Message,
+                        AuthenticationFailedException => exception.Message,
+                        UnauthorizedAccessException => "You do not have access to this.",
                         TransientProcessingException => "Temporarily unavailable. Please retry.",
                         _ => "An error occurred processing your request."
                     },

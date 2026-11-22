@@ -20,6 +20,8 @@ public class AppDbContext : DbContext
     public DbSet<Trip> Trips => Set<Trip>();
     public DbSet<TripDocument> TripDocuments => Set<TripDocument>();
     public DbSet<BillingProfile> BillingProfiles => Set<BillingProfile>();
+    public DbSet<UserAccount> UserAccounts => Set<UserAccount>();
+    public DbSet<DriverPairingCode> DriverPairingCodes => Set<DriverPairingCode>();
     public DbSet<Customer> Customers => Set<Customer>();
     public DbSet<Invoice> Invoices => Set<Invoice>();
     public DbSet<InvoiceLine> InvoiceLines => Set<InvoiceLine>();
@@ -128,8 +130,8 @@ public class AppDbContext : DbContext
         modelBuilder.Entity<Fleet>(entity =>
         {
             entity.HasKey(e => e.Id);
-            entity.HasIndex(e => e.Name).IsUnique();
-            entity.HasIndex(e => e.OrganizationId);
+            // Unique within an organization: every company may have a "Main fleet".
+            entity.HasIndex(e => new { e.OrganizationId, e.Name }).IsUnique();
             entity.HasData(new Fleet
             {
                 Id = new Guid("f1000000-0000-0000-0000-000000000001"),
@@ -199,6 +201,23 @@ public class AppDbContext : DbContext
             entity.HasOne(e => e.Vehicle).WithMany(v => v.Trips).HasForeignKey(e => e.VehicleId);
             entity.HasOne(e => e.Driver).WithMany().HasForeignKey(e => e.DriverId)
                 .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<UserAccount>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => e.Email).IsUnique();
+            entity.HasIndex(e => new { e.OrganizationId, e.DriverId });
+            entity.Property(e => e.Email).HasMaxLength(200);
+            entity.Property(e => e.DisplayName).HasMaxLength(200);
+            entity.Property(e => e.PasswordHash).HasMaxLength(200);
+        });
+
+        modelBuilder.Entity<DriverPairingCode>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => e.CodeHash).IsUnique();
+            entity.Property(e => e.CodeHash).HasMaxLength(64);
         });
 
         modelBuilder.Entity<BillingProfile>(entity =>

@@ -10,6 +10,15 @@ using OmniOps.Core.Interfaces;
 
 namespace OmniOps.Application.Commands.Handlers;
 
+/// <summary>A driver sign-in only ever sees their own jobs; anything else looks like it does not exist.</summary>
+internal static class JobAccess
+{
+    public static Trip Visible(Trip? job, Guid jobId, ITenantContext tenant) =>
+        job is not null && (tenant.DriverId is not { } driverId || job.DriverId == driverId)
+            ? job
+            : throw new KeyNotFoundException($"Job {jobId} not found.");
+}
+
 /// <summary>Alert types broadcast for delivery-job milestones (the app maps these to labels).</summary>
 public static class JobAlerts
 {
@@ -88,8 +97,8 @@ public class StartJobCommandHandler : IRequestHandler<StartJobCommand, JobDto>
 
     public async Task<JobDto> Handle(StartJobCommand request, CancellationToken cancellationToken)
     {
-        var job = await _jobs.GetAsync(request.JobId, _tenant.OrganizationId, cancellationToken)
-            ?? throw new KeyNotFoundException($"Job {request.JobId} not found.");
+        var job = JobAccess.Visible(
+            await _jobs.GetAsync(request.JobId, _tenant.OrganizationId, cancellationToken), request.JobId, _tenant);
 
         switch (job.Status)
         {
@@ -135,8 +144,8 @@ public class RecordJobLocationsCommandHandler : IRequestHandler<RecordJobLocatio
 
     public async Task<JobLocationsResultDto> Handle(RecordJobLocationsCommand request, CancellationToken cancellationToken)
     {
-        var job = await _jobs.GetAsync(request.JobId, _tenant.OrganizationId, cancellationToken)
-            ?? throw new KeyNotFoundException($"Job {request.JobId} not found.");
+        var job = JobAccess.Visible(
+            await _jobs.GetAsync(request.JobId, _tenant.OrganizationId, cancellationToken), request.JobId, _tenant);
 
         if (job.Status == TripStatus.Planned)
         {
@@ -223,8 +232,8 @@ public class AddJobDocumentCommandHandler : IRequestHandler<AddJobDocumentComman
 
     public async Task<JobDocumentDto> Handle(AddJobDocumentCommand request, CancellationToken cancellationToken)
     {
-        var job = await _jobs.GetAsync(request.JobId, _tenant.OrganizationId, cancellationToken)
-            ?? throw new KeyNotFoundException($"Job {request.JobId} not found.");
+        var job = JobAccess.Visible(
+            await _jobs.GetAsync(request.JobId, _tenant.OrganizationId, cancellationToken), request.JobId, _tenant);
 
         EnsureAllowed(job, request);
 
@@ -345,8 +354,8 @@ public class DeliverJobCommandHandler : IRequestHandler<DeliverJobCommand, JobDt
 
     public async Task<JobDto> Handle(DeliverJobCommand request, CancellationToken cancellationToken)
     {
-        var job = await _jobs.GetAsync(request.JobId, _tenant.OrganizationId, cancellationToken)
-            ?? throw new KeyNotFoundException($"Job {request.JobId} not found.");
+        var job = JobAccess.Visible(
+            await _jobs.GetAsync(request.JobId, _tenant.OrganizationId, cancellationToken), request.JobId, _tenant);
 
         switch (job.Status)
         {

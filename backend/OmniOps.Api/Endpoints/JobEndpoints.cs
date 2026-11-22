@@ -44,10 +44,14 @@ public static class JobEndpoints
             return Results.Stream(file.Content, file.ContentType);
         });
 
-        var driver = app.MapGroup("/api/v1/driver").WithTags("Driver");
-        Protect(driver, requireAuth);
+        // Drivers' phones (and the office, for testing). Handlers keep drivers to their own jobs.
+        var driver = app.MapGroup("/api/v1/driver").WithTags("Driver").WithOpenApi();
+        if (requireAuth)
+        {
+            driver.RequireAuthorization(AuthorizationPolicies.JobWork);
+        }
 
-        driver.MapGet("/jobs", async (Guid driverId, IMediator m) =>
+        driver.MapGet("/jobs", async (Guid? driverId, IMediator m) =>
             Results.Ok(await m.Send(new GetJobsQuery(JobScope.Active, driverId))));
 
         driver.MapPost("/jobs/{jobId:guid}/start", async (Guid jobId, IMediator m) =>
