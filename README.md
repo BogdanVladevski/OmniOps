@@ -3,19 +3,17 @@
 > Cold-chain pharmaceutical delivery monitoring real time telemetry, excursion detection, and incident response
 
 ![.NET](https://img.shields.io/badge/.NET-9-512BD4?logo=dotnet)
-![Kafka](https://img.shields.io/badge/Apache_Kafka-231F20?logo=apachekafka)
-![Redis](https://img.shields.io/badge/Redis-DC382D?logo=redis)
 ![PostgreSQL](https://img.shields.io/badge/PostgreSQL-4169E1?logo=postgresql)
 ![React Native](https://img.shields.io/badge/React_Native-61DAFB?logo=react)
 ![SignalR](https://img.shields.io/badge/SignalR-512BD4)
 ![Docker](https://img.shields.io/badge/Docker-2496ED?logo=docker)
 ![OpenTelemetry](https://img.shields.io/badge/OpenTelemetry-000000?logo=opentelemetry)
 
-A temperature excursion during pharmaceutical transport can turn a $50 k shipment into medical waste before anyone notices. OmniOps monitors cold-chain delivery trucks in real time, detects cargo temperature excursions against per-shipment safe ranges, and fires incident response playbooks to field operatives instantly.
+A temperature excursion during pharmaceutical transport can turn a $50 k shipment into medical waste before anyone notices. OmniOps monitors cold-chain delivery trucks in real time, detects cargo temperature excursions against per-shipment safe ranges, and alerts the team the moment cargo is at risk.
 
-Telemetry flows through Apache Kafka into a .NET 9 backend (CQRS + MediatR), is persisted in PostgreSQL, cached in Redis, and streamed live to an Expo mobile client over SignalR. Each truck carries a named shipment (product, batch, value-at-risk), and every alert reads like a real cold-chain incident report.
+Telemetry is queued in-process into a .NET 9 backend (CQRS + MediatR), persisted in PostgreSQL, and streamed live to an Expo mobile client over SignalR. Each truck carries a named shipment (product, batch, value-at-risk), and every alert reads like a real cold-chain incident report.
 
-The backend uses **Clean Architecture** with four layers, environment-driven configuration, and production-style reliability patterns: transactional outbox, idempotent consumption, and a dead-letter queue.
+The backend uses **Clean Architecture** with four layers, environment-driven configuration, and production-style reliability patterns: transactional outbox, idempotent processing, and bounded retries. It runs as **one API container plus PostgreSQL** — no message broker or cache server to operate.
 
 **Deep dive:** [How a GPS packet becomes fleet intelligence →](https://bogdanvladevski.github.io/OmniOps/)
 
@@ -27,46 +25,24 @@ The backend uses **Clean Architecture** with four layers, environment-driven con
 
 ```mermaid
 flowchart LR
-    A[Simulate API] --> B[(fleet-telemetry)]
-    B --> C[Kafka Consumer]
+    A[Simulate API] --> B[In-process queue]
+    B --> C[Ingestion worker]
     C --> D[MediatR]
     D --> E[(PostgreSQL)]
-    D --> F[(Redis)]
     D --> G[SignalR Hub]
     G --> H[Expo App]
     E --> I[Outbox]
     I --> J[Outbox Worker]
-    J --> K[(fleet-telemetry-events)]
+    J --> K[Integration events]
 ```
 
-```mermaid
-sequenceDiagram
-    participant API as Simulate API
-    participant Kafka as Kafka
-    participant Worker as Kafka Consumer
-    participant App as MediatR
-    participant DB as PostgreSQL
-    participant Redis as Redis
-    participant Outbox as Outbox Worker
-    participant Hub as SignalR
-    participant Mobile as Expo App
+1. The **simulate endpoint** queues `VehicleTelemetry` packets on a bounded in-process queue.
+2. **TelemetryIngestionWorker** dispatches each one as `ProcessTelemetryCommand` via MediatR, retrying transient failures.
+3. The handler deduplicates by packet id, persists to PostgreSQL, updates the latest-telemetry cache, resolves the active shipment (`Shipment` entity), runs temperature-excursion detection, and broadcasts over SignalR.
+4. When cargo temperature leaves the shipment's `MinSafeTempCelsius`–`MaxSafeTempCelsius` range (or trends toward it), a `ReceiveAlert` is broadcast with the product, batch, excursion duration and estimated value at risk — only after the data is committed.
+5. Domain events are captured by an **EF outbox interceptor** in the same database transaction and later handed to the integration event publisher by **OutboxPublisherWorker**.
 
-    API->>Kafka: VehicleTelemetry JSON
-    Kafka->>Worker: Consume
-    Worker->>App: ProcessTelemetryCommand
-    App->>Redis: Dedup lock
-    App->>DB: Persist + domain event
-    App->>Redis: Update latest cache
-    App->>Hub: Broadcast to vehicle group
-    Hub->>Mobile: ReceiveTelemetryUpdate
-    Outbox->>Kafka: Domain events
-```
-
-1. The **simulate endpoint** (or any external producer) publishes `VehicleTelemetry` JSON to `fleet-telemetry`.
-2. **KafkaTelemetryConsumer** deserializes the message and dispatches `ProcessTelemetryCommand` via MediatR.
-3. The handler deduplicates via Redis, persists to PostgreSQL, updates the cache, resolves the active shipment (`Shipment` entity), runs temperature-excursion detection, and broadcasts over SignalR.
-4. When cargo temperature breaches the shipment's `MinSafeTempCelsius`–`MaxSafeTempCelsius` range, the **playbook service** fires a cold-chain incident response to `ReceivePlaybookInstructions` with the product name, batch number, excursion duration, and estimated value at risk.
-5. Domain events are captured by an **EF outbox interceptor** in the same database transaction and later published to `fleet-telemetry-events` by **OutboxPublisherWorker**.
+Detector state, deduplication locks and the latest-telemetry cache are held in process memory, so the API runs as a **single instance**.
 
 ---
 
@@ -75,15 +51,13 @@ sequenceDiagram
 | Area | Implementation |
 |------|----------------|
 | **Domain** | `Shipment` entity (product, batch, safe-temp range, value-at-risk) seeded for Truck-001/002/003 |
-| **Excursion detection** | Per-shipment temperature excursion check + consecutive-seconds excursion duration tracking in Redis |
-| **Incident alerts** | Playbook fires `"{Product} batch {Batch} has been outside safe range for {N}s — est. value at risk: ${Value}"` |
-| Event streaming | Kafka consumer with retry, backoff, and DLQ routing |
+| **Excursion detection** | Per-shipment temperature excursion check + excursion duration tracking per fleet and vehicle |
+| **Incident alerts** | `"{Product} batch {Batch} has been outside safe range for {N}s — est. value at risk: ${Value}"` |
+| Ingestion | Bounded in-process queue with retry for transient failures; rejected packets are logged and counted |
 | CQRS | MediatR commands, queries, logging/validation pipeline behaviours |
 | Outbox | `OutboxSaveChangesInterceptor` + polling publisher |
-| Idempotency | Redis `SET NX` per packet ID (10-minute TTL) |
-| Dead letter queue | Unparseable messages → `fleet-telemetry-dlq` |
-| Cache | Redis latest-telemetry per vehicle |
-| Playbook orchestration | SOP-referenced cold-chain incident response via SignalR |
+| Idempotency | Per-packet processing lock (10-minute TTL) |
+| Cache | In-memory latest-telemetry per vehicle |
 | Real-time | SignalR vehicle + fleet groups, camelCase JSON |
 | Observability | Serilog structured logging, OpenTelemetry tracing, Prometheus `/metrics` |
 | Mobile | Expo fleet dashboard — live map, shipment KPIs, cold-chain alerts |
@@ -95,10 +69,10 @@ sequenceDiagram
 | Method | Route | Description |
 |--------|-------|-------------|
 | `GET` | `/api/telemetry/fleet` | Latest cached telemetry for all configured fleet vehicles + summary KPIs |
-| `GET` | `/api/telemetry/{vehicleId}` | Latest cached telemetry (Redis) |
-| `POST` | `/api/test/simulate/{vehicleId}?packets=N` | Publish mock telemetry to Kafka (`N` = 1–100) |
+| `GET` | `/api/telemetry/{vehicleId}` | Latest cached telemetry |
+| `POST` | `/api/test/simulate/{vehicleId}?packets=N` | Queue mock telemetry for processing (`N` = 1–100) |
 | `GET` | `/health/live` | Liveness probe (process up) |
-| `GET` | `/health/ready` | Readiness probe (Postgres, Redis, Kafka) |
+| `GET` | `/health/ready` | Readiness probe (Postgres) |
 | `GET` | `/metrics` | Prometheus metrics (when enabled) |
 | WS | `/api/stream/telemetry` | SignalR hub |
 
@@ -110,7 +84,7 @@ sequenceDiagram
 | Client → server | `WatchVehicle(vehicleId)` | Join vehicle group (single-vehicle clients) |
 | Client → server | `UnwatchFleet()` / `UnwatchVehicle(vehicleId)` | Leave groups |
 | Server → client | `ReceiveTelemetryUpdate` | Live telemetry payload (camelCase) |
-| Server → client | `ReceivePlaybookInstructions` | Anomaly playbook response |
+| Server → client | `ReceiveAlert` | Incident and cargo-temperature alerts |
 
 The server broadcasts to both vehicle and fleet groups; the mobile app calls `WatchFleet()` only to avoid duplicate events. See [backend docs](https://bogdanvladevski.github.io/OmniOps/#mobile) for the full client bootstrap flow.
 
@@ -125,10 +99,8 @@ Default fleet vehicles: `Truck-001`, `Truck-002`, `Truck-003` (configurable via 
 | API | ASP.NET Core 9 Minimal APIs |
 | Application | MediatR (CQRS) |
 | Domain | `OmniOps.Core` |
-| Infrastructure | EF Core, Kafka, Redis, SignalR |
-| Messaging | Apache Kafka (KRaft) |
+| Infrastructure | EF Core, SignalR, hosted background workers |
 | Database | PostgreSQL 16 |
-| Cache | Redis 7 |
 | Mobile | React Native + Expo 54 |
 | Containers | Docker Compose |
 
@@ -143,14 +115,14 @@ OmniOps/
 │   │   └── Configuration/        Environment, auth, health, observability
 │   ├── OmniOps.Application/      Handlers, DTOs, behaviours
 │   ├── OmniOps.Core/             Entities, interfaces, events
-│   ├── OmniOps.Infrastructure/ Data, Kafka workers, Redis, hubs
+│   ├── OmniOps.Infrastructure/ Data, background workers, hubs
 │   └── OmniOps.sln
 ├── frontend/             Expo mobile app
 │   ├── components/       FleetMap, FleetDashboard, AlertsFeed
 │   ├── contexts/         FleetContext (SignalR + REST snapshot)
 │   └── utils/            fleetConfig, layout
 ├── docs/                 GitHub Pages pipeline deep-dive
-├── infra/docker-compose.yml      Postgres, Redis, Kafka
+├── infra/docker-compose.yml      Postgres + API
 ├── scripts/                      Dev utilities (e.g. dotnet-install.sh)
 ├── .env.example                  Backend environment template
 └── DEV-SETUP.md                  Setup guide
@@ -175,11 +147,8 @@ Copy `.env.example` to `.env` at the **repository root** for the backend and Doc
 | Variable | Description |
 |----------|-------------|
 | `DB_CONNECTION_STRING` | Npgsql connection string (`Host=…;Port=…;Database=…;Username=…;Password=…`) |
-| `REDIS_CONNECTION_STRING` | Redis connection string |
-| `KAFKA_BOOTSTRAP_SERVERS` | Kafka broker (`127.0.0.1:9092`) |
-| `KAFKA_MAIN_TOPIC` | Ingestion topic (`fleet-telemetry`) |
-| `KAFKA_EVENTS_TOPIC` | Outbox events topic (`fleet-telemetry-events`) |
-| `KAFKA_DLQ_TOPIC` | Dead-letter topic (`fleet-telemetry-dlq`) |
+| `INGESTION_QUEUE_CAPACITY` | Max queued telemetry packets (default `10000`) |
+| `INGESTION_RETRY_MAX_ATTEMPTS` | Retries for transient processing failures (default `3`) |
 | `ALLOWED_CORS_ORIGINS` | Comma-separated origins (production) |
 
 For the mobile app, copy `frontend/.env.example` to `frontend/.env`:
@@ -234,10 +203,10 @@ The backend includes two test projects under `backend/`:
 | Project | Type | Focus |
 |---------|------|--------|
 | `OmniOps.Application.Tests` | Unit (xUnit + NSubstitute) | MediatR handlers — dedup, persistence, anomaly, cache/query |
-| `OmniOps.Infrastructure.Tests` | Integration (Testcontainers) | Outbox interceptor, Redis idempotency, payload parser, Kafka wiring |
+| `OmniOps.Infrastructure.Tests` | Unit + integration (Testcontainers) | Outbox interceptor, ingestion retries, deduplication, excursion detection, payload parser |
 | `OmniOps.Api.Tests` | Unit (xUnit) | JWT token service, scope authorization handler |
 
-**Prerequisites:** Docker Desktop must be running (Testcontainers starts ephemeral Postgres, Redis, and Kafka).
+**Prerequisites:** Docker Desktop must be running (Testcontainers starts an ephemeral Postgres).
 
 ```powershell
 cd backend
@@ -253,10 +222,7 @@ Parser-only and handler unit tests run without external services. Integration te
 | Service | Image | Host port |
 |---------|-------|-----------|
 | PostgreSQL | `postgres:16-alpine` | `5433` |
-| Redis | `redis:7-alpine` | `6379` |
-| Kafka | `apache/kafka:latest` | `9092` |
-
-Kafka uses **KRaft** (no Zookeeper).
+| API | `omniops-api:local` (built from `backend/Dockerfile`) | `5031` |
 
 ---
 
@@ -266,24 +232,16 @@ Kafka uses **KRaft** (no Zookeeper).
 |-----------|-----------------|--------|
 | Serilog | Console output | Structured logs with request logging |
 | Prometheus scrape | `GET http://localhost:5031/metrics` | HTTP + runtime + custom telemetry counters |
-| Prometheus UI | `http://localhost:9090` | Metrics store (observability compose) |
-| Grafana | `http://localhost:3000` | Dashboards (`admin` / `admin` by default) |
-
-Start the observability stack (API must be running on the host so Prometheus can scrape `host.docker.internal:5031`):
-
-```powershell
-docker compose -f infra/docker-compose.observability.yml up -d
-```
 
 Custom metrics (meter `OmniOps.Telemetry`):
 
 | Metric | Description |
 |--------|-------------|
 | `telemetry.processed` | Packets persisted and broadcast |
-| `telemetry.duplicate_skipped` | Redis dedup skips |
-| `telemetry.anomaly_detected` | Anomaly playbook triggers |
-| `kafka.dlq_routed` | Messages sent to DLQ |
-| `simulate.packets_published` | Simulate endpoint Kafka publishes |
+| `telemetry.duplicate_skipped` | Duplicate packets skipped |
+| `telemetry.anomaly_detected` | Cargo-temperature alerts raised |
+| `telemetry.rejected` | Packets rejected (validation or exhausted retries) |
+| `simulate.packets_published` | Packets queued by the simulate endpoint |
 
 Set `PROMETHEUS_METRICS_ENABLED=false` to disable the `/metrics` endpoint. Set `SERILOG_MINIMUM_LEVEL=Debug` for verbose logs.
 
@@ -303,9 +261,9 @@ Set `PROMETHEUS_METRICS_ENABLED=false` to disable the `/metrics` endpoint. Set `
 
 ## Roadmap
 
-**Done:** Cold-chain domain model (`Shipment` entity + migrations + seed), per-shipment excursion detection, cold-chain incident playbooks, OpenTelemetry, Serilog, Prometheus/Grafana observability stack, transactional outbox, DLQ, Redis dedup, unit/integration test suite, GitHub Actions CI, JWT auth + hub authorization, simulate rate limiting, FluentValidation, Polly Kafka resilience, health checks, Expo fleet dashboard (map + shipment KPIs + cold-chain alerts)
+**Done:** Cold-chain domain model, per-shipment excursion detection, transactional outbox, idempotent processing, JWT auth + hub authorization, rate limiting, FluentValidation, health checks, OpenTelemetry + Prometheus metrics, Expo map-first app, single-container deployment (Postgres only)
 
-**Planned (Phase 2–6):** Adaptive per-shipment anomaly baselines, incident replay / black-box viewer, RAG-generated incident narratives from playbook SOPs, scripted scenario injector for demos, full portfolio polish pass
+**Next:** Driver mode with phone GPS, customer tracking links, proof of delivery, photo temperature log, invoicing and payment reminders
 
 ---
 

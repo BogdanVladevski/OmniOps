@@ -16,9 +16,8 @@ import { demoApi } from '../utils/api';
 import { radius, spacing, typography } from '../theme/tokens';
 
 const TAB_ROUTES = [
-  { id: 'overview', label: 'Overview', tab: 'Overview', keywords: 'dashboard kpi executive shipments home' },
-  { id: 'map', label: 'Live map', tab: 'Map', keywords: 'map live tracking' },
-  { id: 'fleet', label: 'Fleet management', tab: 'Fleet', keywords: 'vehicles drivers assign copilot' },
+  { id: 'live', label: 'Live map and shipments', tab: 'Live', keywords: 'map live tracking shipments home overview' },
+  { id: 'fleet', label: 'Fleet management', tab: 'Fleet', keywords: 'vehicles drivers assign' },
   { id: 'analytics', label: 'Analytics', tab: 'Analytics', keywords: 'predictions safety trends' },
   { id: 'alerts', label: 'Alerts', tab: 'Alerts', keywords: 'incidents playbook' },
   { id: 'admin', label: 'Admin', tab: 'Admin', keywords: 'api keys audit logs' },
@@ -68,7 +67,7 @@ export default function CommandPalette({ visible, onClose, navigationRef, onAbou
         onClose();
       } else if (item.action === 'vehicle') {
         setSelectedVehicleId(item.vehicleId);
-        navigationRef?.current?.navigate('Map');
+        navigationRef?.current?.navigate('Live');
         onClose();
       } else if (item.action === 'refresh') {
         await refreshFleetMeta();

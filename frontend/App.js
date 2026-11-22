@@ -11,8 +11,7 @@ import OnboardingWizard, { useOnboarding } from './components/OnboardingWizard';
 import CommandPalette from './components/CommandPalette';
 import AboutModal from './components/AboutModal';
 import AppNav, { TAB_META } from './components/AppNav';
-import Overview from './components/Overview';
-import FleetMap from './components/FleetMap';
+import LiveView from './components/LiveView';
 import FleetManagement from './components/FleetManagement';
 import AnalyticsPanel from './components/AnalyticsPanel';
 import AlertsFeed from './components/AlertsFeed';
@@ -29,16 +28,15 @@ function Navigator({ onSearch }) {
 
   return (
     <Tab.Navigator
-      initialRouteName="Overview"
+      initialRouteName="Live"
       tabBar={(props) => <AppNav {...props} onSearch={onSearch} alertCount={criticalCount} />}
       screenOptions={({ route }) => ({
         headerShown: false,
-        tabBarPosition: isWide ? 'left' : 'bottom',
+        tabBarPosition: isWide ? 'top' : 'bottom',
         title: `${TAB_META[route.name]?.label ?? route.name} · OmniOps`,
       })}
     >
-      <Tab.Screen name="Overview" component={Overview} />
-      <Tab.Screen name="Map" component={FleetMap} />
+      <Tab.Screen name="Live" component={LiveView} />
       <Tab.Screen name="Alerts" component={AlertsFeed} />
       <Tab.Screen name="Analytics" component={AnalyticsPanel} />
       <Tab.Screen name="Fleet" component={FleetManagement} />

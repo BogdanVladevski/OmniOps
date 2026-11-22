@@ -28,8 +28,7 @@ public static partial class ServiceRegistration
                 .AddHttpClientInstrumentation()
                 .AddEntityFrameworkCoreInstrumentation()
                 .AddSource("OmniOps.Api.Simulator")
-                .AddSource("OmniOps.Infrastructure.TelemetryConsumer")
-                .AddSource("OmniOps.Infrastructure.Kafka");
+                .AddSource("OmniOps.Infrastructure.TelemetryIngestion");
 
             if (builder.Environment.IsDevelopment())
             {

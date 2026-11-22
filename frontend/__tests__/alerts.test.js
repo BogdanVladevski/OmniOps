@@ -11,6 +11,10 @@ describe('alertMeta', () => {
     expect(alertMeta({ alertType: 'TemperatureExcursion' }).severity).toBe('critical');
   });
 
+  it('treats a rising cargo temperature as a warning, not critical', () => {
+    expect(alertMeta({ alertType: 'TemperatureTrend' }).severity).toBe('warning');
+  });
+
   it('treats zone entry/exit as informational', () => {
     expect(alertMeta({ alertType: 'GeofenceBreach' }).severity).toBe('info');
   });

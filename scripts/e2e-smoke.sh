@@ -47,7 +47,6 @@ TO=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 check "Fleet analytics" GET "/api/analytics/fleet/$FLEET_ID?fromUtc=$FROM&toUtc=$TO"
 check "Operational analytics" GET "/api/analytics/operational/$FLEET_ID?fromUtc=$FROM&toUtc=$TO"
 check "Vehicle health" GET "/api/predictions/vehicles/$VEHICLE_ID/health"
-check "Copilot" POST "/api/copilot/ask" "{\"question\":\"Fleet status?\",\"fleetId\":\"$FLEET_ID\"}"
 check "Tenant workspaces" GET "/api/v1/tenant/organizations/01000000-0000-0000-0000-000000000001/workspaces"
 check "Admin audit logs" GET "/api/v1/admin/audit-logs"
 check "Mobile sync" GET "/api/v1/mobile/sync"

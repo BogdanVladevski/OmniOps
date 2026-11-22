@@ -142,7 +142,6 @@ export function FleetProvider({ children }) {
       .build();
 
     connection.on('ReceiveTelemetryUpdate', mergeTelemetry);
-    connection.on('ReceivePlaybookInstructions', appendAlert);
     connection.on('ReceiveAlert', appendAlert);
     let cancelled = false;
 
@@ -187,7 +186,6 @@ export function FleetProvider({ children }) {
     return () => {
       cancelled = true;
       connection.off('ReceiveTelemetryUpdate', mergeTelemetry);
-      connection.off('ReceivePlaybookInstructions', appendAlert);
       connection.off('ReceiveAlert', appendAlert);
       connection.stop();
     };

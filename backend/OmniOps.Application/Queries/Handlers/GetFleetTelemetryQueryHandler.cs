@@ -55,7 +55,7 @@ public class GetFleetTelemetryQueryHandler : IRequestHandler<GetFleetTelemetryQu
 
                 if (shipment is not null)
                 {
-                    // ExcursionDurationSeconds is not tracked here (Redis anomaly service owns that);
+                    // ExcursionDurationSeconds is not tracked here (the anomaly detection service owns that);
                     // we set it to 0 in the fleet snapshot — the live value comes via SignalR alerts.
                     shipmentInfo = new ShipmentInfoDto
                     {

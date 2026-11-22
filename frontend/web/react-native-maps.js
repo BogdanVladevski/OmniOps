@@ -1,62 +1,146 @@
-// Web stand-in for react-native-maps, which only supports iOS/Android.
-// Selected by metro.config.js for web builds only; native builds use the real library.
-// Renders a map placeholder with one pill per marker so the rest of the app is usable in a browser.
-import React, { forwardRef, useImperativeHandle } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+// Web implementation of the react-native-maps API subset OmniOps uses, backed by Leaflet.
+// Selected by metro.config.js for web builds only; iOS/Android use the real react-native-maps.
+//
+// Tiles: OpenStreetMap standard tiles (no key) and Esri World Imagery for satellite. Both are fine for
+// development and demos; production traffic needs a tile plan (OSM's public servers forbid heavy use).
+import 'leaflet/dist/leaflet.css';
+import React, { forwardRef, useImperativeHandle, useState } from 'react';
+import { View } from 'react-native';
+import L from 'leaflet';
+import {
+  Circle as LCircle,
+  MapContainer,
+  Marker as LMarker,
+  Polygon as LPolygon,
+  Polyline as LPolyline,
+  TileLayer,
+  Tooltip,
+} from 'react-leaflet';
 
-const MapView = forwardRef(function MapView({ style, children }, ref) {
-  // Native-only camera methods become no-ops on web.
+const ATTR_OSM = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
+const TILES = {
+  street: { url: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png', attribution: ATTR_OSM },
+  satellite: {
+    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    attribution: 'Imagery &copy; Esri',
+  },
+  labels: {
+    url: 'https://server.arcgisonline.com/ArcGIS/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}',
+    attribution: 'Labels &copy; Esri',
+  },
+};
+
+// Dark mode: OSM has no free dark style, so dim and invert the street tiles with CSS.
+if (typeof document !== 'undefined' && !document.getElementById('omniops-map-css')) {
+  const el = document.createElement('style');
+  el.id = 'omniops-map-css';
+  el.textContent = '.omniops-dark-tiles{filter:invert(1) hue-rotate(180deg) brightness(.9) contrast(.9) saturate(.6)}'
+    + '.omniops-light-tiles{filter:saturate(.55) contrast(.95)}';
+  document.head.appendChild(el);
+}
+
+const toLatLng = (c) => [c.latitude, c.longitude];
+const zoomFor = (region) =>
+  region?.longitudeDelta ? Math.max(2, Math.min(18, Math.round(Math.log2(360 / region.longitudeDelta)))) : 12;
+
+const MapView = forwardRef(function MapView(
+  { style, initialRegion, mapType = 'standard', userInterfaceStyle, children },
+  ref,
+) {
+  const [map, setMap] = useState(null);
+
   useImperativeHandle(ref, () => ({
-    animateToRegion() {},
-    animateCamera() {},
-    fitToCoordinates() {},
-  }));
+    animateToRegion(region, duration = 800) {
+      map?.flyTo([region.latitude, region.longitude], zoomFor(region), { duration: duration / 1000 });
+    },
+    animateCamera({ center, zoom } = {}) {
+      if (center) map?.flyTo([center.latitude, center.longitude], zoom ?? map.getZoom());
+    },
+    fitToCoordinates(coords = [], { edgePadding } = {}) {
+      if (!map || coords.length === 0) return;
+      const pad = edgePadding ? Math.max(edgePadding.top ?? 0, edgePadding.left ?? 0) : 40;
+      map.fitBounds(L.latLngBounds(coords.map(toLatLng)), { padding: [pad, pad] });
+    },
+  }), [map]);
+
+  const center = initialRegion ? [initialRegion.latitude, initialRegion.longitude] : [41.9965, 21.4314];
+  const imagery = mapType === 'satellite' || mapType === 'hybrid';
+  const base = imagery ? TILES.satellite : TILES.street;
+  const tileClass = imagery ? undefined : userInterfaceStyle === 'dark' ? 'omniops-dark-tiles' : 'omniops-light-tiles';
 
   return (
-    <View style={[styles.map, style]}>
-      <View style={styles.markers}>{children}</View>
-      <Text style={styles.caption}>Browser preview · the interactive map runs in the OmniOps mobile app</Text>
+    <View style={style}>
+      <MapContainer
+        ref={setMap}
+        center={center}
+        zoom={zoomFor(initialRegion)}
+        zoomControl={false}
+        attributionControl
+        style={{ height: '100%', width: '100%', background: userInterfaceStyle === 'dark' ? '#1b1d21' : '#eef0f2' }}
+      >
+        <TileLayer key={`${base.url}|${tileClass}`} url={base.url} attribution={base.attribution} className={tileClass} />
+        {mapType === 'hybrid' ? <TileLayer url={TILES.labels.url} attribution={TILES.labels.attribution} /> : null}
+        {children}
+      </MapContainer>
     </View>
   );
 });
 
-export function Marker({ title, description, pinColor, coordinate }) {
+function pinIcon(color = '#1f6feb', selected = false) {
+  const size = selected ? 18 : 14;
+  return L.divIcon({
+    className: '',
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
+    html: `<div style="width:${size}px;height:${size}px;border-radius:50%;background:${color};border:2.5px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.35)"></div>`,
+  });
+}
+
+export function Marker({ coordinate, title, description, pinColor, onPress, opacity = 1 }) {
+  if (!coordinate) return null;
   return (
-    <View style={[styles.marker, { borderColor: pinColor || '#4b8bf4' }]}>
-      <View style={[styles.dot, { backgroundColor: pinColor || '#4b8bf4' }]} />
-      <View>
-        <Text style={styles.markerTitle}>{title}</Text>
-        {description ? <Text style={styles.markerText}>{description}</Text> : null}
-        {coordinate ? (
-          <Text style={styles.markerText}>
-            {coordinate.latitude.toFixed(4)}, {coordinate.longitude.toFixed(4)}
-          </Text>
-        ) : null}
-      </View>
-    </View>
+    <LMarker
+      position={toLatLng(coordinate)}
+      icon={pinIcon(pinColor, opacity >= 1)}
+      opacity={opacity}
+      eventHandlers={onPress ? { click: () => onPress() } : undefined}
+    >
+      {title ? (
+        <Tooltip direction="top" offset={[0, -8]}>
+          <strong>{title}</strong>
+          {description ? <div>{description}</div> : null}
+        </Tooltip>
+      ) : null}
+    </LMarker>
   );
 }
 
-const Noop = () => null;
-export const Circle = Noop;
-export const Polygon = Noop;
-export const Polyline = Noop;
-export const Callout = Noop;
+export function Circle({ center, radius, strokeColor, fillColor, strokeWidth = 1.5 }) {
+  if (!center) return null;
+  return (
+    <LCircle
+      center={toLatLng(center)}
+      radius={radius}
+      pathOptions={{ color: strokeColor, fillColor, fillOpacity: 1, weight: strokeWidth }}
+    />
+  );
+}
+
+export function Polygon({ coordinates = [], strokeColor, fillColor, strokeWidth = 1.5 }) {
+  return (
+    <LPolygon
+      positions={coordinates.map(toLatLng)}
+      pathOptions={{ color: strokeColor, fillColor, fillOpacity: 1, weight: strokeWidth }}
+    />
+  );
+}
+
+export function Polyline({ coordinates = [], strokeColor = '#1f6feb', strokeWidth = 3 }) {
+  return <LPolyline positions={coordinates.map(toLatLng)} pathOptions={{ color: strokeColor, weight: strokeWidth }} />;
+}
+
+export const Callout = () => null;
 export const PROVIDER_DEFAULT = null;
 export const PROVIDER_GOOGLE = 'google';
 
 export default MapView;
-
-const styles = StyleSheet.create({
-  // Top padding keeps marker cards clear of the floating controls drawn over the map.
-  map: { backgroundColor: '#13233A', paddingHorizontal: 16, paddingTop: 128, paddingBottom: 16 },
-  caption: { color: '#7F93AE', fontSize: 12, marginTop: 16 },
-  markers: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  marker: {
-    flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderRadius: 12,
-    paddingVertical: 8, paddingHorizontal: 12, backgroundColor: '#1C2F4A',
-  },
-  dot: { width: 10, height: 10, borderRadius: 5 },
-  markerTitle: { color: '#ffffff', fontWeight: '600', fontSize: 13 },
-  markerText: { color: '#9fb3c8', fontSize: 11 },
-});

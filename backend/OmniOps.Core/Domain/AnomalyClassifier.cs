@@ -4,7 +4,7 @@ namespace OmniOps.Core.Domain;
 
 /// <summary>
 /// Pure functions for excursion severity classification and trend detection.
-/// No Redis, no I/O — split out so we can unit test the math without spinning up infrastructure.
+/// No I/O — split out so we can unit test the math without spinning up infrastructure.
 /// </summary>
 public static class AnomalyClassifier
 {

@@ -13,8 +13,6 @@
 **/.idea
 **/coverage
 **/*.md
-!docs/deployment-kubernetes.md
 .env
 frontend/
-infra/observability/
 scripts/

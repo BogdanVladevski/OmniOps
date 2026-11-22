@@ -12,14 +12,9 @@ using OmniOps.Infrastructure.Configuration;
 using OmniOps.Infrastructure.Data;
 using OmniOps.Infrastructure.Data.Interceptors;
 using OmniOps.Infrastructure.Services;
-using OmniOps.Infrastructure.Services.Rag;
 using OmniOps.Core.Interfaces;
-using StackExchange.Redis;
-using Confluent.Kafka;
-using Confluent.Kafka.Admin;
 using Npgsql;
 using OmniOps.Infrastructure.Observability;
-using Serilog;
 
 namespace OmniOps.Api;
 
@@ -28,7 +23,6 @@ public static partial class ServiceRegistration
     public static void ConfigureServices(WebApplicationBuilder builder)
     {
         builder.Services.AddInfrastructure(builder.Configuration);
-        builder.Services.AddKafkaResilience();
 
         // Connection settings are resolved from IOptions at service-creation time, not read from
         // builder.Configuration here: configuration sources added later (e.g. WebApplicationFactory
@@ -42,21 +36,16 @@ public static partial class ServiceRegistration
         builder.Services.AddSingleton<OutboxSaveChangesInterceptor>();
         builder.Services.AddSingleton<ICorrelationContext, CorrelationContext>();
 
-        builder.Services.AddStackExchangeRedisCache(_ => { });
-        builder.Services
-            .AddOptions<Microsoft.Extensions.Caching.StackExchangeRedis.RedisCacheOptions>()
-            .Configure<IOptions<RedisOptions>>((cache, redis) =>
-            {
-                cache.Configuration = redis.Value.ResolveConnectionString();
-                cache.InstanceName = redis.Value.InstanceName;
-            });
+        // Single-instance deployment: caches and per-vehicle detector state live in process memory.
+        builder.Services.AddDistributedMemoryCache();
+        builder.Services.AddSingleton(TimeProvider.System);
 
-        builder.Services.AddSingleton<IConnectionMultiplexer>(sp =>
-            ConnectionMultiplexer.Connect(ResolveRedisConnectionString(sp)));
-
-        builder.Services.AddTransient<ITelemetryCacheService, RedisTelemetryCacheService>();
-        builder.Services.AddTransient<IAnomalyDetectionService, RedisAnomalyDetectionService>();
-        builder.Services.AddTransient<IDeduplicationService, RedisDeduplicationService>();
+        builder.Services.AddTransient<ITelemetryCacheService, TelemetryCacheService>();
+        builder.Services.AddSingleton<IAnomalyDetectionService, InMemoryAnomalyDetectionService>();
+        builder.Services.AddSingleton<IDeduplicationService>(sp => new InMemoryDeduplicationService(sp.GetRequiredService<TimeProvider>()));
+        builder.Services.AddSingleton<ChannelTelemetryIngestionQueue>();
+        builder.Services.AddSingleton<ITelemetryIngestionQueue>(sp => sp.GetRequiredService<ChannelTelemetryIngestionQueue>());
+        builder.Services.AddSingleton<IIntegrationEventPublisher, LoggingIntegrationEventPublisher>();
         builder.Services.AddTransient<ITelemetryRepository, TelemetryRepository>();
         builder.Services.AddTransient<IShipmentRepository, ShipmentRepository>();
         builder.Services.AddTransient<IFleetRepository, FleetRepository>();
@@ -74,7 +63,6 @@ public static partial class ServiceRegistration
         builder.Services.AddTransient<IFleetAnalyticsService, FleetAnalyticsService>();
         builder.Services.AddTransient<IPredictionService, HeuristicPredictionService>();
         builder.Services.AddTransient<IAuditService, AuditService>();
-        builder.Services.AddHttpClient<IFleetCopilotService, FleetCopilotService>();
         builder.Services.AddTransient<IGeofenceDetectionService, GeofenceDetectionService>();
         builder.Services.AddHttpContextAccessor();
         builder.Services.AddTransient<IAuthorizationEnforcer, AuthorizationEnforcer>();
@@ -93,8 +81,6 @@ public static partial class ServiceRegistration
         builder.Services.AddTransient<ILoginHistoryService, LoginHistoryService>();
         builder.Services.AddTransient<ITelemetryBroadcastService, SignalRTelemetryBroadcastService>();
         builder.Services.AddTransient<ITelemetrySimulatorService, TelemetrySimulatorService>();
-        builder.Services.AddTransient<IPlaybookOrchestrationService, PlaybookOrchestrationService>();
-        ConfigureIncidentNarrativeRag(builder);
         builder.Services.AddSingleton<ITelemetryMetrics, TelemetryMetrics>();
         builder.Services.AddSingleton<IFleetVehicleRegistry, FleetVehicleRegistry>();
 
@@ -109,8 +95,8 @@ public static partial class ServiceRegistration
 
         builder.Services.AddValidatorsFromAssemblyContaining<ProcessTelemetryCommandValidator>();
 
-        builder.Services.AddSingleton<KafkaTelemetryMessageProcessor>();
-        builder.Services.AddHostedService<KafkaTelemetryConsumer>();
+        builder.Services.AddSingleton<TelemetryMessageProcessor>();
+        builder.Services.AddHostedService<TelemetryIngestionWorker>();
         builder.Services.AddHostedService<OutboxPublisherWorker>();
         builder.Services.AddHostedService<NotificationDeliveryWorker>();
         builder.Services.AddSignalR()
@@ -125,27 +111,7 @@ public static partial class ServiceRegistration
         ConfigureAuthentication(builder);
         ConfigureRateLimiting(builder);
         ConfigureHealthChecks(builder);
-        ConfigureKafkaProducer(builder);
         ConfigureObservability(builder);
-    }
-
-    private static void ConfigureIncidentNarrativeRag(WebApplicationBuilder builder)
-    {
-        var llmOptions = builder.Configuration
-            .GetSection(LlmOptions.SectionName)
-            .Get<LlmOptions>() ?? new LlmOptions();
-
-        var playbooksDirectory = Path.IsPathRooted(llmOptions.PlaybooksDirectory)
-            ? llmOptions.PlaybooksDirectory
-            : Path.Combine(builder.Environment.ContentRootPath, "..", "..", llmOptions.PlaybooksDirectory);
-
-        builder.Services.AddSingleton(sp => new PlaybookLoader(
-            playbooksDirectory,
-            sp.GetRequiredService<ILogger<PlaybookLoader>>()));
-
-        builder.Services.AddSingleton<IPlaybookRetrievalService, KeywordPlaybookRetrievalService>();
-
-        builder.Services.AddHttpClient<IIncidentNarrativeService, OpenAiIncidentNarrativeService>();
     }
 
     private static void ConfigureCors(WebApplicationBuilder builder)
@@ -178,63 +144,6 @@ public static partial class ServiceRegistration
 
     internal static string ResolveDatabaseConnectionString(IServiceProvider sp) =>
         EnvironmentConfiguration.ResolveConnectionString(sp.GetRequiredService<IOptions<DatabaseOptions>>().Value);
-
-    internal static string ResolveRedisConnectionString(IServiceProvider sp) =>
-        sp.GetRequiredService<IOptions<RedisOptions>>().Value.ResolveConnectionString();
-
-    private static void ConfigureKafkaProducer(WebApplicationBuilder builder)
-    {
-        builder.Services.AddSingleton<IProducer<Null, string>>(sp =>
-        {
-            var kafkaOptions = sp.GetRequiredService<IOptions<KafkaOptions>>().Value;
-            var producerConfig = new ProducerConfig
-            {
-                BootstrapServers = kafkaOptions.BootstrapServers,
-                Acks = Acks.All,
-                AllowAutoCreateTopics = true
-            };
-            return new ProducerBuilder<Null, string>(producerConfig).Build();
-        });
-    }
-
-    /// <summary>Creates Kafka topics after the host is built, using the final configuration.</summary>
-    public static void EnsureKafkaTopicsExist(WebApplication app)
-    {
-        var kafkaOptions = app.Services.GetRequiredService<IOptions<KafkaOptions>>().Value;
-        var adminConfig = new AdminClientConfig { BootstrapServers = kafkaOptions.BootstrapServers };
-
-        try
-        {
-            using var adminClient = new AdminClientBuilder(adminConfig).Build();
-            adminClient.CreateTopicsAsync([
-                new TopicSpecification
-                {
-                    Name = kafkaOptions.Topic,
-                    NumPartitions = 1,
-                    ReplicationFactor = 1
-                },
-                new TopicSpecification
-                {
-                    Name = kafkaOptions.DlqTopic,
-                    NumPartitions = 1,
-                    ReplicationFactor = 1
-                },
-                new TopicSpecification
-                {
-                    Name = kafkaOptions.EventsTopic,
-                    NumPartitions = 1,
-                    ReplicationFactor = 1
-                }
-            ]).GetAwaiter().GetResult();
-        }
-        catch (CreateTopicsException e) when (e.Results.Any(r => r.Error.Code == ErrorCode.TopicAlreadyExists))
-        {
-        }
-        catch (Exception ex)
-        {
-            Log.Warning(ex, "Failed to create Kafka topics on startup: {Message}", ex.Message);
-        }
-    }
 
     public static async Task MigrateDatabaseAsync(WebApplication app)
     {

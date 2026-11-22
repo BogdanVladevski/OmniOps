@@ -40,13 +40,6 @@ public class FleetWorkflowRegressionTests(OmniOpsApiFixture fixture)
             $"/api/analytics/fleet/{DefaultFleetId}?fromUtc={from:O}&toUtc={to:O}");
         analytics.EnsureSuccessStatusCode();
 
-        var copilot = await fixture.Client.PostAsJsonAsync("/api/copilot/ask", new
-        {
-            question = "Summarize fleet risk",
-            fleetId = DefaultFleetId,
-        });
-        copilot.EnsureSuccessStatusCode();
-
         var sync = await fixture.Client.GetAsync("/api/v1/mobile/sync");
         sync.EnsureSuccessStatusCode();
     }

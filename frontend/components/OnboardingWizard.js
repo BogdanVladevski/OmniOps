@@ -120,9 +120,7 @@ export default function OnboardingWizard({ visible, onComplete }) {
     <Modal visible={visible} animationType="slide" presentationStyle="fullScreen">
       <View style={[styles.root, { backgroundColor: colors.background, paddingTop: insets.top + spacing.lg }]}>
         <ScrollView contentContainerStyle={styles.content}>
-          <View style={[styles.heroIcon, { backgroundColor: colors.accentMuted }]}>
-            <Ionicons name={current.icon} size={40} color={colors.accentStrong} />
-          </View>
+          <Ionicons name={current.icon} size={44} color={colors.text} style={styles.heroIcon} />
           <Text style={[styles.title, { color: colors.text }]}>{current.title}</Text>
           <Text style={[styles.body, { color: colors.textSecondary }]}>{current.body}</Text>
 
@@ -196,7 +194,7 @@ export default function OnboardingWizard({ visible, onComplete }) {
 const styles = StyleSheet.create({
   root: { flex: 1 },
   content: { paddingHorizontal: spacing.xl, paddingBottom: spacing.xl, width: '100%', maxWidth: 560, alignSelf: 'center' },
-  heroIcon: { width: 88, height: 88, borderRadius: 28, alignItems: 'center', justifyContent: 'center', alignSelf: 'center', marginBottom: spacing.xl },
+  heroIcon: { alignSelf: 'center', marginBottom: spacing.xl },
   title: { ...typography.headline, textAlign: 'center', marginBottom: spacing.md },
   body: { ...typography.body, textAlign: 'center', marginBottom: spacing.xl },
   card: {

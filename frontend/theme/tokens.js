@@ -1,6 +1,6 @@
-// OmniOps design tokens — one source for spacing, type, colour and elevation.
-// Palette: deep "ink" neutrals with an icy teal brand colour (cold chain), plus clear semantic
-// colours so status is readable at a glance: critical (red), warning (amber), ok (green), info (blue).
+// OmniOps design tokens.
+// Direction: map-first and quiet. Neutral greys carry the interface; colour is reserved for status
+// (red = cargo at risk, amber = needs a look, green = fine) and one blue for selection and links.
 
 export const spacing = {
   xxs: 2,
@@ -14,118 +14,109 @@ export const spacing = {
 };
 
 export const radius = {
-  sm: 8,
-  md: 12,
-  lg: 16,
-  xl: 22,
+  sm: 6,
+  md: 10,
+  lg: 14,
+  xl: 20,
   pill: 999,
 };
 
+const tabular = { fontVariant: ['tabular-nums'] };
+
 export const typography = {
-  overline: { fontSize: 11, fontWeight: '700', lineHeight: 14, letterSpacing: 0.8, textTransform: 'uppercase' },
-  caption: { fontSize: 12, fontWeight: '500', lineHeight: 16 },
-  body: { fontSize: 14, fontWeight: '400', lineHeight: 21 },
-  bodyStrong: { fontSize: 14, fontWeight: '600', lineHeight: 21 },
-  title: { fontSize: 17, fontWeight: '700', lineHeight: 23 },
-  headline: { fontSize: 26, fontWeight: '800', lineHeight: 32, letterSpacing: -0.4 },
-  display: { fontSize: 34, fontWeight: '800', lineHeight: 40, letterSpacing: -0.8 },
-  metric: { fontSize: 28, fontWeight: '800', lineHeight: 34, letterSpacing: -0.5 },
-  label: { fontSize: 12, fontWeight: '600', lineHeight: 16, letterSpacing: 0.2 },
+  caption: { fontSize: 12, fontWeight: '400', lineHeight: 16 },
+  label: { fontSize: 13, fontWeight: '500', lineHeight: 18 },
+  body: { fontSize: 15, fontWeight: '400', lineHeight: 21 },
+  bodyStrong: { fontSize: 15, fontWeight: '600', lineHeight: 21 },
+  title: { fontSize: 17, fontWeight: '600', lineHeight: 22, letterSpacing: -0.2 },
+  headline: { fontSize: 24, fontWeight: '700', lineHeight: 30, letterSpacing: -0.5 },
+  display: { fontSize: 30, fontWeight: '700', lineHeight: 36, letterSpacing: -0.8 },
+  metric: { fontSize: 26, fontWeight: '600', lineHeight: 32, letterSpacing: -0.6, ...tabular },
+  reading: { fontSize: 44, fontWeight: '600', lineHeight: 50, letterSpacing: -1.5, ...tabular },
+  number: { fontSize: 17, fontWeight: '600', lineHeight: 22, ...tabular },
+  // Kept for older call sites; sentence case, not shouty.
+  overline: { fontSize: 12, fontWeight: '500', lineHeight: 16 },
 };
 
 export const breakpoints = {
   tablet: 768,
-  wide: 1024, // sidebar navigation from here up
+  wide: 1024,
   desktop: 1280,
-};
-
-const semanticLight = {
-  critical: '#E5484D',
-  criticalSoft: '#FDECEC',
-  warning: '#D97706',
-  warningSoft: '#FEF3E2',
-  ok: '#16A34A',
-  okSoft: '#E7F6EC',
-  info: '#3B82F6',
-  infoSoft: '#E8F0FE',
-};
-
-const semanticDark = {
-  critical: '#FF6369',
-  criticalSoft: '#3A1D21',
-  warning: '#F5A524',
-  warningSoft: '#3A2C14',
-  ok: '#3DD68C',
-  okSoft: '#16322A',
-  info: '#70A5FF',
-  infoSoft: '#18284A',
 };
 
 export const lightPalette = {
   mode: 'light',
-  background: '#F4F6FA',
+  background: '#F5F5F3',
   card: '#FFFFFF',
   elevated: '#FFFFFF',
-  sunken: '#EEF1F6',
-  sidebar: '#0F1B2D',
-  sidebarText: '#C9D4E5',
-  sidebarActive: '#1C2D47',
-  text: '#0F1B2D',
-  textSecondary: '#4A5A70',
-  muted: '#7C8AA0',
-  accent: '#0EA5B7',
-  accentStrong: '#0B8494',
-  accentMuted: '#E2F6F8',
+  sunken: '#EFEFEC',
+  text: '#16181D',
+  textSecondary: '#545A66',
+  muted: '#8A8F99',
+  border: '#E4E4E0',
+  accent: '#2E5BDB',
+  accentStrong: '#2E5BDB',
+  accentMuted: '#EAF0FD',
+  primary: '#16181D',
+  onPrimary: '#FFFFFF',
   onAccent: '#FFFFFF',
-  border: '#E3E8F0',
-  skeleton: '#E6EAF1',
-  overlay: 'rgba(15,27,45,0.55)',
-  ...semanticLight,
-  danger: semanticLight.critical,
-  success: semanticLight.ok,
+  critical: '#C8322B',
+  criticalSoft: '#FBEDEC',
+  warning: '#A85C0A',
+  warningSoft: '#FBF1E4',
+  ok: '#1C7A45',
+  okSoft: '#EAF5EE',
+  info: '#545A66',
+  infoSoft: '#EFEFEC',
+  skeleton: '#EBEBE8',
+  overlay: 'rgba(22,24,29,0.45)',
 };
+lightPalette.danger = lightPalette.critical;
+lightPalette.success = lightPalette.ok;
 
 export const darkPalette = {
   mode: 'dark',
-  background: '#0A1220',
-  card: '#111C2E',
-  elevated: '#16243A',
-  sunken: '#0D1728',
-  sidebar: '#08101C',
-  sidebarText: '#9FB0C8',
-  sidebarActive: '#16243A',
-  text: '#EAF0F8',
-  textSecondary: '#A9B7CB',
-  muted: '#73839B',
-  accent: '#22C3D6',
-  accentStrong: '#4FD8E8',
-  accentMuted: '#10303A',
-  onAccent: '#04121A',
-  border: '#1F2E45',
-  skeleton: '#1A2840',
+  background: '#0F1012',
+  card: '#17181B',
+  elevated: '#1D1F23',
+  sunken: '#202227',
+  text: '#ECEDEF',
+  textSecondary: '#A3A8B2',
+  muted: '#6F747E',
+  border: '#2A2C31',
+  accent: '#7A9BFF',
+  accentStrong: '#7A9BFF',
+  accentMuted: '#1D2540',
+  primary: '#ECEDEF',
+  onPrimary: '#0F1012',
+  onAccent: '#0F1012',
+  critical: '#F0645C',
+  criticalSoft: '#33191A',
+  warning: '#E0A04A',
+  warningSoft: '#33261A',
+  ok: '#4CC285',
+  okSoft: '#16291F',
+  info: '#A3A8B2',
+  infoSoft: '#202227',
+  skeleton: '#202227',
   overlay: 'rgba(0,0,0,0.6)',
-  ...semanticDark,
-  danger: semanticDark.critical,
-  success: semanticDark.ok,
 };
+darkPalette.danger = darkPalette.critical;
+darkPalette.success = darkPalette.ok;
 
 export function paletteForMode(isDark) {
   return isDark ? darkPalette : lightPalette;
 }
 
-/** Soft card elevation that works on iOS, Android and web. */
+/** Floating surfaces (map panels) get a soft shadow; everything else uses a hairline border. */
 export function elevation(isDark, level = 1) {
-  if (isDark) return { borderWidth: 1, borderColor: darkPalette.border };
-  return {
-    shadowColor: '#0F1B2D',
-    shadowOpacity: level === 1 ? 0.06 : 0.12,
-    shadowRadius: level === 1 ? 12 : 24,
-    shadowOffset: { width: 0, height: level === 1 ? 4 : 10 },
-    elevation: level === 1 ? 2 : 6,
-  };
+  if (level < 2) return {};
+  return isDark
+    ? { borderWidth: 1, borderColor: darkPalette.border }
+    : { shadowColor: '#000', shadowOpacity: 0.12, shadowRadius: 24, shadowOffset: { width: 0, height: 8 }, elevation: 8 };
 }
 
-/** Maps a status keyword to its foreground/background colours. */
+/** Status keyword → colour. */
 export function toneColors(colors, tone) {
   switch (tone) {
     case 'critical':
@@ -134,10 +125,8 @@ export function toneColors(colors, tone) {
       return { fg: colors.warning, bg: colors.warningSoft };
     case 'ok':
       return { fg: colors.ok, bg: colors.okSoft };
-    case 'info':
-      return { fg: colors.info, bg: colors.infoSoft };
     case 'accent':
-      return { fg: colors.accentStrong, bg: colors.accentMuted };
+      return { fg: colors.accent, bg: colors.accentMuted };
     default:
       return { fg: colors.textSecondary, bg: colors.sunken };
   }

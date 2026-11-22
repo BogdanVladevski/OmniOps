@@ -1,25 +1,22 @@
-// Shared building blocks for every screen: page scaffold, cards, metrics, status pills, charts.
+// Shared building blocks. Quiet by default: hairline borders, no icon tiles, colour only for status.
 import React from 'react';
 import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../../contexts/ThemeContext';
-import { elevation, radius, spacing, toneColors, typography } from '../../theme/tokens';
+import { radius, spacing, toneColors, typography } from '../../theme/tokens';
 import { useLayout } from '../../utils/layout';
 import Screen from '../Screen';
 
-/** Scrollable page with a centred max-width column, consistent padding and a header. */
+/** Scrollable page with a readable max width. */
 export function Page({ title, subtitle, actions, children, scroll = true }) {
   const { colors } = useTheme();
-  const { horizontalPadding, contentMaxWidth, isWide } = useLayout();
+  const { horizontalPadding, isWide } = useLayout();
   const body = (
-    <View style={[styles.pageInner, { maxWidth: contentMaxWidth, paddingHorizontal: horizontalPadding }]}>
+    <View style={[styles.pageInner, { paddingHorizontal: horizontalPadding }]}>
       {title ? (
         <View style={[styles.pageHeader, isWide && styles.pageHeaderWide]}>
           <View style={styles.flex}>
-            <Text style={[typography.headline, { color: colors.text }, isWide && typography.display]}>{title}</Text>
-            {subtitle ? (
-              <Text style={[typography.body, styles.pageSubtitle, { color: colors.textSecondary }]}>{subtitle}</Text>
-            ) : null}
+            <Text style={[isWide ? typography.display : typography.headline, { color: colors.text }]}>{title}</Text>
+            {subtitle ? <Text style={[typography.body, styles.pageSubtitle, { color: colors.textSecondary }]}>{subtitle}</Text> : null}
           </View>
           {actions ? <View style={styles.pageActions}>{actions}</View> : null}
         </View>
@@ -41,28 +38,26 @@ export function Page({ title, subtitle, actions, children, scroll = true }) {
 }
 
 export function Card({ children, style, padded = true, onPress, accessibilityLabel }) {
-  const { colors, isDark } = useTheme();
-  const { cardPadding } = useLayout();
-  const cardStyle = [
-    styles.card,
-    { backgroundColor: colors.card },
-    elevation(isDark),
-    padded && { padding: cardPadding },
-    style,
-  ];
+  const { colors } = useTheme();
+  const base = [styles.card, { backgroundColor: colors.card, borderColor: colors.border }, padded && styles.cardPadded, style];
   if (onPress) {
     return (
       <Pressable
         onPress={onPress}
         accessibilityRole="button"
         accessibilityLabel={accessibilityLabel}
-        style={({ pressed, hovered }) => [...cardStyle, (pressed || hovered) && { opacity: 0.92 }]}
+        style={({ pressed, hovered }) => [...base, (pressed || hovered) && { backgroundColor: colors.sunken }]}
       >
         {children}
       </Pressable>
     );
   }
-  return <View style={cardStyle}>{children}</View>;
+  return <View style={base}>{children}</View>;
+}
+
+export function Divider({ inset = 0 }) {
+  const { colors } = useTheme();
+  return <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: colors.border, marginLeft: inset }} />;
 }
 
 export function SectionTitle({ title, subtitle, right }) {
@@ -78,7 +73,6 @@ export function SectionTitle({ title, subtitle, right }) {
   );
 }
 
-/** Lays children out in N equal columns, wrapping as needed. */
 export function Grid({ columns = 2, gap = spacing.md, children }) {
   const items = React.Children.toArray(children).filter(Boolean);
   return (
@@ -92,43 +86,32 @@ export function Grid({ columns = 2, gap = spacing.md, children }) {
   );
 }
 
-export function StatTile({ label, value, hint, icon, tone = 'neutral' }) {
+/** A labelled number. Only problems get colour. `icon` is accepted for compatibility and ignored. */
+export function StatTile({ label, value, hint, tone = 'neutral' }) {
   const { colors } = useTheme();
-  const t = toneColors(colors, tone);
+  const color = tone === 'critical' || tone === 'warning' ? toneColors(colors, tone).fg : colors.text;
   return (
     <Card style={styles.stat}>
-      <View style={styles.statTop}>
-        <Text style={[typography.overline, { color: colors.muted }]} numberOfLines={1}>{label}</Text>
-        {icon ? (
-          <View style={[styles.statIcon, { backgroundColor: t.bg }]}>
-            <Ionicons name={icon} size={16} color={t.fg} />
-          </View>
-        ) : null}
-      </View>
-      <Text
-        style={[typography.metric, { color: tone === 'neutral' ? colors.text : t.fg }]}
-        numberOfLines={1}
-        adjustsFontSizeToFit
-      >
-        {value}
-      </Text>
-      {hint ? <Text style={[typography.caption, { color: colors.textSecondary }]} numberOfLines={2}>{hint}</Text> : null}
+      <Text style={[typography.label, { color: colors.textSecondary }]} numberOfLines={1}>{label}</Text>
+      <Text style={[typography.metric, { color }]} numberOfLines={1} adjustsFontSizeToFit>{value}</Text>
+      {hint ? <Text style={[typography.caption, { color: colors.muted }]} numberOfLines={2}>{hint}</Text> : null}
     </Card>
   );
 }
 
-export function Pill({ label, tone = 'neutral', icon, style }) {
+/** Status as a coloured dot and text — no filled badge. */
+export function Pill({ label, tone = 'neutral', style }) {
   const { colors } = useTheme();
-  const t = toneColors(colors, tone);
+  const { fg } = toneColors(colors, tone);
   return (
-    <View style={[styles.pill, { backgroundColor: t.bg }, style]}>
-      {icon ? <Ionicons name={icon} size={12} color={t.fg} /> : <View style={[styles.pillDot, { backgroundColor: t.fg }]} />}
-      <Text style={[typography.label, { color: t.fg }]} numberOfLines={1}>{label}</Text>
+    <View style={[styles.status, style]}>
+      <View style={[styles.statusDot, { backgroundColor: fg }]} />
+      <Text style={[typography.label, { color: tone === 'neutral' ? colors.textSecondary : fg }]} numberOfLines={1}>{label}</Text>
     </View>
   );
 }
 
-export function Button({ label, icon, onPress, variant = 'primary', disabled, style }) {
+export function Button({ label, onPress, variant = 'primary', disabled, style }) {
   const { colors } = useTheme();
   const primary = variant === 'primary';
   return (
@@ -138,21 +121,17 @@ export function Button({ label, icon, onPress, variant = 'primary', disabled, st
       accessibilityRole="button"
       style={({ pressed, hovered }) => [
         styles.button,
-        primary
-          ? { backgroundColor: colors.accent }
-          : { backgroundColor: 'transparent', borderWidth: 1, borderColor: colors.border },
-        (pressed || hovered) && { opacity: 0.85 },
-        disabled && { opacity: 0.5 },
+        primary ? { backgroundColor: colors.primary } : { borderWidth: 1, borderColor: colors.border, backgroundColor: colors.card },
+        (pressed || hovered) && { opacity: 0.82 },
+        disabled && { opacity: 0.45 },
         style,
       ]}
     >
-      {icon ? <Ionicons name={icon} size={16} color={primary ? colors.onAccent : colors.text} /> : null}
-      <Text style={[typography.bodyStrong, { color: primary ? colors.onAccent : colors.text }]}>{label}</Text>
+      <Text style={[typography.label, { fontWeight: '600', color: primary ? colors.onPrimary : colors.text }]}>{label}</Text>
     </Pressable>
   );
 }
 
-/** Labelled text input styled to match the theme. */
 export function Field({ label, style, multiline, ...props }) {
   const { colors } = useTheme();
   return (
@@ -163,7 +142,7 @@ export function Field({ label, style, multiline, ...props }) {
         multiline={multiline}
         style={[
           styles.input,
-          { borderColor: colors.border, backgroundColor: colors.sunken, color: colors.text },
+          { borderColor: colors.border, backgroundColor: colors.card, color: colors.text },
           multiline && { minHeight: 72, textAlignVertical: 'top' },
           style,
         ]}
@@ -173,39 +152,35 @@ export function Field({ label, style, multiline, ...props }) {
   );
 }
 
-/** Selectable filter chips. options: [{ key, label, count? }] */
+/** iOS-style segmented control. options: [{ key, label, count? }] */
 export function Segmented({ options, value, onChange }) {
-  const { colors } = useTheme();
+  const { colors, isDark } = useTheme();
   return (
-    <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.segmented}>
-      {options.map((o) => {
-        const active = o.key === value;
-        return (
-          <Pressable
-            key={o.key}
-            onPress={() => onChange(o.key)}
-            accessibilityRole="button"
-            accessibilityState={{ selected: active }}
-            style={[
-              styles.segment,
-              { borderColor: active ? colors.accent : colors.border, backgroundColor: active ? colors.accentMuted : colors.card },
-            ]}
-          >
-            <Text style={[typography.label, { color: active ? colors.accentStrong : colors.textSecondary }]}>
-              {o.label}
-              {o.count != null ? `  ${o.count}` : ''}
-            </Text>
-          </Pressable>
-        );
-      })}
+    <ScrollView horizontal showsHorizontalScrollIndicator={false}>
+      <View style={[styles.segmented, { backgroundColor: colors.sunken }]}>
+        {options.map((o) => {
+          const active = o.key === value;
+          return (
+            <Pressable
+              key={o.key}
+              onPress={() => onChange(o.key)}
+              accessibilityRole="button"
+              accessibilityState={{ selected: active }}
+              style={[styles.segment, active && { backgroundColor: isDark ? colors.elevated : colors.card }]}
+            >
+              <Text style={[typography.label, { color: active ? colors.text : colors.textSecondary, fontWeight: active ? '600' : '500' }]}>
+                {o.label}
+                {o.count != null ? <Text style={{ color: colors.muted }}>{`  ${o.count}`}</Text> : null}
+              </Text>
+            </Pressable>
+          );
+        })}
+      </View>
     </ScrollView>
   );
 }
 
-/**
- * Shows where the current cargo temperature sits relative to the shipment's safe range.
- * The safe band is drawn in the middle 60% of the track so readings just outside it stay visible.
- */
+/** Where a reading sits against its safe range. The safe band is the middle 60% of the track. */
 export function TempRangeBar({ value, min, max }) {
   const { colors } = useTheme();
   if (value == null || min == null || max == null) return null;
@@ -214,30 +189,28 @@ export function TempRangeBar({ value, min, max }) {
   const hi = max + span / 3;
   const pct = Math.min(100, Math.max(0, ((value - lo) / (hi - lo)) * 100));
   const inRange = value >= min && value <= max;
-  const markerColor = inRange ? colors.ok : colors.critical;
   return (
     <View>
       <View style={[styles.rangeTrack, { backgroundColor: colors.sunken }]}>
-        <View style={[styles.rangeSafe, { backgroundColor: colors.okSoft, borderColor: colors.ok }]} />
-        <View style={[styles.rangeMarker, { left: `${pct}%`, backgroundColor: markerColor, borderColor: colors.card }]} />
+        <View style={[styles.rangeSafe, { backgroundColor: colors.border }]} />
+        <View style={[styles.rangeMarker, { left: `${pct}%`, backgroundColor: inRange ? colors.text : colors.critical }]} />
       </View>
       <View style={styles.rangeLabels}>
-        <Text style={[typography.caption, { color: colors.muted }]}>Safe {min}–{max}°C</Text>
-        <Text style={[typography.caption, { color: markerColor, fontWeight: '700' }]}>
-          {value}°C {inRange ? 'in range' : 'out of range'}
-        </Text>
+        <Text style={[typography.caption, { color: colors.muted }]}>{min} °C</Text>
+        <Text style={[typography.caption, { color: colors.muted }]}>safe range</Text>
+        <Text style={[typography.caption, { color: colors.muted }]}>{max} °C</Text>
       </View>
     </View>
   );
 }
 
-/** Minimal bar chart scaled to the data's own min–max so small changes are visible. */
-export function BarChart({ values, color, height = 96, emptyText = 'Not enough history yet' }) {
+/** Minimal bar chart scaled to the data's own min–max. */
+export function BarChart({ values, color, height = 88, emptyText = 'Not enough history yet' }) {
   const { colors } = useTheme();
   const data = (values ?? []).filter((v) => typeof v === 'number' && Number.isFinite(v));
   if (data.length < 2) {
     return (
-      <View style={[styles.chartEmpty, { height, backgroundColor: colors.sunken }]}>
+      <View style={[styles.chartEmpty, { height }]}>
         <Text style={[typography.caption, { color: colors.muted }]}>{emptyText}</Text>
       </View>
     );
@@ -245,6 +218,7 @@ export function BarChart({ values, color, height = 96, emptyText = 'Not enough h
   const min = Math.min(...data);
   const max = Math.max(...data);
   const range = max - min || 1;
+  const barColor = color ?? colors.text;
   return (
     <View>
       <View style={[styles.chart, { height }]}>
@@ -252,35 +226,33 @@ export function BarChart({ values, color, height = 96, emptyText = 'Not enough h
           <View key={i} style={styles.chartCol}>
             <View
               style={{
-                height: `${20 + ((v - min) / range) * 80}%`,
-                backgroundColor: color,
-                borderRadius: 4,
-                opacity: i === data.length - 1 ? 1 : 0.55,
+                height: `${15 + ((v - min) / range) * 85}%`,
+                backgroundColor: barColor,
+                borderRadius: 2,
+                opacity: i === data.length - 1 ? 1 : 0.3,
               }}
             />
           </View>
         ))}
       </View>
       <View style={styles.rangeLabels}>
-        <Text style={[typography.caption, { color: colors.muted }]}>min {Math.round(min)}</Text>
-        <Text style={[typography.caption, { color: colors.muted }]}>latest {Math.round(data[data.length - 1])} · max {Math.round(max)}</Text>
+        <Text style={[typography.caption, { color: colors.muted }]}>low {Math.round(min)}</Text>
+        <Text style={[typography.caption, { color: colors.muted }]}>now {Math.round(data[data.length - 1])} · high {Math.round(max)}</Text>
       </View>
     </View>
   );
 }
 
-export function EmptyNote({ icon = 'checkmark-circle-outline', title, body }) {
+export function EmptyNote({ title, body }) {
   const { colors } = useTheme();
   return (
-    <Card style={styles.empty}>
-      <Ionicons name={icon} size={28} color={colors.accent} />
-      <Text style={[typography.bodyStrong, { color: colors.text, marginTop: spacing.sm }]}>{title}</Text>
+    <View style={[styles.empty, { borderColor: colors.border }]}>
+      <Text style={[typography.bodyStrong, { color: colors.text }]}>{title}</Text>
       {body ? <Text style={[typography.body, { color: colors.textSecondary, textAlign: 'center' }]}>{body}</Text> : null}
-    </Card>
+    </View>
   );
 }
 
-/** "3 min ago" style timestamps. */
 export function timeAgo(iso) {
   const t = new Date(iso).getTime();
   if (!Number.isFinite(t)) return '';
@@ -296,36 +268,29 @@ export function timeAgo(iso) {
 const styles = StyleSheet.create({
   flex: { flex: 1 },
   pageScroll: { paddingBottom: spacing.xxxl },
-  pageInner: { width: '100%', alignSelf: 'center', paddingTop: spacing.lg },
+  pageInner: { width: '100%', maxWidth: 1080, alignSelf: 'center', paddingTop: spacing.xl },
   pageHeader: { marginBottom: spacing.xl, gap: spacing.md },
-  pageHeaderWide: { flexDirection: 'row', alignItems: 'flex-end', paddingTop: spacing.md },
-  pageSubtitle: { marginTop: spacing.xs, maxWidth: 720 },
+  pageHeaderWide: { flexDirection: 'row', alignItems: 'flex-end' },
+  pageSubtitle: { marginTop: spacing.xs, maxWidth: 640 },
   pageActions: { flexDirection: 'row', gap: spacing.sm, flexWrap: 'wrap' },
-  card: { borderRadius: radius.lg },
-  sectionTitle: { flexDirection: 'row', alignItems: 'center', marginTop: spacing.lg, marginBottom: spacing.md, gap: spacing.md },
+  card: { borderRadius: radius.lg, borderWidth: StyleSheet.hairlineWidth, overflow: 'hidden' },
+  cardPadded: { padding: spacing.lg },
+  sectionTitle: { flexDirection: 'row', alignItems: 'flex-end', marginTop: spacing.xl, marginBottom: spacing.md, gap: spacing.md },
   grid: { flexDirection: 'row', flexWrap: 'wrap' },
-  stat: { gap: spacing.xs, minHeight: 118 },
-  statTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: spacing.xs },
-  statIcon: { width: 30, height: 30, borderRadius: radius.sm, alignItems: 'center', justifyContent: 'center' },
-  pill: {
-    flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start',
-    paddingHorizontal: 10, paddingVertical: 4, borderRadius: radius.pill,
-  },
-  pillDot: { width: 6, height: 6, borderRadius: 3 },
-  button: {
-    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: spacing.sm,
-    paddingHorizontal: spacing.lg, paddingVertical: 10, borderRadius: radius.md, minHeight: 40,
-  },
-  segmented: { gap: spacing.sm, paddingVertical: spacing.xs },
+  stat: { gap: spacing.xs },
+  status: { flexDirection: 'row', alignItems: 'center', gap: 6, alignSelf: 'flex-start' },
+  statusDot: { width: 7, height: 7, borderRadius: 4 },
+  button: { alignItems: 'center', justifyContent: 'center', paddingHorizontal: spacing.lg, paddingVertical: 9, borderRadius: radius.md, minHeight: 38 },
   field: { gap: 6 },
-  input: { borderWidth: 1, borderRadius: radius.md, paddingHorizontal: spacing.md, paddingVertical: 10, fontSize: 14 },
-  segment: { paddingHorizontal: 14, paddingVertical: 8, borderRadius: radius.pill, borderWidth: 1 },
-  rangeTrack: { height: 10, borderRadius: radius.pill, justifyContent: 'center', marginTop: spacing.sm },
-  rangeSafe: { position: 'absolute', left: '20%', width: '60%', height: 10, borderRadius: radius.pill, borderWidth: 1 },
-  rangeMarker: { position: 'absolute', width: 16, height: 16, borderRadius: 8, marginLeft: -8, borderWidth: 3 },
+  input: { borderWidth: 1, borderRadius: radius.md, paddingHorizontal: spacing.md, paddingVertical: 10, fontSize: 15 },
+  segmented: { flexDirection: 'row', borderRadius: radius.md, padding: 3, gap: 2 },
+  segment: { paddingHorizontal: 14, paddingVertical: 6, borderRadius: 8 },
+  rangeTrack: { height: 6, borderRadius: radius.pill, justifyContent: 'center', marginTop: spacing.sm },
+  rangeSafe: { position: 'absolute', left: '20%', width: '60%', height: 6 },
+  rangeMarker: { position: 'absolute', width: 4, height: 16, borderRadius: 2, marginLeft: -2 },
   rangeLabels: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 6 },
-  chart: { flexDirection: 'row', alignItems: 'flex-end', gap: 4 },
+  chart: { flexDirection: 'row', alignItems: 'flex-end', gap: 3 },
   chartCol: { flex: 1, height: '100%', justifyContent: 'flex-end' },
-  chartEmpty: { borderRadius: radius.md, alignItems: 'center', justifyContent: 'center' },
-  empty: { alignItems: 'center', gap: spacing.xs, paddingVertical: spacing.xl },
+  chartEmpty: { alignItems: 'center', justifyContent: 'center' },
+  empty: { alignItems: 'center', gap: spacing.xs, paddingVertical: spacing.xl, paddingHorizontal: spacing.lg, borderWidth: 1, borderStyle: 'dashed', borderRadius: radius.lg },
 });
