@@ -14,7 +14,7 @@ import AboutModal from './components/AboutModal';
 import AppNav, { TAB_META } from './components/AppNav';
 import LiveView from './components/LiveView';
 import FleetManagement from './components/FleetManagement';
-import AnalyticsPanel from './components/AnalyticsPanel';
+import InvoicesBoard from './components/InvoicesBoard';
 import AlertsFeed from './components/AlertsFeed';
 import AdminPanel from './components/AdminPanel';
 import JobsBoard from './components/JobsBoard';
@@ -41,8 +41,8 @@ function Navigator({ onSearch }) {
     >
       <Tab.Screen name="Live" component={LiveView} />
       <Tab.Screen name="Jobs" component={JobsBoard} />
+      <Tab.Screen name="Invoices" component={InvoicesBoard} />
       <Tab.Screen name="Alerts" component={AlertsFeed} />
-      <Tab.Screen name="Analytics" component={AnalyticsPanel} />
       <Tab.Screen name="Fleet" component={FleetManagement} />
       <Tab.Screen name="Admin" component={AdminPanel} />
     </Tab.Navigator>

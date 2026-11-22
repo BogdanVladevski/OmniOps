@@ -19,6 +19,11 @@ public class AppDbContext : DbContext
     public DbSet<Driver> Drivers => Set<Driver>();
     public DbSet<Trip> Trips => Set<Trip>();
     public DbSet<TripDocument> TripDocuments => Set<TripDocument>();
+    public DbSet<BillingProfile> BillingProfiles => Set<BillingProfile>();
+    public DbSet<Customer> Customers => Set<Customer>();
+    public DbSet<Invoice> Invoices => Set<Invoice>();
+    public DbSet<InvoiceLine> InvoiceLines => Set<InvoiceLine>();
+    public DbSet<InvoiceReminder> InvoiceReminders => Set<InvoiceReminder>();
     public DbSet<Depot> Depots => Set<Depot>();
     public DbSet<VehicleMaintenanceRecord> VehicleMaintenanceRecords => Set<VehicleMaintenanceRecord>();
     public DbSet<Geofence> Geofences => Set<Geofence>();
@@ -193,6 +198,79 @@ public class AppDbContext : DbContext
             entity.HasOne(e => e.Vehicle).WithMany(v => v.Trips).HasForeignKey(e => e.VehicleId);
             entity.HasOne(e => e.Driver).WithMany().HasForeignKey(e => e.DriverId)
                 .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<BillingProfile>(entity =>
+        {
+            entity.HasKey(e => e.OrganizationId);
+            entity.Property(e => e.LegalName).HasMaxLength(200);
+            entity.Property(e => e.Address).HasMaxLength(500);
+            entity.Property(e => e.TaxId).HasMaxLength(50);
+            entity.Property(e => e.Iban).HasMaxLength(50);
+            entity.Property(e => e.BankName).HasMaxLength(120);
+            entity.Property(e => e.Email).HasMaxLength(200);
+            entity.Property(e => e.Phone).HasMaxLength(50);
+            entity.Property(e => e.Currency).HasMaxLength(3);
+            entity.Property(e => e.InvoicePrefix).HasMaxLength(12);
+            entity.Property(e => e.DefaultVatRatePercent).HasPrecision(5, 2);
+        });
+
+        modelBuilder.Entity<Customer>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => new { e.OrganizationId, e.NormalizedName }).IsUnique();
+            entity.Property(e => e.Name).HasMaxLength(200);
+            entity.Property(e => e.NormalizedName).HasMaxLength(200);
+            entity.Property(e => e.Email).HasMaxLength(200);
+            entity.Property(e => e.Address).HasMaxLength(500);
+            entity.Property(e => e.TaxId).HasMaxLength(50);
+        });
+
+        modelBuilder.Entity<Invoice>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => new { e.OrganizationId, e.Number }).IsUnique();
+            entity.HasIndex(e => e.PublicToken).IsUnique();
+            entity.HasIndex(e => new { e.Status, e.DueDateUtc });
+            entity.HasIndex(e => e.JobId).IsUnique();
+            entity.Property(e => e.Number).HasMaxLength(40);
+            entity.Property(e => e.Currency).HasMaxLength(3);
+            entity.Property(e => e.PublicToken).HasMaxLength(64);
+            entity.Property(e => e.Subtotal).HasPrecision(18, 2);
+            entity.Property(e => e.VatAmount).HasPrecision(18, 2);
+            entity.Property(e => e.Total).HasPrecision(18, 2);
+            entity.Property(e => e.SellerName).HasMaxLength(200);
+            entity.Property(e => e.SellerAddress).HasMaxLength(500);
+            entity.Property(e => e.SellerTaxId).HasMaxLength(50);
+            entity.Property(e => e.SellerIban).HasMaxLength(50);
+            entity.Property(e => e.SellerBankName).HasMaxLength(120);
+            entity.Property(e => e.SellerEmail).HasMaxLength(200);
+            entity.Property(e => e.CustomerName).HasMaxLength(200);
+            entity.Property(e => e.CustomerEmail).HasMaxLength(200);
+            entity.Property(e => e.CustomerAddress).HasMaxLength(500);
+            entity.Property(e => e.CustomerTaxId).HasMaxLength(50);
+            entity.Property(e => e.Notes).HasMaxLength(1000);
+            entity.HasOne(e => e.Job).WithMany().HasForeignKey(e => e.JobId).OnDelete(DeleteBehavior.SetNull);
+            entity.HasMany(e => e.Lines).WithOne().HasForeignKey(l => l.InvoiceId).OnDelete(DeleteBehavior.Cascade);
+            entity.HasMany(e => e.Reminders).WithOne().HasForeignKey(r => r.InvoiceId).OnDelete(DeleteBehavior.Cascade);
+        });
+
+        modelBuilder.Entity<InvoiceLine>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.Property(e => e.Description).HasMaxLength(300);
+            entity.Property(e => e.Quantity).HasPrecision(12, 3);
+            entity.Property(e => e.UnitPrice).HasPrecision(18, 2);
+            entity.Property(e => e.VatRatePercent).HasPrecision(5, 2);
+            entity.Property(e => e.NetAmount).HasPrecision(18, 2);
+            entity.Property(e => e.VatAmount).HasPrecision(18, 2);
+        });
+
+        modelBuilder.Entity<InvoiceReminder>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            // A reminder of each kind goes out once, even if two workers race.
+            entity.HasIndex(e => new { e.InvoiceId, e.Kind }).IsUnique();
         });
 
         modelBuilder.Entity<TripDocument>(entity =>

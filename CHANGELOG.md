@@ -6,6 +6,10 @@ All notable changes to OmniOps are documented in this file.
 
 ### Added
 
+- Invoicing: a delivered job becomes an invoice in a minute (customer details remembered, line pre-filled with route and order); numbers are sequential per company and unique even when issued at the same moment; issued invoices are snapshots that later edits do not change
+- Customer invoice page at `/i/{token}`: printable/save as PDF, with how to pay and the delivery's proof (loading note, delivery photos, temperature log) underneath
+- Sending: by email when SMTP is configured, otherwise copy/share the link; payment reminders 3 days before due, on the day, and 7 and 14 days overdue, once each, stopping when paid (listed for the office when the customer has no email)
+- Invoices screen: what is waiting for payment, overdue and paid, delivered jobs still to invoice, and invoice settings (company details, bank account, VAT, terms, numbering)
 - Delivery paperwork: the driver photographs the signed loading note (CMR) at pickup; delivery photos and loading notes are grouped on the job
 - Temperature log for refrigerated jobs: the office sets a range (chilled 2–8 °C, frozen −25 to −18 °C or custom); the driver logs the fridge display reading with a photo at loading, every 2 hours and at delivery; a reading outside the range alerts the office at once; a refrigerated job cannot be closed without a reading from the last 30 minutes
 - `POST /api/v1/driver/jobs/{id}/documents?kind=PickupDocument|DeliveryPhoto|TemperaturePhoto[&temperatureCelsius=]`
@@ -18,6 +22,8 @@ All notable changes to OmniOps are documented in this file.
 
 ### Changed
 
+- The Analytics tab is no longer in the navigation (Invoices takes its place); its screen is kept in the code
+- "Copy link" shows the link to copy by hand when the browser blocks the clipboard, instead of claiming it was copied
 - Onboarding describes the delivery product instead of cold-chain monitoring; the demo no longer generates simulated cargo temperatures
 - `POST /api/v1/demo/bootstrap` requires the job-board permission when authentication is on
 - Cargo temperature and fuel level are optional on telemetry; phone GPS sends neither, and no rule treats a missing reading as 0

@@ -39,7 +39,8 @@ public record JobDto(
     int TemperatureReadingCount,
     int TemperatureOutOfRangeCount,
     DateTime? TemperatureCheckDueUtc,
-    int PickupDocumentCount)
+    int PickupDocumentCount,
+    Guid? InvoiceId)
 {
     public static JobDto FromEntity(Trip trip)
     {
@@ -81,7 +82,8 @@ public record JobDto(
         readings.Count,
         readings.Count(r => JobTemperaturePolicy.IsOutOfRange(trip, r.TemperatureCelsius!.Value)),
         JobTemperaturePolicy.NextCheckDueUtc(trip),
-        trip.Documents.Count(d => d.Kind == TripDocumentKind.PickupDocument));
+        trip.Documents.Count(d => d.Kind == TripDocumentKind.PickupDocument),
+        trip.InvoiceId);
     }
 
     /// <summary>Arrival estimate while on the way and both positions are known; otherwise nothing.</summary>

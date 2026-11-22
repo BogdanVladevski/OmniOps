@@ -1,10 +1,11 @@
 // The office's job board: create delivery jobs, see where each one is, read the proof, send the customer a link.
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Image, Linking, Platform, Pressable, Share, StyleSheet, Text, View } from 'react-native';
+import { Image, Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useTheme } from '../contexts/ThemeContext';
 import { radius, spacing, toneColors, typography } from '../theme/tokens';
 import { apiUrl, authHeaders, geocode, jobsApi } from '../utils/api';
 import { notifyJobsChanged } from '../utils/events';
+import { shareLink } from '../utils/share';
 import {
   TEMPERATURE_PRESETS, formatCelsius, formatRange, isOutOfRange, isPositionStale, isRefrigerated, jobStatusMeta, jobTitle,
   parseTemperatureInput, temperatureStatus,
@@ -37,14 +38,7 @@ function progressText(job) {
 
 /** Shares (phone) or copies (web) a job's customer tracking link. Returns a notice to show, if any. */
 export async function shareTrackingLink(job) {
-  const url = apiUrl(job.trackingPath);
-  const message = `Track your delivery${job.reference ? ` (order ${job.reference})` : ''}: ${url}`;
-  if (Platform.OS === 'web') {
-    await navigator.clipboard?.writeText(url);
-    return 'Link copied';
-  }
-  await Share.share({ message });
-  return null;
+  return shareLink(apiUrl(job.trackingPath), `Track your delivery${job.reference ? ` (order ${job.reference})` : ''}:`);
 }
 
 function Choice({ options, value, onChange, emptyText }) {
@@ -200,7 +194,7 @@ function DocumentGroup({ title, empty, job, documents }) {
   );
 }
 
-function JobSheet({ jobId, onClose, onNotice }) {
+function JobSheet({ jobId, onClose, onNotice, onInvoice }) {
   const { colors } = useTheme();
   const [detail, setDetail] = useState(null);
   const [error, setError] = useState(null);
@@ -277,6 +271,9 @@ function JobSheet({ jobId, onClose, onNotice }) {
             <Button label="Close" variant="secondary" onPress={onClose} style={styles.flex} />
             {job.trackingPath ? (
               <Button label="Open customer page" variant="secondary" onPress={() => Linking.openURL(apiUrl(job.trackingPath))} style={styles.flex} />
+            ) : null}
+            {job.status === 'Completed' ? (
+              <Button label={job.invoiceId ? 'View invoice' : 'Create invoice'} onPress={() => onInvoice(job)} style={styles.flex} />
             ) : null}
             {job.trackingPath && job.status !== 'Completed' ? (
               <Button label="Send link" onPress={async () => onNotice(await shareTrackingLink(job))} style={styles.flex} />
@@ -407,7 +404,15 @@ export default function JobsBoard({ route, navigation }) {
           setOpenId(job.id);
         }}
       />
-      <JobSheet jobId={openId} onClose={() => { setOpenId(null); load(); }} onNotice={(n) => n && setNotice(n)} />
+      <JobSheet
+        jobId={openId}
+        onClose={() => { setOpenId(null); load(); }}
+        onNotice={(n) => n && setNotice(n)}
+        onInvoice={(job) => {
+          setOpenId(null);
+          navigation?.navigate('Invoices', job.invoiceId ? { openInvoiceId: job.invoiceId } : { invoiceJobId: job.id });
+        }}
+      />
     </Page>
   );
 }

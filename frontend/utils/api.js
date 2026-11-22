@@ -254,3 +254,16 @@ export async function geocode(address) {
   const [hit] = await response.json();
   return hit ? { latitude: Number(hit.lat), longitude: Number(hit.lon), label: hit.display_name } : null;
 }
+
+export const billingApi = {
+  profile: () => apiFetch('/api/v1/billing/profile'),
+  saveProfile: (body) => apiFetch('/api/v1/billing/profile', { method: 'PUT', body: JSON.stringify(body) }),
+  overview: () => apiFetch('/api/v1/invoices'),
+  get: (invoiceId) => apiFetch(`/api/v1/invoices/${invoiceId}`),
+  /** send: 'email' | 'manual' | undefined (issue only). */
+  create: (body) => apiFetch('/api/v1/invoices', { method: 'POST', body: JSON.stringify(body) }),
+  send: (invoiceId, email) =>
+    apiFetch(`/api/v1/invoices/${invoiceId}/send`, { method: 'POST', body: JSON.stringify({ email }) }),
+  markPaid: (invoiceId, paidAt) =>
+    apiFetch(`/api/v1/invoices/${invoiceId}/paid`, { method: 'POST', body: JSON.stringify({ paidAt: paidAt ?? null }) }),
+};

@@ -51,6 +51,14 @@ public static class EnvironmentConfiguration
         MapEnv(envVars, "Database:Username", "POSTGRES_USER");
         MapEnv(envVars, "Database:Password", "POSTGRES_PASSWORD");
         MapEnv(envVars, "Storage:RootPath", "STORAGE_ROOT_PATH");
+        MapEnv(envVars, "PublicUrls:BaseUrl", "PUBLIC_BASE_URL");
+        MapEnv(envVars, "Email:SmtpHost", "SMTP_HOST");
+        MapEnv(envVars, "Email:SmtpPort", "SMTP_PORT");
+        MapEnv(envVars, "Email:Username", "SMTP_USERNAME");
+        MapEnv(envVars, "Email:Password", "SMTP_PASSWORD");
+        MapEnv(envVars, "Email:EnableSsl", "SMTP_ENABLE_SSL");
+        MapEnv(envVars, "Email:From", "EMAIL_FROM");
+        MapEnv(envVars, "InvoiceReminders:IntervalMinutes", "INVOICE_REMINDER_INTERVAL_MINUTES");
         MapEnv(envVars, "Ingestion:QueueCapacity", "INGESTION_QUEUE_CAPACITY");
         MapEnv(envVars, "Ingestion:ProcessingRetryMaxAttempts", "INGESTION_RETRY_MAX_ATTEMPTS");
         MapEnv(envVars, "Ingestion:ProcessingRetryDelayMilliseconds", "INGESTION_RETRY_DELAY_MS");

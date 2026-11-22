@@ -81,6 +81,11 @@ Detector state, deduplication locks and the latest-telemetry cache are held in p
 | `POST` | `/api/v1/driver/jobs/{id}/photos` | Upload a delivery photo (multipart, ≤ 10 MB) |
 | `POST` | `/api/v1/driver/jobs/{id}/documents?kind=` | Loading note (`PickupDocument`), delivery photo, or fridge-display photo (`TemperaturePhoto` + `temperatureCelsius`) |
 | `POST` | `/api/v1/driver/jobs/{id}/deliver` | Confirm delivery — needs a photo, the recipient's name, and for refrigerated jobs a reading from the last 30 min |
+| `GET`/`PUT` | `/api/v1/billing/profile` | Invoice settings: company details, bank account, VAT, terms, numbering |
+| `GET` | `/api/v1/invoices` | Overview: waiting for payment, overdue, paid, delivered jobs to invoice |
+| `POST` | `/api/v1/invoices` | Invoice a delivered job (`send`: `"email"`, `"manual"` or omitted) |
+| `POST` | `/api/v1/invoices/{id}/send` / `/paid` | Send (email or record) / mark as paid |
+| `GET` | `/i/{token}` | Customer invoice page with proof of delivery (no login; printable) |
 | `GET` | `/t/{token}` | Customer tracking page (no login; rate limited) |
 | `GET` | `/api/public/track/{token}` | Data behind the tracking page |
 | `GET` | `/health/live` | Liveness probe (process up) |
@@ -275,7 +280,7 @@ Set `PROMETHEUS_METRICS_ENABLED=false` to disable the `/metrics` endpoint. Set `
 
 **Done:** Delivery jobs with driver mode (phone GPS, photo proof of delivery) and a customer tracking link with arrival estimate, cold-chain domain model, per-shipment excursion detection, transactional outbox, idempotent processing, JWT auth + hub authorization, rate limiting, FluentValidation, health checks, OpenTelemetry + Prometheus metrics, Expo map-first app, single-container deployment (Postgres only)
 
-**Next:** Invoicing from completed jobs with the paperwork attached, payment reminders, background location (needs a native build), driver sign-in
+**Next:** Accounts and sign-in (office and drivers), self-serve signup and billing, background location (needs a native build), e-invoicing formats where required
 
 ---
 
