@@ -161,6 +161,10 @@ public class DeliveryJobIntegrationTests(OmniOpsApiFixture fixture)
         var page = await Client.GetAsync("/t/AAAAAAAAAAAAAAAAAAAAAA");
         page.EnsureSuccessStatusCode();
         Assert.Equal("text/html", page.Content.Headers.ContentType?.MediaType);
-        Assert.Contains("/api/public/track/", await page.Content.ReadAsStringAsync());
+        var html = await page.Content.ReadAsStringAsync();
+        Assert.Contains("/api/public/track/", html);
+        // Regression: "no-referrer" made OpenStreetMap block every map tile. Origin-only keeps the token private.
+        Assert.Contains("content=\"strict-origin-when-cross-origin\"", html);
+        Assert.DoesNotContain("content=\"no-referrer\"", html);
     }
 }

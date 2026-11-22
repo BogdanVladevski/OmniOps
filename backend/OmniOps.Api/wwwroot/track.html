@@ -4,7 +4,9 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="robots" content="noindex, nofollow">
-  <meta name="referrer" content="no-referrer">
+  <!-- Send only our origin, never the URL (it contains the private token). OpenStreetMap's tile servers
+       require a referrer and block "no-referrer" requests as policy violations. -->
+  <meta name="referrer" content="strict-origin-when-cross-origin">
   <title>Delivery tracking</title>
   <link rel="icon" href="data:,">
   <link rel="stylesheet" href="/vendor/leaflet/leaflet.css">
@@ -143,12 +145,22 @@
         set('subline', d.recipientName ? 'Received by ' + d.recipientName + '.' : '');
       } else if (d.status === 'OnTheWay') {
         set('statusText', 'On the way');
-        if (d.etaUtc && d.remainingKm === 0) set('headline', 'Arriving now');
-        else if (d.etaUtc) set('headline', 'Arriving around ' + time(d.etaUtc));
-        else set('headline', 'On the way to ' + to);
-        set('subline', d.etaUtc
-          ? 'Estimate from the truck’s last position' + (d.remainingKm ? ' (about ' + Math.round(d.remainingKm) + ' km away)' : '') + '. Traffic and stops can change it.'
-          : '');
+        var etaPassed = d.etaUtc && new Date(d.etaUtc).getTime() < Date.now() - 5 * 60000;
+        if (stale) {
+          // An estimate from an old position is not news; say what we actually know.
+          set('headline', 'On the way to ' + to);
+          set('subline', 'No update from the truck since ' + time(d.positionAtUtc) + '. This can happen in areas with poor signal.'
+            + (d.etaUtc && !etaPassed ? ' The last estimate was around ' + time(d.etaUtc) + '.' : ''));
+        } else if (d.etaUtc && d.remainingKm === 0) {
+          set('headline', 'Arriving now');
+          set('subline', '');
+        } else if (d.etaUtc && !etaPassed) {
+          set('headline', 'Arriving around ' + time(d.etaUtc));
+          set('subline', 'Estimate from the truck\u2019s last position' + (d.remainingKm ? ' (about ' + Math.round(d.remainingKm) + ' km away)' : '') + '. Traffic and stops can change it.');
+        } else {
+          set('headline', 'On the way to ' + to);
+          set('subline', '');
+        }
       } else {
         set('statusText', 'Scheduled');
         set('headline', d.plannedDeliveryUtc ? 'Planned for ' + dateTime(d.plannedDeliveryUtc) : 'Your delivery is scheduled');
