@@ -1,0 +1,27 @@
+<Project>
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <AnalysisLevel>latest-recommended</AnalysisLevel>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+    <!-- Needed for IDE0005 (unused usings) at build time; XML docs are not required on everything. -->
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+    <InvariantGlobalization>false</InvariantGlobalization>
+    <Authors>OmniOps</Authors>
+    <Company>OmniOps</Company>
+    <Copyright>© OmniOps. All rights reserved.</Copyright>
+  </PropertyGroup>
+
+  <!-- Tests are executables on Microsoft.Testing.Platform (xUnit v3). -->
+  <PropertyGroup Condition="$(MSBuildProjectName.EndsWith('Tests'))">
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <OutputType>Exe</OutputType>
+    <!-- Test method names describe behaviour in sentences (Something_Happens_When). -->
+    <NoWarn>$(NoWarn);CA1707;CA2007;CA1515;CA1861;xUnit1051</NoWarn>
+  </PropertyGroup>
+</Project>
