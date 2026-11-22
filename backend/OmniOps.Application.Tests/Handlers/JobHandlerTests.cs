@@ -309,14 +309,14 @@ public class JobHandlerTests
         Returns(job);
         var calls = new List<string>();
         _jobs.When(j => j.SaveChangesAsync(Arg.Any<CancellationToken>())).Do(_ => calls.Add("save"));
-        _broadcast.When(b => b.BroadcastAlertAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(),
+        _broadcast.When(b => b.BroadcastAlertAsync(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(),
             Arg.Any<string>(), Arg.Any<CancellationToken>())).Do(_ => calls.Add("alert"));
 
         var dto = await DocumentHandler(Substitute.For<IFileStore>()).Handle(Reading(job.Id, 11.5), CancellationToken.None);
 
         Assert.Equal(11.5, dto.TemperatureCelsius);
         Assert.Equal(["save", "alert"], calls);
-        await _broadcast.Received(1).BroadcastAlertAsync("Truck-001", CargoTemperatureAlerts.Excursion, Arg.Any<string>(),
+        await _broadcast.Received(1).BroadcastAlertAsync(OrgA, "Truck-001", CargoTemperatureAlerts.Excursion, Arg.Any<string>(),
             Arg.Is<string>(m => m.Contains("11.5") && m.Contains("2–8")), Arg.Any<CancellationToken>());
     }
 
@@ -328,7 +328,7 @@ public class JobHandlerTests
 
         await DocumentHandler(Substitute.For<IFileStore>()).Handle(Reading(job.Id, 5), CancellationToken.None);
 
-        await _broadcast.DidNotReceive().BroadcastAlertAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(),
+        await _broadcast.DidNotReceive().BroadcastAlertAsync(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(),
             Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 
@@ -337,7 +337,7 @@ public class JobHandlerTests
     {
         var job = Refrigerated();
         Returns(job);
-        _broadcast.BroadcastAlertAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+        _broadcast.BroadcastAlertAsync(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns<Task>(_ => throw new InvalidOperationException("hub down"));
 
         var dto = await DocumentHandler(Substitute.For<IFileStore>()).Handle(Reading(job.Id, 20), CancellationToken.None);
@@ -421,7 +421,7 @@ public class JobHandlerTests
         var calls = new List<string>();
         _audit.When(a => a.LogAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string?>(), Arg.Any<string?>(),
             Arg.Any<string?>(), Arg.Any<CancellationToken>())).Do(_ => calls.Add("save"));
-        _broadcast.When(b => b.BroadcastAlertAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(),
+        _broadcast.When(b => b.BroadcastAlertAsync(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(),
             Arg.Any<string>(), Arg.Any<CancellationToken>())).Do(_ => calls.Add("broadcast"));
 
         var dto = await DeliverHandler().Handle(new DeliverJobCommand(job.Id, " Ana Petrovska ", "Left at door 2", 41.9, 21.4), CancellationToken.None);
@@ -430,7 +430,7 @@ public class JobHandlerTests
         Assert.Equal("Ana Petrovska", job.RecipientName);
         Assert.NotNull(job.CompletedAtUtc);
         Assert.Equal(["save", "broadcast"], calls);
-        await _broadcast.Received(1).BroadcastAlertAsync("Truck-001", JobAlerts.Delivered, Arg.Any<string>(),
+        await _broadcast.Received(1).BroadcastAlertAsync(OrgA, "Truck-001", JobAlerts.Delivered, Arg.Any<string>(),
             Arg.Is<string>(m => m.Contains("PO-7") && m.Contains("Ana Petrovska")), Arg.Any<CancellationToken>());
     }
 
@@ -447,7 +447,7 @@ public class JobHandlerTests
 
         Assert.Equal("Ana", job.RecipientName);
         Assert.Equal(deliveredAt, job.CompletedAtUtc);
-        await _broadcast.DidNotReceive().BroadcastAlertAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(),
+        await _broadcast.DidNotReceive().BroadcastAlertAsync(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(),
             Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 

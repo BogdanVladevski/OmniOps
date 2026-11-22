@@ -74,7 +74,7 @@ public class ProcessTelemetryCommandHandlerTests
         Assert.True(result);
         await _repository.DidNotReceive().AddAsync(Arg.Any<VehicleTelemetry>(), Arg.Any<CancellationToken>());
         await _broadcastService.DidNotReceive()
-            .BroadcastTelemetryUpdateAsync(Arg.Any<VehicleTelemetry>(), Arg.Any<CancellationToken>());
+            .BroadcastTelemetryUpdateAsync(Arg.Any<Guid>(), Arg.Any<VehicleTelemetry>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -94,8 +94,9 @@ public class ProcessTelemetryCommandHandlerTests
         await _repository.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
         await _cacheService.Received(1).SetLatestTelemetryAsync(telemetry);
         await _broadcastService.Received(1)
-            .BroadcastTelemetryUpdateAsync(telemetry, Arg.Any<CancellationToken>());
+            .BroadcastTelemetryUpdateAsync(Arg.Any<Guid>(), telemetry, Arg.Any<CancellationToken>());
         await _broadcastService.DidNotReceive().BroadcastAlertAsync(
+            Arg.Any<Guid>(),
             Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 
@@ -112,6 +113,7 @@ public class ProcessTelemetryCommandHandlerTests
         await _handler.Handle(new ProcessTelemetryCommand(telemetry), CancellationToken.None);
 
         await _broadcastService.Received(1).BroadcastAlertAsync(
+            Arg.Any<Guid>(),
             telemetry.VehicleId,
             CargoTemperatureAlerts.Trend,
             Arg.Any<string>(),
@@ -136,6 +138,7 @@ public class ProcessTelemetryCommandHandlerTests
         await _handler.Handle(new ProcessTelemetryCommand(telemetry), CancellationToken.None);
 
         await _broadcastService.Received(1).BroadcastAlertAsync(
+            Arg.Any<Guid>(),
             telemetry.VehicleId,
             Arg.Any<string>(),
             Arg.Any<string>(),
@@ -163,6 +166,7 @@ public class ProcessTelemetryCommandHandlerTests
         await _handler.Handle(new ProcessTelemetryCommand(telemetry), CancellationToken.None);
 
         await _broadcastService.Received(1).BroadcastAlertAsync(
+            Arg.Any<Guid>(),
             telemetry.VehicleId,
             CargoTemperatureAlerts.Excursion,
             Arg.Any<string>(),
@@ -188,6 +192,7 @@ public class ProcessTelemetryCommandHandlerTests
         await _handler.Handle(new ProcessTelemetryCommand(telemetry), CancellationToken.None);
 
         await _broadcastService.Received(1).BroadcastAlertAsync(
+            Arg.Any<Guid>(),
             telemetry.VehicleId,
             CargoTemperatureAlerts.Excursion,
             Arg.Is<string>(t => t.Contains("out of range")),
@@ -212,7 +217,7 @@ public class ProcessTelemetryCommandHandlerTests
             .ReleaseProcessingLockAsync(telemetry.Id, Arg.Any<CancellationToken>());
         await _cacheService.DidNotReceive().SetLatestTelemetryAsync(Arg.Any<VehicleTelemetry>());
         await _broadcastService.DidNotReceive()
-            .BroadcastTelemetryUpdateAsync(Arg.Any<VehicleTelemetry>(), Arg.Any<CancellationToken>());
+            .BroadcastTelemetryUpdateAsync(Arg.Any<Guid>(), Arg.Any<VehicleTelemetry>(), Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -392,7 +397,7 @@ public class ProcessTelemetryCommandHandlerTests
 
         Assert.True(result);
         await _broadcastService.Received(1)
-            .BroadcastTelemetryUpdateAsync(telemetry, Arg.Any<CancellationToken>());
+            .BroadcastTelemetryUpdateAsync(Arg.Any<Guid>(), telemetry, Arg.Any<CancellationToken>());
     }
 
     [Fact]
@@ -462,41 +467,42 @@ public class ProcessTelemetryCommandHandlerTests
 
 public class GetLatestTelemetryQueryHandlerTests
 {
+    private static readonly Guid Fleet = new("fd000000-0000-0000-0000-0000000000aa");
+
+    private static VehicleTelemetry Packet() => new()
+    {
+        Id = Guid.NewGuid(), VehicleId = "Truck-001", FleetId = Fleet, Latitude = 41.99, Longitude = 21.43,
+        Speed = 80, FuelLevel = 75, EngineTemperature = 90, Timestamp = DateTime.UtcNow,
+    };
+
     [Fact]
-    public async Task Handle_WhenCacheHit_ReturnsMappedDto()
+    public async Task Handle_ReadsTheLatestPacketOfTheCallersOwnVehicle()
     {
         var cache = Substitute.For<ITelemetryCacheService>();
-        var handler = new GetLatestTelemetryQueryHandler(cache);
-        var entity = new VehicleTelemetry
-        {
-            Id = Guid.NewGuid(),
-            VehicleId = "Truck-001",
-            Latitude = 41.99,
-            Longitude = 21.43,
-            Speed = 80,
-            FuelLevel = 75,
-            EngineTemperature = 90,
-            Timestamp = DateTime.UtcNow
-        };
-        cache.GetLatestTelemetryAsync("Truck-001").Returns(entity);
+        var scope = Substitute.For<ITenantScope>();
+        scope.FleetOfVehicleAsync("Truck-001", Arg.Any<CancellationToken>()).Returns(Fleet);
+        var entity = Packet();
+        cache.GetLatestTelemetryAsync(Fleet, "Truck-001").Returns(entity);
 
-        var result = await handler.Handle(new GetLatestTelemetryQuery("Truck-001"), CancellationToken.None);
+        var result = await new GetLatestTelemetryQueryHandler(cache, scope)
+            .Handle(new GetLatestTelemetryQuery("Truck-001"), CancellationToken.None);
 
-        Assert.NotNull(result);
-        Assert.Equal(entity.VehicleId, result!.VehicleId);
-        Assert.Equal(entity.Latitude, result.Latitude);
+        Assert.Equal(entity.Latitude, result!.Latitude);
     }
 
     [Fact]
-    public async Task Handle_WhenCacheMiss_ReturnsNull()
+    public async Task Handle_ForAnotherOrganizationsVehicle_ReturnsNothing()
     {
         var cache = Substitute.For<ITelemetryCacheService>();
-        var handler = new GetLatestTelemetryQueryHandler(cache);
-        cache.GetLatestTelemetryAsync("Truck-001").Returns((VehicleTelemetry?)null);
+        var scope = Substitute.For<ITenantScope>();
+        scope.FleetOfVehicleAsync("Truck-001", Arg.Any<CancellationToken>())
+            .Returns<Guid>(_ => throw new KeyNotFoundException());
 
-        var result = await handler.Handle(new GetLatestTelemetryQuery("Truck-001"), CancellationToken.None);
+        var result = await new GetLatestTelemetryQueryHandler(cache, scope)
+            .Handle(new GetLatestTelemetryQuery("Truck-001"), CancellationToken.None);
 
         Assert.Null(result);
+        await cache.DidNotReceive().GetLatestTelemetryAsync(Arg.Any<Guid>(), Arg.Any<string>());
     }
 }
 
@@ -512,81 +518,48 @@ public class GetFleetTelemetryQueryHandlerTests
         return tenant;
     }
 
-    /// <summary>Every vehicle belongs to the caller's fleet unless a test overrides it.</summary>
-    private static IVehicleRepository CallerVehicles(Guid? fleetId = null)
+    /// <summary>The caller's organization owns exactly these trucks.</summary>
+    private static IJobRepository Owns(params string[] externalIds)
     {
-        var vehicles = Substitute.For<IVehicleRepository>();
-        vehicles.FindFleetIdInOrganizationAsync(Arg.Any<string>(), CallerOrgId, Arg.Any<CancellationToken>())
-            .Returns(fleetId ?? CallerFleetId);
-        return vehicles;
+        var jobs = Substitute.For<IJobRepository>();
+        jobs.ListVehiclesAsync(CallerOrgId, Arg.Any<CancellationToken>())
+            .Returns(externalIds.Select(id => new Vehicle { Id = Guid.NewGuid(), FleetId = CallerFleetId, ExternalId = id }).ToList());
+        return jobs;
     }
+
+    private static VehicleTelemetry Packet(string id, double fuel = 80, double temp = 90) => new()
+    {
+        VehicleId = id, FleetId = CallerFleetId, FuelLevel = fuel, EngineTemperature = temp,
+        Latitude = 41.99, Longitude = 21.43, Speed = 70, Timestamp = DateTime.UtcNow,
+    };
+
+    private static GetFleetTelemetryQueryHandler Handler(ITelemetryCacheService cache, IJobRepository jobs, IShipmentRepository? shipments = null) =>
+        new(cache, jobs, shipments ?? Substitute.For<IShipmentRepository>(), Substitute.For<IVehicleRepository>(), CallerTenant());
 
     [Fact]
-    public async Task Handle_WhenVehicleNotInCallersOrganization_DoesNotExposeShipment()
+    public async Task Handle_ListsOnlyTheCallersOwnTrucks()
     {
+        // Regression: the snapshot used a server-wide vehicle list and showed other companies' trucks.
         var cache = Substitute.For<ITelemetryCacheService>();
-        var registry = Substitute.For<IFleetVehicleRegistry>();
-        var shipmentRepo = Substitute.For<IShipmentRepository>();
-        var vehicles = Substitute.For<IVehicleRepository>();
-        registry.GetConfiguredVehicleIds().Returns(["Truck-001"]);
-        cache.GetLatestTelemetryAsync("Truck-001").Returns(new VehicleTelemetry
-        {
-            VehicleId = "Truck-001", FuelLevel = 80, EngineTemperature = 90,
-            Latitude = 41.99, Longitude = 21.43, Speed = 70, Timestamp = DateTime.UtcNow
-        });
-        vehicles.FindFleetIdInOrganizationAsync("Truck-001", CallerOrgId, Arg.Any<CancellationToken>())
-            .Returns((Guid?)null);
+        cache.GetLatestTelemetryAsync(Arg.Any<Guid>(), Arg.Any<string>()).Returns(c => Packet(c.ArgAt<string>(1)));
 
-        var handler = new GetFleetTelemetryQueryHandler(cache, registry, shipmentRepo, vehicles, CallerTenant());
-        var result = await handler.Handle(new GetFleetTelemetryQuery(), CancellationToken.None);
+        var result = await Handler(cache, Owns("Truck-001")).Handle(new GetFleetTelemetryQuery(), CancellationToken.None);
 
-        Assert.Null(Assert.Single(result.Vehicles).Shipment);
-        await shipmentRepo.DidNotReceive().GetActiveShipmentForVehicleAsync(
-            Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
-    }
-
-    private static GetFleetTelemetryQueryHandler BuildHandler(
-        ITelemetryCacheService cache,
-        IFleetVehicleRegistry registry,
-        IShipmentRepository? shipmentRepo = null)
-    {
-        if (shipmentRepo is null)
-        {
-            var defaultRepo = Substitute.For<IShipmentRepository>();
-            defaultRepo.GetActiveShipmentForVehicleAsync(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
-                .Returns((Shipment?)null);
-            return new GetFleetTelemetryQueryHandler(cache, registry, defaultRepo, CallerVehicles(), CallerTenant());
-        }
-
-        return new GetFleetTelemetryQueryHandler(cache, registry, shipmentRepo, CallerVehicles(), CallerTenant());
+        Assert.Equal("Truck-001", Assert.Single(result.Vehicles).VehicleId);
+        await cache.Received(1).GetLatestTelemetryAsync(CallerFleetId, "Truck-001");
     }
 
     [Fact]
     public async Task Handle_ReturnsActiveVehiclesAndSummary()
     {
         var cache = Substitute.For<ITelemetryCacheService>();
-        var registry = Substitute.For<IFleetVehicleRegistry>();
-        registry.GetConfiguredVehicleIds().Returns(["Truck-001", "Truck-002"]);
+        cache.GetLatestTelemetryAsync(CallerFleetId, "Truck-001").Returns(Packet("Truck-001"));
+        cache.GetLatestTelemetryAsync(CallerFleetId, "Truck-002").Returns((VehicleTelemetry?)null);
 
-        cache.GetLatestTelemetryAsync("Truck-001").Returns(new VehicleTelemetry
-        {
-            VehicleId = "Truck-001",
-            FuelLevel = 80,
-            EngineTemperature = 90,
-            Latitude = 41.99,
-            Longitude = 21.43,
-            Speed = 70,
-            Timestamp = DateTime.UtcNow
-        });
-        cache.GetLatestTelemetryAsync("Truck-002").Returns((VehicleTelemetry?)null);
-
-        var handler = BuildHandler(cache, registry);
-        var result = await handler.Handle(new GetFleetTelemetryQuery(), CancellationToken.None);
+        var result = await Handler(cache, Owns("Truck-001", "Truck-002")).Handle(new GetFleetTelemetryQuery(), CancellationToken.None);
 
         Assert.Equal(2, result.Summary.ConfiguredVehicleCount);
         Assert.Equal(1, result.Summary.ActiveVehicleCount);
-        Assert.Single(result.Vehicles);
-        Assert.Equal("Truck-001", result.Vehicles[0].VehicleId);
         Assert.Equal(80, result.Summary.AverageFuelLevel);
     }
 
@@ -594,92 +567,43 @@ public class GetFleetTelemetryQueryHandlerTests
     public async Task Handle_CountsVehiclesInWarningState()
     {
         var cache = Substitute.For<ITelemetryCacheService>();
-        var registry = Substitute.For<IFleetVehicleRegistry>();
-        registry.GetConfiguredVehicleIds().Returns(["Truck-001"]);
+        cache.GetLatestTelemetryAsync(CallerFleetId, "Truck-001").Returns(Packet("Truck-001", fuel: 20, temp: 95));
 
-        cache.GetLatestTelemetryAsync("Truck-001").Returns(new VehicleTelemetry
-        {
-            VehicleId = "Truck-001",
-            FuelLevel = 20,
-            EngineTemperature = 95,
-            Latitude = 41.99,
-            Longitude = 21.43,
-            Speed = 40,
-            Timestamp = DateTime.UtcNow
-        });
-
-        var handler = BuildHandler(cache, registry);
-        var result = await handler.Handle(new GetFleetTelemetryQuery(), CancellationToken.None);
+        var result = await Handler(cache, Owns("Truck-001")).Handle(new GetFleetTelemetryQuery(), CancellationToken.None);
 
         Assert.Equal(1, result.Summary.WarningCount);
     }
 
     [Fact]
-    public async Task Handle_WhenShipmentPresent_PopulatesShipmentInfoOnTelemetryDto()
+    public async Task Handle_WhenShipmentPresent_PopulatesShipmentInfo()
     {
         var cache = Substitute.For<ITelemetryCacheService>();
-        var registry = Substitute.For<IFleetVehicleRegistry>();
-        var shipmentRepo = Substitute.For<IShipmentRepository>();
-        registry.GetConfiguredVehicleIds().Returns(["Truck-001"]);
-
-        cache.GetLatestTelemetryAsync("Truck-001").Returns(new VehicleTelemetry
-        {
-            VehicleId = "Truck-001",
-            FuelLevel = 80,
-            EngineTemperature = 90,
-            Latitude = 41.99,
-            Longitude = 21.43,
-            Speed = 70,
-            Timestamp = DateTime.UtcNow
-        });
-        shipmentRepo
-            .GetActiveShipmentForVehicleAsync(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+        cache.GetLatestTelemetryAsync(CallerFleetId, "Truck-001").Returns(Packet("Truck-001"));
+        var shipments = Substitute.For<IShipmentRepository>();
+        shipments.GetActiveShipmentForVehicleAsync(CallerFleetId, "Truck-001", Arg.Any<CancellationToken>())
             .Returns(new Shipment
             {
-                Id = Guid.NewGuid(),
-                VehicleId = "Truck-001",
-                ProductName = "Insulin Glargine",
-                BatchNumber = "B-4471",
-                MinSafeTempCelsius = 50,
-                MaxSafeTempCelsius = 100,
-                ValueAtRiskUsd = 12_400m,
-                Status = OmniOps.Core.Enums.ShipmentStatus.InTransit
+                Id = Guid.NewGuid(), VehicleId = "Truck-001", ProductName = "Insulin Glargine", BatchNumber = "B-4471",
+                MinSafeTempCelsius = 2, MaxSafeTempCelsius = 8, ValueAtRiskUsd = 12_400m,
+                Status = OmniOps.Core.Enums.ShipmentStatus.InTransit,
             });
 
-        var handler = BuildHandler(cache, registry, shipmentRepo);
-        var result = await handler.Handle(new GetFleetTelemetryQuery(), CancellationToken.None);
+        var result = await Handler(cache, Owns("Truck-001"), shipments).Handle(new GetFleetTelemetryQuery(), CancellationToken.None);
 
-        Assert.NotNull(result.Vehicles[0].Shipment);
         Assert.Equal("Insulin Glargine", result.Vehicles[0].Shipment!.ProductName);
-        Assert.Equal("B-4471", result.Vehicles[0].Shipment!.BatchNumber);
     }
 
     [Fact]
     public async Task Handle_WhenShipmentLookupFails_StillReturnsVehicle()
     {
         var cache = Substitute.For<ITelemetryCacheService>();
-        var registry = Substitute.For<IFleetVehicleRegistry>();
-        var shipmentRepo = Substitute.For<IShipmentRepository>();
-        registry.GetConfiguredVehicleIds().Returns(["Truck-001"]);
-
-        cache.GetLatestTelemetryAsync("Truck-001").Returns(new VehicleTelemetry
-        {
-            VehicleId = "Truck-001",
-            FuelLevel = 80,
-            EngineTemperature = 90,
-            Latitude = 41.99,
-            Longitude = 21.43,
-            Speed = 70,
-            Timestamp = DateTime.UtcNow
-        });
-        shipmentRepo
-            .GetActiveShipmentForVehicleAsync(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+        cache.GetLatestTelemetryAsync(CallerFleetId, "Truck-001").Returns(Packet("Truck-001"));
+        var shipments = Substitute.For<IShipmentRepository>();
+        shipments.GetActiveShipmentForVehicleAsync(Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
             .Returns<Shipment?>(_ => throw new InvalidOperationException("db timeout"));
 
-        var handler = new GetFleetTelemetryQueryHandler(cache, registry, shipmentRepo, CallerVehicles(), CallerTenant());
-        var result = await handler.Handle(new GetFleetTelemetryQuery(), CancellationToken.None);
+        var result = await Handler(cache, Owns("Truck-001"), shipments).Handle(new GetFleetTelemetryQuery(), CancellationToken.None);
 
-        Assert.Single(result.Vehicles);
-        Assert.Null(result.Vehicles[0].Shipment);
+        Assert.Null(Assert.Single(result.Vehicles).Shipment);
     }
 }

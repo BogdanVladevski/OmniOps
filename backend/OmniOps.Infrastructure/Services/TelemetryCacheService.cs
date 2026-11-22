@@ -20,7 +20,13 @@ public class TelemetryCacheService : ITelemetryCacheService
 
     public async Task SetLatestTelemetryAsync(VehicleTelemetry telemetry)
     {
-        var cacheKey = $"telemetry:latest:{telemetry.VehicleId}";
+        // Unattributed packets have no fleet and are not cached: nobody may read them.
+        if (telemetry.FleetId is not { } fleetId)
+        {
+            return;
+        }
+
+        var cacheKey = Key(fleetId, telemetry.VehicleId);
         var jsonData = System.Text.Json.JsonSerializer.Serialize(telemetry);
 
         var cacheOptions = new DistributedCacheEntryOptions
@@ -32,9 +38,9 @@ public class TelemetryCacheService : ITelemetryCacheService
         await _cache.SetStringAsync(cacheKey, jsonData, cacheOptions);
     }
 
-    public async Task<VehicleTelemetry?> GetLatestTelemetryAsync(string vehicleId)
+    public async Task<VehicleTelemetry?> GetLatestTelemetryAsync(Guid fleetId, string vehicleId)
     {
-        var cacheKey = $"telemetry:latest:{vehicleId}";
+        var cacheKey = Key(fleetId, vehicleId);
         var jsonData = await _cache.GetStringAsync(cacheKey);
 
         if (string.IsNullOrEmpty(jsonData))
@@ -42,4 +48,7 @@ public class TelemetryCacheService : ITelemetryCacheService
 
         return JsonSerializer.Deserialize<VehicleTelemetry>(jsonData);
     }
+
+    // External ids repeat across fleets, so the fleet is part of the key.
+    private static string Key(Guid fleetId, string vehicleId) => $"telemetry:latest:{fleetId:N}:{vehicleId}";
 }

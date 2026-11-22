@@ -12,14 +12,18 @@ public class ResolveIncidentCommandHandler : IRequestHandler<ResolveIncidentComm
     private readonly IIncidentRepository _incidents;
     private readonly IAuditService _audit;
 
-    public ResolveIncidentCommandHandler(IIncidentRepository incidents, IAuditService audit)
+    private readonly ITenantScope _scope;
+
+    public ResolveIncidentCommandHandler(IIncidentRepository incidents, IAuditService audit, ITenantScope scope)
     {
+        _scope = scope;
         _incidents = incidents;
         _audit = audit;
     }
 
     public async Task<IncidentDto> Handle(ResolveIncidentCommand request, CancellationToken cancellationToken)
     {
+        await _scope.EnsureIncidentAsync(request.IncidentId, cancellationToken);
         var incident = await _incidents.GetByIdAsync(request.IncidentId, cancellationToken)
             ?? throw new KeyNotFoundException($"Incident {request.IncidentId} not found.");
         incident.Status = IncidentStatus.Resolved;
@@ -45,10 +49,17 @@ public class AddIncidentNoteCommandHandler : IRequestHandler<AddIncidentNoteComm
 {
     private readonly IIncidentRepository _incidents;
 
-    public AddIncidentNoteCommandHandler(IIncidentRepository incidents) => _incidents = incidents;
+    private readonly ITenantScope _scope;
+
+    public AddIncidentNoteCommandHandler(IIncidentRepository incidents, ITenantScope scope)
+    {
+        _incidents = incidents;
+        _scope = scope;
+    }
 
     public async Task<IncidentNoteDto> Handle(AddIncidentNoteCommand request, CancellationToken cancellationToken)
     {
+        await _scope.EnsureIncidentAsync(request.IncidentId, cancellationToken);
         _ = await _incidents.GetByIdAsync(request.IncidentId, cancellationToken)
             ?? throw new KeyNotFoundException($"Incident {request.IncidentId} not found.");
         var note = new IncidentNote
@@ -70,14 +81,18 @@ public class AssignIncidentCommandHandler : IRequestHandler<AssignIncidentComman
     private readonly IIncidentRepository _incidents;
     private readonly IAuditService _audit;
 
-    public AssignIncidentCommandHandler(IIncidentRepository incidents, IAuditService audit)
+    private readonly ITenantScope _scope;
+
+    public AssignIncidentCommandHandler(IIncidentRepository incidents, IAuditService audit, ITenantScope scope)
     {
+        _scope = scope;
         _incidents = incidents;
         _audit = audit;
     }
 
     public async Task<IncidentDto> Handle(AssignIncidentCommand request, CancellationToken cancellationToken)
     {
+        await _scope.EnsureIncidentAsync(request.IncidentId, cancellationToken);
         var incident = await _incidents.GetByIdAsync(request.IncidentId, cancellationToken)
             ?? throw new KeyNotFoundException($"Incident {request.IncidentId} not found.");
         incident.AssignedTo = request.AssignedTo;

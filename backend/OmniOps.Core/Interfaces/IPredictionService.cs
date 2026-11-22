@@ -2,11 +2,11 @@ namespace OmniOps.Core.Interfaces;
 
 public interface IPredictionService
 {
-    Task<VehicleHealthPrediction> PredictVehicleHealthAsync(string vehicleExternalId, CancellationToken cancellationToken = default);
-    Task<MaintenancePrediction> PredictMaintenanceAsync(string vehicleExternalId, CancellationToken cancellationToken = default);
+    Task<VehicleHealthPrediction> PredictVehicleHealthAsync(Guid fleetId, string vehicleExternalId, CancellationToken cancellationToken = default);
+    Task<MaintenancePrediction> PredictMaintenanceAsync(Guid fleetId, string vehicleExternalId, CancellationToken cancellationToken = default);
     Task<DriverRiskPrediction> PredictDriverRiskAsync(Guid driverId, CancellationToken cancellationToken = default);
-    Task<FuelPrediction> PredictFuelAsync(string vehicleExternalId, CancellationToken cancellationToken = default);
-    Task<BatteryPrediction> PredictBatteryAsync(string vehicleExternalId, CancellationToken cancellationToken = default);
+    Task<FuelPrediction> PredictFuelAsync(Guid fleetId, string vehicleExternalId, CancellationToken cancellationToken = default);
+    Task<BatteryPrediction> PredictBatteryAsync(Guid fleetId, string vehicleExternalId, CancellationToken cancellationToken = default);
     Task<EtaPrediction> PredictEtaAsync(Guid tripId, CancellationToken cancellationToken = default);
 }
 

@@ -11,14 +11,21 @@ namespace OmniOps.Application.Commands.Handlers;
 public class CreateFleetCommandHandler : IRequestHandler<CreateFleetCommand, FleetDto>
 {
     private readonly IFleetRepository _fleetRepository;
+    private readonly ITenantContext _tenant;
 
-    public CreateFleetCommandHandler(IFleetRepository fleetRepository) => _fleetRepository = fleetRepository;
+    public CreateFleetCommandHandler(IFleetRepository fleetRepository, ITenantContext tenant)
+    {
+        _fleetRepository = fleetRepository;
+        _tenant = tenant;
+    }
 
     public async Task<FleetDto> Handle(CreateFleetCommand request, CancellationToken cancellationToken)
     {
         var fleet = new Fleet
         {
             Id = Guid.NewGuid(),
+            OrganizationId = _tenant.OrganizationId,
+            WorkspaceId = _tenant.WorkspaceId ?? Guid.Empty,
             Name = request.Name,
             Description = request.Description,
             CreatedAtUtc = DateTime.UtcNow
@@ -32,11 +39,17 @@ public class CreateFleetCommandHandler : IRequestHandler<CreateFleetCommand, Fle
 public class CreateVehicleCommandHandler : IRequestHandler<CreateVehicleCommand, VehicleDto>
 {
     private readonly IVehicleRepository _vehicleRepository;
+    private readonly ITenantScope _scope;
 
-    public CreateVehicleCommandHandler(IVehicleRepository vehicleRepository) => _vehicleRepository = vehicleRepository;
+    public CreateVehicleCommandHandler(IVehicleRepository vehicleRepository, ITenantScope scope)
+    {
+        _vehicleRepository = vehicleRepository;
+        _scope = scope;
+    }
 
     public async Task<VehicleDto> Handle(CreateVehicleCommand request, CancellationToken cancellationToken)
     {
+        await _scope.EnsureFleetAsync(request.FleetId, cancellationToken);
         var vehicle = new Vehicle
         {
             Id = Guid.NewGuid(),
@@ -55,11 +68,17 @@ public class CreateVehicleCommandHandler : IRequestHandler<CreateVehicleCommand,
 public class CreateDriverCommandHandler : IRequestHandler<CreateDriverCommand, DriverDto>
 {
     private readonly IDriverRepository _driverRepository;
+    private readonly ITenantScope _scope;
 
-    public CreateDriverCommandHandler(IDriverRepository driverRepository) => _driverRepository = driverRepository;
+    public CreateDriverCommandHandler(IDriverRepository driverRepository, ITenantScope scope)
+    {
+        _driverRepository = driverRepository;
+        _scope = scope;
+    }
 
     public async Task<DriverDto> Handle(CreateDriverCommand request, CancellationToken cancellationToken)
     {
+        await _scope.EnsureFleetAsync(request.FleetId, cancellationToken);
         var driver = new Driver
         {
             Id = Guid.NewGuid(),
@@ -78,16 +97,22 @@ public class AssignDriverToVehicleCommandHandler : IRequestHandler<AssignDriverT
     private readonly IVehicleRepository _vehicleRepository;
     private readonly IDriverRepository _driverRepository;
 
+    private readonly ITenantScope _scope;
+
     public AssignDriverToVehicleCommandHandler(
         IVehicleRepository vehicleRepository,
-        IDriverRepository driverRepository)
+        IDriverRepository driverRepository,
+        ITenantScope scope)
     {
+        _scope = scope;
         _vehicleRepository = vehicleRepository;
         _driverRepository = driverRepository;
     }
 
     public async Task<VehicleDto> Handle(AssignDriverToVehicleCommand request, CancellationToken cancellationToken)
     {
+        await _scope.EnsureVehicleAsync(request.VehicleId, cancellationToken);
+        await _scope.EnsureDriverAsync(request.DriverId, cancellationToken);
         var vehicle = await _vehicleRepository.GetByIdAsync(request.VehicleId, cancellationToken)
             ?? throw new KeyNotFoundException($"Vehicle {request.VehicleId} not found.");
         var driver = await _driverRepository.GetByIdAsync(request.DriverId, cancellationToken)
@@ -102,11 +127,17 @@ public class AssignDriverToVehicleCommandHandler : IRequestHandler<AssignDriverT
 public class CreateDepotCommandHandler : IRequestHandler<CreateDepotCommand, DepotDto>
 {
     private readonly IDepotRepository _depotRepository;
+    private readonly ITenantScope _scope;
 
-    public CreateDepotCommandHandler(IDepotRepository depotRepository) => _depotRepository = depotRepository;
+    public CreateDepotCommandHandler(IDepotRepository depotRepository, ITenantScope scope)
+    {
+        _depotRepository = depotRepository;
+        _scope = scope;
+    }
 
     public async Task<DepotDto> Handle(CreateDepotCommand request, CancellationToken cancellationToken)
     {
+        await _scope.EnsureFleetAsync(request.FleetId, cancellationToken);
         var depot = new Depot
         {
             Id = Guid.NewGuid(),
@@ -126,11 +157,23 @@ public class CreateGeofenceCommandHandler : IRequestHandler<CreateGeofenceComman
 {
     private readonly IGeofenceRepository _geofenceRepository;
 
-    public CreateGeofenceCommandHandler(IGeofenceRepository geofenceRepository) =>
+    private readonly ITenantScope _scope;
+
+    public CreateGeofenceCommandHandler(IGeofenceRepository geofenceRepository, ITenantScope scope)
+    {
         _geofenceRepository = geofenceRepository;
+        _scope = scope;
+    }
 
     public async Task<GeofenceDto> Handle(CreateGeofenceCommand request, CancellationToken cancellationToken)
     {
+        // A zone must belong to one of the caller's fleets; zones without a fleet would be visible to nobody.
+        if (request.FleetId is not { } fleetId)
+        {
+            throw new ArgumentException("A zone needs a fleet.");
+        }
+
+        await _scope.EnsureFleetAsync(fleetId, cancellationToken);
         if (!Enum.TryParse<GeofenceShapeType>(request.ShapeType, true, out var shapeType))
         {
             throw new ArgumentException($"Invalid geofence shape type: {request.ShapeType}");

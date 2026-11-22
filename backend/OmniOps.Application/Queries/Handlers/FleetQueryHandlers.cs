@@ -9,12 +9,18 @@ public class GetFleetsQueryHandler : IRequestHandler<GetFleetsQuery, IReadOnlyLi
 {
     private readonly IFleetRepository _fleetRepository;
 
-    public GetFleetsQueryHandler(IFleetRepository fleetRepository) => _fleetRepository = fleetRepository;
+    private readonly ITenantContext _tenant;
+
+    public GetFleetsQueryHandler(IFleetRepository fleetRepository, ITenantContext tenant)
+    {
+        _fleetRepository = fleetRepository;
+        _tenant = tenant;
+    }
 
     public async Task<IReadOnlyList<FleetDto>> Handle(GetFleetsQuery request, CancellationToken cancellationToken)
     {
         var fleets = await _fleetRepository.GetAllAsync(cancellationToken);
-        return fleets.Select(FleetDto.FromEntity).ToList();
+        return fleets.Where(f => f.OrganizationId == _tenant.OrganizationId).Select(FleetDto.FromEntity).ToList();
     }
 }
 
@@ -24,11 +30,15 @@ public class GetFleetStatisticsQueryHandler : IRequestHandler<GetFleetStatistics
     private readonly IDriverRepository _driverRepository;
     private readonly IDepotRepository _depotRepository;
 
+    private readonly ITenantScope _scope;
+
     public GetFleetStatisticsQueryHandler(
         IFleetRepository fleetRepository,
         IDriverRepository driverRepository,
-        IDepotRepository depotRepository)
+        IDepotRepository depotRepository,
+        ITenantScope scope)
     {
+        _scope = scope;
         _fleetRepository = fleetRepository;
         _driverRepository = driverRepository;
         _depotRepository = depotRepository;
@@ -36,6 +46,7 @@ public class GetFleetStatisticsQueryHandler : IRequestHandler<GetFleetStatistics
 
     public async Task<FleetStatisticsDto> Handle(GetFleetStatisticsQuery request, CancellationToken cancellationToken)
     {
+        await _scope.EnsureFleetAsync(request.FleetId, cancellationToken);
         var vehicleCount = await _fleetRepository.CountVehiclesAsync(request.FleetId, cancellationToken);
         var activeTrips = await _fleetRepository.CountActiveTripsAsync(request.FleetId, cancellationToken);
         var drivers = await _driverRepository.GetByFleetIdAsync(request.FleetId, cancellationToken);
@@ -48,11 +59,17 @@ public class GetVehiclesByFleetQueryHandler : IRequestHandler<GetVehiclesByFleet
 {
     private readonly IVehicleRepository _vehicleRepository;
 
-    public GetVehiclesByFleetQueryHandler(IVehicleRepository vehicleRepository) =>
+    private readonly ITenantScope _scope;
+
+    public GetVehiclesByFleetQueryHandler(IVehicleRepository vehicleRepository, ITenantScope scope)
+    {
         _vehicleRepository = vehicleRepository;
+        _scope = scope;
+    }
 
     public async Task<IReadOnlyList<VehicleDto>> Handle(GetVehiclesByFleetQuery request, CancellationToken cancellationToken)
     {
+        await _scope.EnsureFleetAsync(request.FleetId, cancellationToken);
         var vehicles = await _vehicleRepository.GetByFleetIdAsync(request.FleetId, cancellationToken);
         return vehicles.Select(VehicleDto.FromEntity).ToList();
     }
@@ -62,13 +79,25 @@ public class GetGeofencesQueryHandler : IRequestHandler<GetGeofencesQuery, IRead
 {
     private readonly IGeofenceRepository _geofenceRepository;
 
-    public GetGeofencesQueryHandler(IGeofenceRepository geofenceRepository) =>
+    private readonly ITenantScope _scope;
+
+    public GetGeofencesQueryHandler(IGeofenceRepository geofenceRepository, ITenantScope scope)
+    {
         _geofenceRepository = geofenceRepository;
+        _scope = scope;
+    }
 
     public async Task<IReadOnlyList<GeofenceDto>> Handle(GetGeofencesQuery request, CancellationToken cancellationToken)
     {
+        // Zones without a fleet belong to no organization, so they are never shown.
+        if (request.FleetId is { } fleetId)
+        {
+            await _scope.EnsureFleetAsync(fleetId, cancellationToken);
+        }
+
+        var own = (await _scope.FleetIdsAsync(cancellationToken)).ToHashSet();
         var geofences = await _geofenceRepository.GetActiveAsync(request.FleetId, cancellationToken);
-        return geofences.Select(GeofenceDto.FromEntity).ToList();
+        return geofences.Where(g => g.FleetId is { } f && own.Contains(f)).Select(GeofenceDto.FromEntity).ToList();
     }
 }
 
@@ -92,14 +121,22 @@ public class GetTelemetryAggregationsQueryHandler
 {
     private readonly ITelemetryRepository _telemetryRepository;
 
-    public GetTelemetryAggregationsQueryHandler(ITelemetryRepository telemetryRepository) =>
-        _telemetryRepository = telemetryRepository;
+    private readonly ITenantScope _scope;
 
-    public Task<IReadOnlyList<Core.Domain.TelemetryAggregationBucket>> Handle(
+    public GetTelemetryAggregationsQueryHandler(ITelemetryRepository telemetryRepository, ITenantScope scope)
+    {
+        _telemetryRepository = telemetryRepository;
+        _scope = scope;
+    }
+
+    public async Task<IReadOnlyList<Core.Domain.TelemetryAggregationBucket>> Handle(
         GetTelemetryAggregationsQuery request,
-        CancellationToken cancellationToken) =>
-        _telemetryRepository.GetAggregationsAsync(
-            request.VehicleId, request.FromUtc, request.ToUtc, request.BucketMinutes, cancellationToken);
+        CancellationToken cancellationToken)
+    {
+        var fleetId = await _scope.FleetOfVehicleAsync(request.VehicleId, cancellationToken);
+        return await _telemetryRepository.GetAggregationsAsync(
+            fleetId, request.VehicleId, request.FromUtc, request.ToUtc, request.BucketMinutes, cancellationToken);
+    }
 }
 
 public class GetFleetHeatmapQueryHandler
@@ -108,10 +145,14 @@ public class GetFleetHeatmapQueryHandler
     private readonly IVehicleRepository _vehicleRepository;
     private readonly ITelemetryRepository _telemetryRepository;
 
+    private readonly ITenantScope _scope;
+
     public GetFleetHeatmapQueryHandler(
         IVehicleRepository vehicleRepository,
-        ITelemetryRepository telemetryRepository)
+        ITelemetryRepository telemetryRepository,
+        ITenantScope scope)
     {
+        _scope = scope;
         _vehicleRepository = vehicleRepository;
         _telemetryRepository = telemetryRepository;
     }
@@ -120,9 +161,11 @@ public class GetFleetHeatmapQueryHandler
         GetFleetHeatmapQuery request,
         CancellationToken cancellationToken)
     {
+        await _scope.EnsureFleetAsync(request.FleetId, cancellationToken);
         var vehicles = await _vehicleRepository.GetByFleetIdAsync(request.FleetId, cancellationToken);
         var vehicleIds = vehicles.Select(v => v.ExternalId).ToList();
         return await _telemetryRepository.GetHeatmapBucketsAsync(
+            request.FleetId,
             vehicleIds, request.FromUtc, request.ToUtc, request.GridSizeDegrees, cancellationToken);
     }
 }
@@ -132,10 +175,14 @@ public class GetVehicleClustersQueryHandler : IRequestHandler<GetVehicleClusters
     private readonly IVehicleRepository _vehicleRepository;
     private readonly ITelemetryCacheService _cacheService;
 
+    private readonly ITenantScope _scope;
+
     public GetVehicleClustersQueryHandler(
         IVehicleRepository vehicleRepository,
-        ITelemetryCacheService cacheService)
+        ITelemetryCacheService cacheService,
+        ITenantScope scope)
     {
+        _scope = scope;
         _vehicleRepository = vehicleRepository;
         _cacheService = cacheService;
     }
@@ -144,12 +191,13 @@ public class GetVehicleClustersQueryHandler : IRequestHandler<GetVehicleClusters
         GetVehicleClustersQuery request,
         CancellationToken cancellationToken)
     {
+        await _scope.EnsureFleetAsync(request.FleetId, cancellationToken);
         var vehicles = await _vehicleRepository.GetByFleetIdAsync(request.FleetId, cancellationToken);
         var points = new List<(string VehicleId, double Lat, double Lon)>();
 
         foreach (var vehicle in vehicles)
         {
-            var latest = await _cacheService.GetLatestTelemetryAsync(vehicle.ExternalId);
+            var latest = await _cacheService.GetLatestTelemetryAsync(request.FleetId, vehicle.ExternalId);
             if (latest is not null)
             {
                 points.Add((vehicle.ExternalId, latest.Latitude, latest.Longitude));

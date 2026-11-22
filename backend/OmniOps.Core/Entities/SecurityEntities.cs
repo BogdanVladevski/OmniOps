@@ -3,6 +3,10 @@ namespace OmniOps.Core.Entities;
 public class AuditLog
 {
     public Guid Id { get; set; }
+
+    /// <summary>Organization the change belongs to; each organization only ever sees its own entries.</summary>
+    public Guid? OrganizationId { get; set; }
+
     public string Action { get; set; } = string.Empty;
     public string EntityType { get; set; } = string.Empty;
     public string? EntityId { get; set; }

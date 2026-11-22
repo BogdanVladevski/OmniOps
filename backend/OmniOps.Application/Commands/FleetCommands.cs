@@ -59,5 +59,6 @@ public record ReplayEventsCommand(
     DateTime ToUtc,
     string? EventType = null) : IRequest<int>, IAuthorizedRequest
 {
-    public string RequiredPolicy => AuthorizationPolicies.VehicleSimulate;
+    // Replays every organization's events: operators only.
+    public string RequiredPolicy => AuthorizationPolicies.PlatformAdmin;
 }

@@ -53,6 +53,7 @@ public static partial class ServiceRegistration
         builder.Services.AddTransient<IDriverRepository, DriverRepository>();
         builder.Services.AddTransient<ITripRepository, TripRepository>();
         builder.Services.AddTransient<IJobRepository, JobRepository>();
+        builder.Services.AddScoped<ITenantScope, TenantScope>();
         builder.Services.AddSingleton<IFileStore>(sp =>
         {
             var root = sp.GetRequiredService<IOptions<StorageOptions>>().Value.RootPath;

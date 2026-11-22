@@ -305,6 +305,7 @@ public class AddJobDocumentCommandHandler : IRequestHandler<AddJobDocumentComman
         try
         {
             await _broadcast.BroadcastAlertAsync(
+                job.OrganizationId,
                 job.Vehicle.ExternalId,
                 CargoTemperatureAlerts.Excursion,
                 $"Load outside its temperature range — {job.Vehicle.ExternalId}",
@@ -383,6 +384,7 @@ public class DeliverJobCommandHandler : IRequestHandler<DeliverJobCommand, JobDt
         {
             var who = job.CustomerName ?? job.Destination ?? "the customer";
             await _broadcast.BroadcastAlertAsync(
+                job.OrganizationId,
                 job.Vehicle.ExternalId,
                 JobAlerts.Delivered,
                 $"Delivered to {who}",

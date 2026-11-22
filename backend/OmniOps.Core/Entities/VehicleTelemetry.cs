@@ -9,6 +9,12 @@ namespace OmniOps.Core.Entities
     {
         public Guid Id { get; set; }
         public string VehicleId { get; set; } = string.Empty;
+
+        /// <summary>
+        /// Fleet the packet belongs to. Vehicle ids are unique per fleet only, so every history and
+        /// latest-position lookup filters on this. Null only for packets that could not be attributed.
+        /// </summary>
+        public Guid? FleetId { get; set; }
         public double Latitude { get; set; }
         public double Longitude { get; set; }
         public double Speed { get; set; }

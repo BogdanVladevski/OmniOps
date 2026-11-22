@@ -50,6 +50,7 @@ public class AppDbContext : DbContext
 
         modelBuilder.Entity<VehicleTelemetry>(entity =>
         {
+            entity.HasIndex(e => new { e.FleetId, e.VehicleId, e.Timestamp });
             entity.HasKey(e => e.Id);
             entity.HasIndex(e => new { e.VehicleId, e.Timestamp });
         });
@@ -332,6 +333,7 @@ public class AppDbContext : DbContext
         {
             entity.HasKey(e => e.Id);
             entity.HasIndex(e => e.OccurredAtUtc);
+            entity.HasIndex(e => new { e.OrganizationId, e.OccurredAtUtc });
         });
 
         modelBuilder.Entity<LoginHistory>(entity =>

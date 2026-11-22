@@ -41,6 +41,7 @@ public class TelemetryRepository : ITelemetryRepository
     }
 
     public async Task<IReadOnlyList<VehicleTelemetry>> GetByVehicleInTimeRangeAsync(
+        Guid fleetId,
         string vehicleId,
         DateTime fromUtc,
         DateTime toUtc,
@@ -48,12 +49,13 @@ public class TelemetryRepository : ITelemetryRepository
     {
         return await _context.Telemetries
             .AsNoTracking()
-            .Where(t => t.VehicleId == vehicleId && t.Timestamp >= fromUtc && t.Timestamp <= toUtc)
+            .Where(t => t.FleetId == fleetId && t.VehicleId == vehicleId && t.Timestamp >= fromUtc && t.Timestamp <= toUtc)
             .OrderBy(t => t.Timestamp)
             .ToListAsync(cancellationToken);
     }
 
     public async Task<IReadOnlyList<TelemetryAggregationBucket>> GetAggregationsAsync(
+        Guid fleetId,
         string vehicleId,
         DateTime fromUtc,
         DateTime toUtc,
@@ -62,7 +64,7 @@ public class TelemetryRepository : ITelemetryRepository
     {
         var rows = await _context.Telemetries
             .AsNoTracking()
-            .Where(t => t.VehicleId == vehicleId && t.Timestamp >= fromUtc && t.Timestamp <= toUtc)
+            .Where(t => t.FleetId == fleetId && t.VehicleId == vehicleId && t.Timestamp >= fromUtc && t.Timestamp <= toUtc)
             .Select(t => new { t.Timestamp, t.Speed, t.EngineTemperature })
             .ToListAsync(cancellationToken);
 
@@ -80,6 +82,7 @@ public class TelemetryRepository : ITelemetryRepository
     }
 
     public async Task<IReadOnlyList<HeatmapBucket>> GetHeatmapBucketsAsync(
+        Guid fleetId,
         IReadOnlyList<string> vehicleIds,
         DateTime fromUtc,
         DateTime toUtc,
@@ -88,7 +91,8 @@ public class TelemetryRepository : ITelemetryRepository
     {
         var rows = await _context.Telemetries
             .AsNoTracking()
-            .Where(t => vehicleIds.Contains(t.VehicleId)
+            .Where(t => t.FleetId == fleetId
+                && vehicleIds.Contains(t.VehicleId)
                 && t.Timestamp >= fromUtc
                 && t.Timestamp <= toUtc)
             .Select(t => new { t.Latitude, t.Longitude, t.Speed })

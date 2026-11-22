@@ -86,6 +86,8 @@ public class ProcessTelemetryCommandHandler : IRequestHandler<ProcessTelemetryCo
         }
 
         var tenant = request.KnownTenant ?? await ResolveTenantAsync(request.Telemetry.VehicleId, cancellationToken);
+        // History and latest-position lookups are per fleet (external ids repeat across fleets).
+        request.Telemetry.FleetId = tenant.IsUnattributed ? null : tenant.FleetId;
         var detection = await _incidentDetectionService.DetectAsync(request.Telemetry, tenant, cancellationToken);
         var detectedIncidents = detection.Incidents.ToList();
         foreach (var breach in geofenceBreaches)
@@ -209,6 +211,7 @@ public class ProcessTelemetryCommandHandler : IRequestHandler<ProcessTelemetryCo
                     && (temperature > activeShipment.MaxSafeTempCelsius || temperature < activeShipment.MinSafeTempCelsius);
 
                 await _broadcastService.BroadcastAlertAsync(
+                    tenant.OrganizationId,
                     request.Telemetry.VehicleId,
                     outOfRange ? CargoTemperatureAlerts.Excursion : CargoTemperatureAlerts.Trend,
                     outOfRange
@@ -227,10 +230,12 @@ public class ProcessTelemetryCommandHandler : IRequestHandler<ProcessTelemetryCo
 
         try
         {
-            await _broadcastService.BroadcastTelemetryUpdateAsync(request.Telemetry, cancellationToken);
+            // Unattributed packets belong to the quarantine organization, whose group nobody can join.
+            await _broadcastService.BroadcastTelemetryUpdateAsync(tenant.OrganizationId, request.Telemetry, cancellationToken);
             foreach (var incident in detectedIncidents)
             {
                 await _broadcastService.BroadcastAlertAsync(
+                    tenant.OrganizationId,
                     incident.VehicleId,
                     incident.Type.ToString(),
                     incident.Title,

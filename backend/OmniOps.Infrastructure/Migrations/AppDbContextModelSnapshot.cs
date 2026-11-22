@@ -128,12 +128,17 @@ namespace OmniOps.Infrastructure.Migrations
                     b.Property<DateTime>("OccurredAtUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<Guid?>("OrganizationId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("UserId")
                         .HasColumnType("text");
 
                     b.HasKey("Id");
 
                     b.HasIndex("OccurredAtUtc");
+
+                    b.HasIndex("OrganizationId", "OccurredAtUtc");
 
                     b.ToTable("AuditLogs");
                 });
@@ -1437,6 +1442,9 @@ namespace OmniOps.Infrastructure.Migrations
                     b.Property<double?>("EngineTemperature")
                         .HasColumnType("double precision");
 
+                    b.Property<Guid?>("FleetId")
+                        .HasColumnType("uuid");
+
                     b.Property<double?>("FuelLevel")
                         .HasColumnType("double precision");
 
@@ -1465,6 +1473,8 @@ namespace OmniOps.Infrastructure.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("VehicleId", "Timestamp");
+
+                    b.HasIndex("FleetId", "VehicleId", "Timestamp");
 
                     b.ToTable("Telemetries");
                 });

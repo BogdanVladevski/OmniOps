@@ -8,12 +8,18 @@ namespace OmniOps.Application.Queries.Handlers;
 public class GetAuditLogsQueryHandler : IRequestHandler<GetAuditLogsQuery, IReadOnlyList<AuditLogDto>>
 {
     private readonly IAuditLogRepository _auditLogs;
+    private readonly ITenantContext _tenant;
 
-    public GetAuditLogsQueryHandler(IAuditLogRepository auditLogs) => _auditLogs = auditLogs;
+    public GetAuditLogsQueryHandler(IAuditLogRepository auditLogs, ITenantContext tenant)
+    {
+        _auditLogs = auditLogs;
+        _tenant = tenant;
+    }
 
     public async Task<IReadOnlyList<AuditLogDto>> Handle(GetAuditLogsQuery request, CancellationToken cancellationToken)
     {
         var logs = await _auditLogs.QueryAsync(
+            _tenant.OrganizationId,
             request.FromUtc, request.ToUtc, request.EntityType, request.Limit, cancellationToken);
 
         return logs.Select(l => new AuditLogDto(

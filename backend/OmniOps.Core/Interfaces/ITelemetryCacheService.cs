@@ -11,6 +11,7 @@ namespace OmniOps.Core.Interfaces;
 public interface ITelemetryCacheService
 {
     Task SetLatestTelemetryAsync(VehicleTelemetry telemetry);
-    Task<VehicleTelemetry?> GetLatestTelemetryAsync(string vehicleId);
+    /// <summary>Latest packet for a vehicle in a fleet (external ids repeat across fleets).</summary>
+    Task<VehicleTelemetry?> GetLatestTelemetryAsync(Guid fleetId, string vehicleId);
 }
 

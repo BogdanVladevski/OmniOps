@@ -8,15 +8,28 @@ namespace OmniOps.Application.Queries.Handlers;
 public class GetLatestTelemetryQueryHandler : IRequestHandler<GetLatestTelemetryQuery, TelemetryDto?>
 {
     private readonly ITelemetryCacheService _cacheService;
+    private readonly ITenantScope _scope;
 
-    public GetLatestTelemetryQueryHandler(ITelemetryCacheService cacheService)
+    public GetLatestTelemetryQueryHandler(ITelemetryCacheService cacheService, ITenantScope scope)
     {
         _cacheService = cacheService;
+        _scope = scope;
     }
 
     public async Task<TelemetryDto?> Handle(GetLatestTelemetryQuery request, CancellationToken cancellationToken)
     {
-        var telemetry = await _cacheService.GetLatestTelemetryAsync(request.VehicleId);
+        // Another organization's vehicle with the same id is "not found".
+        Guid fleetId;
+        try
+        {
+            fleetId = await _scope.FleetOfVehicleAsync(request.VehicleId, cancellationToken);
+        }
+        catch (KeyNotFoundException)
+        {
+            return null;
+        }
+
+        var telemetry = await _cacheService.GetLatestTelemetryAsync(fleetId, request.VehicleId);
         return telemetry is not null ? TelemetryDto.FromEntity(telemetry) : null;
     }
 }

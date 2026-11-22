@@ -8,8 +8,13 @@ namespace OmniOps.Infrastructure.Services;
 public class AuditService : IAuditService
 {
     private readonly AppDbContext _context;
+    private readonly ITenantContext _tenant;
 
-    public AuditService(AppDbContext context) => _context = context;
+    public AuditService(AppDbContext context, ITenantContext tenant)
+    {
+        _context = context;
+        _tenant = tenant;
+    }
 
     public async Task LogAsync(
         string action, string entityType, string? entityId, string? userId, string? details,
@@ -18,6 +23,7 @@ public class AuditService : IAuditService
         await _context.AuditLogs.AddAsync(new AuditLog
         {
             Id = Guid.NewGuid(),
+            OrganizationId = _tenant.OrganizationId,
             Action = action,
             EntityType = entityType,
             EntityId = entityId,
