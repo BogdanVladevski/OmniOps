@@ -9,6 +9,8 @@ public class LogEmailSender : IEmailSender
 
     public LogEmailSender(ILogger<LogEmailSender> logger) => _logger = logger;
 
+    public bool IsConfigured => false;
+
     public Task SendAsync(string to, string subject, string body, CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Email to {To}: {Subject} — {BodyPreview}", to, subject, body[..Math.Min(body.Length, 120)]);

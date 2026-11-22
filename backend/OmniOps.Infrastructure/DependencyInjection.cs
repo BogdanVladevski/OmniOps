@@ -11,6 +11,9 @@ public static class DependencyInjection
         IConfiguration configuration)
     {
         services.Configure<DatabaseOptions>(configuration.GetSection(DatabaseOptions.SectionName));
+        services.Configure<EmailOptions>(configuration.GetSection(EmailOptions.SectionName));
+        services.Configure<PublicUrlOptions>(configuration.GetSection(PublicUrlOptions.SectionName));
+        services.Configure<InvoiceReminderOptions>(configuration.GetSection(InvoiceReminderOptions.SectionName));
         services.Configure<StorageOptions>(configuration.GetSection(StorageOptions.SectionName));
         services.Configure<IngestionOptions>(configuration.GetSection(IngestionOptions.SectionName));
         services.Configure<CorsOptions>(configuration.GetSection(CorsOptions.SectionName));

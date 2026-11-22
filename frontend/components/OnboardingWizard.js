@@ -36,7 +36,7 @@ const STEPS = [
   },
   {
     title: 'You are all set',
-    body: 'Live shows today\'s deliveries and when each one arrives. Create deliveries under Jobs and send customers their tracking link. On a computer, press Ctrl K to search.',
+    body: 'Live shows today\'s deliveries and when each one arrives. Create deliveries under Jobs, send customers their tracking link, and invoice delivered jobs under Invoices. On a computer, press Ctrl K to search.',
     icon: 'checkmark-circle-outline',
   },
 ];

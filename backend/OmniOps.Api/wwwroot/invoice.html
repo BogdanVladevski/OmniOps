@@ -1,0 +1,179 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <!-- Origin only: the URL contains the private token. -->
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <link rel="icon" href="data:,">
+  <title>Invoice</title>
+  <style>
+    :root { --bg: #F5F5F3; --card: #FFFFFF; --text: #16181D; --text2: #545A66; --muted: #8A8F99; --border: #E4E4E0;
+      --ok: #1C7A45; --warn: #A85C0A; --critical: #C8322B; --accent: #2E5BDB; }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text);
+      font: 14px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+    .wrap { max-width: 820px; margin: 0 auto; padding: 24px 16px 48px; }
+    .sheet { background: var(--card); border: 1px solid var(--border); border-radius: 14px; padding: 32px; }
+    .top { display: flex; justify-content: space-between; gap: 24px; flex-wrap: wrap; }
+    h1 { font-size: 26px; letter-spacing: -0.5px; margin: 0; }
+    h2 { font-size: 15px; margin: 28px 0 8px; }
+    .muted { color: var(--muted); } .sub { color: var(--text2); }
+    .status { font-weight: 600; } .status.paid { color: var(--ok); } .status.overdue { color: var(--critical); }
+    .parties { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; margin-top: 28px; }
+    .label { font-size: 12px; color: var(--muted); margin-bottom: 2px; }
+    .pre { white-space: pre-line; }
+    table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+    th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    th { font-size: 12px; color: var(--muted); font-weight: 500; }
+    td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .totals { margin-left: auto; width: 280px; margin-top: 12px; }
+    .totals div { display: flex; justify-content: space-between; padding: 4px 8px; font-variant-numeric: tabular-nums; }
+    .totals .grand { font-size: 18px; font-weight: 700; border-top: 1px solid var(--text); margin-top: 6px; padding-top: 10px; }
+    .pay { margin-top: 24px; padding: 16px; border-radius: 10px; background: var(--bg); }
+    .photos { display: flex; flex-wrap: wrap; gap: 8px; }
+    .photos a img { width: 132px; height: 132px; object-fit: cover; border-radius: 8px; border: 1px solid var(--border); display: block; }
+    .bad { color: var(--critical); font-weight: 600; }
+    .actions { display: flex; justify-content: flex-end; gap: 8px; margin-bottom: 12px; }
+    button { font: inherit; font-weight: 600; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--border); background: var(--card); cursor: pointer; }
+    .hidden { display: none; }
+    .gone { text-align: center; padding-top: 18vh; }
+    @media (max-width: 640px) { .sheet { padding: 20px; } .parties { grid-template-columns: 1fr; } .totals { width: 100%; } }
+    @media print {
+      body { background: #fff; } .wrap { padding: 0; max-width: none; } .actions { display: none; }
+      .sheet { border: none; border-radius: 0; padding: 0; } .pay { background: #fff; border: 1px solid var(--border); }
+      .proof { break-before: page; }
+    }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <div class="actions hidden" id="actions"><button onclick="window.print()">Print or save as PDF</button></div>
+    <article class="sheet hidden" id="sheet">
+      <div class="top">
+        <div>
+          <div class="sub" id="seller"></div>
+          <h1 id="title"></h1>
+          <div class="status" id="status"></div>
+        </div>
+        <div style="text-align:right">
+          <div class="label">Issued</div><div id="issued"></div>
+          <div class="label" style="margin-top:6px">Due</div><div id="due"></div>
+        </div>
+      </div>
+
+      <div class="parties">
+        <div><div class="label">From</div><div id="from" class="pre"></div></div>
+        <div><div class="label">Bill to</div><div id="to" class="pre"></div></div>
+      </div>
+
+      <table>
+        <thead><tr><th>Description</th><th class="num">Qty</th><th class="num">Price</th><th class="num">VAT</th><th class="num">Amount</th></tr></thead>
+        <tbody id="lines"></tbody>
+      </table>
+      <div class="totals" id="totals"></div>
+
+      <div class="pay" id="pay"></div>
+      <p class="sub pre" id="notes"></p>
+
+      <section class="proof" id="proof"></section>
+    </article>
+    <div id="notFound" class="gone hidden">
+      <h1>This invoice link is not available</h1>
+      <p class="sub">Please contact the company that sent it.</p>
+    </div>
+  </main>
+  <script>
+  (function () {
+    var token = decodeURIComponent(location.pathname.split('/').filter(Boolean).pop() || '');
+    var $ = function (id) { return document.getElementById(id); };
+    function el(tag, text, cls) { var e = document.createElement(tag); if (text != null) e.textContent = text; if (cls) e.className = cls; return e; }
+    function day(iso) { return new Date(iso).toLocaleDateString([], { day: 'numeric', month: 'short', year: 'numeric' }); }
+    function when(iso) { return new Date(iso).toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }); }
+    function lines() { return Array.prototype.filter.call(arguments, Boolean).join('\n'); }
+
+    fetch('/api/public/invoices/' + encodeURIComponent(token), { headers: { Accept: 'application/json' } })
+      .then(function (r) { if (r.status === 404) return null; if (!r.ok) throw new Error(); return r.json(); })
+      .then(function (d) {
+        if (!d) { $('notFound').classList.remove('hidden'); return; }
+        var money = function (n) {
+          try { return new Intl.NumberFormat(undefined, { style: 'currency', currency: d.currency }).format(n); }
+          catch (e) { return Number(n).toFixed(2) + ' ' + d.currency; }
+        };
+        document.title = 'Invoice ' + d.number + ' · ' + d.sellerName;
+        $('seller').textContent = d.sellerName;
+        $('title').textContent = 'Invoice ' + d.number;
+        var st = $('status');
+        if (d.status === 'Paid') { st.textContent = 'Paid · thank you'; st.className = 'status paid'; }
+        else if (d.isOverdue) { st.textContent = 'Overdue · ' + money(d.total) + ' to pay'; st.className = 'status overdue'; }
+        else { st.textContent = money(d.total) + ' due ' + day(d.dueDateUtc); }
+        $('issued').textContent = day(d.issueDateUtc);
+        $('due').textContent = day(d.dueDateUtc);
+        $('from').textContent = lines(d.sellerName, d.sellerAddress, d.sellerTaxId && 'Tax no. ' + d.sellerTaxId, d.sellerEmail);
+        $('to').textContent = lines(d.customerName, d.customerAddress, d.customerTaxId && 'Tax no. ' + d.customerTaxId);
+
+        d.lines.forEach(function (l) {
+          var tr = el('tr');
+          tr.append(el('td', l.description), el('td', String(l.quantity), 'num'), el('td', money(l.unitPrice), 'num'),
+            el('td', l.vatRatePercent + '%', 'num'), el('td', money(l.netAmount), 'num'));
+          $('lines').append(tr);
+        });
+        var t = $('totals');
+        [['Subtotal', d.subtotal], ['VAT', d.vatAmount]].forEach(function (r) {
+          var row = el('div'); row.append(el('span', r[0]), el('span', money(r[1]))); t.append(row);
+        });
+        var g = el('div', null, 'grand'); g.append(el('span', 'Total'), el('span', money(d.total))); t.append(g);
+
+        if (d.sellerIban) {
+          $('pay').append(el('div', 'How to pay', 'label'),
+            el('div', 'Bank transfer to ' + d.sellerIban + (d.sellerBankName ? ' (' + d.sellerBankName + ')' : '')),
+            el('div', 'Payment reference: ' + d.number));
+        } else { $('pay').classList.add('hidden'); }
+        $('notes').textContent = d.notes || '';
+
+        // The delivery's paperwork, so payment is never held up waiting for proof.
+        var proof = $('proof');
+        if (d.deliveredAtUtc || d.documents.length) {
+          proof.append(el('h2', 'Delivery'));
+          proof.append(el('div', lines(
+            d.deliveryReference && 'Order ' + d.deliveryReference,
+            [d.deliveryOrigin, d.deliveryDestination].filter(Boolean).join(' → '),
+            d.deliveredAtUtc && 'Delivered ' + when(d.deliveredAtUtc) + (d.receivedBy ? ', received by ' + d.receivedBy : '')
+          ), 'pre sub'));
+          var groups = [['PickupDocument', 'Loading note'], ['DeliveryPhoto', 'Proof of delivery']];
+          groups.forEach(function (g) {
+            var docs = d.documents.filter(function (x) { return x.kind === g[0]; });
+            if (!docs.length) return;
+            proof.append(el('h2', g[1]));
+            var box = el('div', null, 'photos');
+            docs.forEach(function (x) {
+              var a = el('a'); a.href = '/api/public/invoices/' + encodeURIComponent(token) + '/documents/' + x.id; a.target = '_blank';
+              var img = el('img'); img.src = a.href; img.alt = g[1] + ', ' + when(x.capturedAtUtc); img.loading = 'lazy';
+              a.append(img); box.append(a);
+            });
+            proof.append(box);
+          });
+          var temps = d.documents.filter(function (x) { return x.kind === 'TemperaturePhoto'; });
+          if (temps.length) {
+            proof.append(el('h2', 'Temperature log' + (d.minTempCelsius != null ? ' (' + d.minTempCelsius + ' to ' + d.maxTempCelsius + ' °C)' : '')));
+            var table = el('table'); var tb = el('tbody');
+            temps.forEach(function (x) {
+              var bad = d.minTempCelsius != null && (x.temperatureCelsius < d.minTempCelsius || x.temperatureCelsius > d.maxTempCelsius);
+              var tr = el('tr'); var a = el('a', when(x.capturedAtUtc));
+              a.href = '/api/public/invoices/' + encodeURIComponent(token) + '/documents/' + x.id; a.target = '_blank';
+              var td = el('td'); td.append(a);
+              tr.append(td, el('td', x.temperatureCelsius + ' °C' + (bad ? ' — outside range' : ''), 'num' + (bad ? ' bad' : '')));
+              tb.append(tr);
+            });
+            table.append(tb); proof.append(table);
+          }
+        }
+        $('sheet').classList.remove('hidden');
+        $('actions').classList.remove('hidden');
+      })
+      .catch(function () { $('notFound').classList.remove('hidden'); });
+  })();
+  </script>
+</body>
+</html>

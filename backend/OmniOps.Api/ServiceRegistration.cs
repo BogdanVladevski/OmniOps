@@ -78,7 +78,15 @@ public static partial class ServiceRegistration
         builder.Services.AddTransient<ITenantRepository, TenantRepository>();
         builder.Services.AddTransient<INotificationRepository, NotificationRepository>();
         builder.Services.AddTransient<INotificationDispatcher, NotificationDispatcher>();
-        builder.Services.AddTransient<IEmailSender, LogEmailSender>();
+        // Real SMTP when configured; otherwise emails are only logged and the UI offers "copy link" instead.
+        builder.Services.AddTransient<SmtpEmailSender>();
+        builder.Services.AddTransient<LogEmailSender>();
+        builder.Services.AddTransient<IEmailSender>(sp =>
+            sp.GetRequiredService<IOptions<EmailOptions>>().Value.IsConfigured
+                ? sp.GetRequiredService<SmtpEmailSender>()
+                : sp.GetRequiredService<LogEmailSender>());
+        builder.Services.AddTransient<IPublicLinks, PublicLinks>();
+        builder.Services.AddTransient<IInvoiceRepository, InvoiceRepository>();
         builder.Services.AddTransient<IPushSender, LogPushSender>();
         builder.Services.AddTransient<ISmsSender, NoOpSmsSender>();
         builder.Services.AddTransient<IDeviceRegistrationRepository, DeviceRegistrationRepository>();
@@ -106,6 +114,7 @@ public static partial class ServiceRegistration
         builder.Services.AddHostedService<TelemetryIngestionWorker>();
         builder.Services.AddHostedService<OutboxPublisherWorker>();
         builder.Services.AddHostedService<NotificationDeliveryWorker>();
+        builder.Services.AddHostedService<InvoiceReminderWorker>();
         builder.Services.AddSignalR()
             .AddJsonProtocol(options =>
             {

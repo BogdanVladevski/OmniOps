@@ -12,7 +12,7 @@ export const TAB_META = {
   Live: { icon: 'navigate', label: 'Live' },
   Jobs: { icon: 'clipboard', label: 'Jobs' },
   Alerts: { icon: 'notifications', label: 'Alerts' },
-  Analytics: { icon: 'bar-chart', label: 'Analytics' },
+  Invoices: { icon: 'receipt', label: 'Invoices' },
   Fleet: { icon: 'cube', label: 'Fleet' },
   Admin: { icon: 'person-circle', label: 'Admin' },
 };

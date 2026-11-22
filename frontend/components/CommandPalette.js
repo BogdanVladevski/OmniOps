@@ -19,7 +19,7 @@ const TAB_ROUTES = [
   { id: 'live', label: 'Live map of today\'s deliveries', tab: 'Live', keywords: 'map live tracking trucks arrival eta home overview' },
   { id: 'jobs', label: 'Delivery jobs', tab: 'Jobs', keywords: 'jobs deliveries orders proof tracking link customer driver' },
   { id: 'fleet', label: 'Fleet management', tab: 'Fleet', keywords: 'vehicles drivers assign' },
-  { id: 'analytics', label: 'Analytics', tab: 'Analytics', keywords: 'predictions safety trends' },
+  { id: 'invoices', label: 'Invoices and payments', tab: 'Invoices', keywords: 'invoice bill money paid unpaid overdue reminder customer' },
   { id: 'alerts', label: 'Alerts', tab: 'Alerts', keywords: 'incidents playbook' },
   { id: 'admin', label: 'Admin', tab: 'Admin', keywords: 'api keys audit logs' },
 ];

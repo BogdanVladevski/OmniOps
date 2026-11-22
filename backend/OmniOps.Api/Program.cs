@@ -79,6 +79,7 @@ try
     app.MapAdminEndpoints();
     app.MapMobileEndpoints();
     app.MapJobEndpoints();
+    app.MapBillingEndpoints();
     app.MapDemoEndpoints();
     app.MapHealthEndpoints();
     app.MapObservabilityEndpoints();

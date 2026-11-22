@@ -53,6 +53,9 @@ public class Trip
     public double? DeliveredLatitude { get; set; }
     public double? DeliveredLongitude { get; set; }
 
+    /// <summary>Invoice issued for this delivery, if any.</summary>
+    public Guid? InvoiceId { get; set; }
+
     public Vehicle Vehicle { get; set; } = null!;
     public Driver? Driver { get; set; }
     public ICollection<TripDocument> Documents { get; set; } = new List<TripDocument>();
