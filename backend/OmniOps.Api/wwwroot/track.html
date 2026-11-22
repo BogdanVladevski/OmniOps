@@ -1,0 +1,198 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex, nofollow">
+  <!-- Send only our origin, never the URL (it contains the private token). OpenStreetMap's tile servers
+       require a referrer and block "no-referrer" requests as policy violations. -->
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <title>Delivery tracking</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/vendor/leaflet/leaflet.css">
+  <style>
+    :root {
+      --bg: #F5F5F3; --card: #FFFFFF; --text: #16181D; --text2: #545A66; --muted: #8A8F99;
+      --border: #E4E4E0; --accent: #2E5BDB; --ok: #1C7A45; --warn: #A85C0A;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root { --bg: #0F1012; --card: #17181B; --text: #ECEDEF; --text2: #A3A8B2; --muted: #6F747E;
+        --border: #2A2C31; --accent: #7A9BFF; --ok: #4CC285; --warn: #E0A04A; }
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+      font: 15px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+    .wrap { max-width: 640px; margin: 0 auto; padding: 20px 16px 32px; }
+    .company { font-size: 13px; color: var(--text2); margin-bottom: 4px; }
+    h1 { font-size: 26px; line-height: 1.2; letter-spacing: -0.5px; margin: 0 0 6px; font-weight: 700; }
+    .sub { color: var(--text2); margin: 0 0 16px; }
+    .status { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; margin-bottom: 10px; }
+    .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+    .status.onTheWay .dot { background: var(--accent); }
+    .status.delivered .dot { background: var(--ok); }
+    #map { height: 300px; border-radius: 14px; border: 1px solid var(--border); background: var(--card); }
+    @media (prefers-color-scheme: dark) { #map .leaflet-tile-pane { filter: invert(1) hue-rotate(180deg) brightness(.9) contrast(.9) saturate(.6); } }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; margin-top: 16px; }
+    .row { display: flex; justify-content: space-between; gap: 16px; padding: 12px 16px; }
+    .row + .row { border-top: 1px solid var(--border); }
+    .row .k { color: var(--text2); }
+    .row .v { text-align: right; font-weight: 500; overflow-wrap: anywhere; }
+    .stale { color: var(--warn); }
+    .foot { color: var(--muted); font-size: 12px; margin-top: 16px; text-align: center; }
+    .gone { text-align: center; padding-top: 18vh; }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <div id="content" class="hidden">
+      <div class="company" id="company"></div>
+      <div class="status" id="status"><span class="dot"></span><span id="statusText"></span></div>
+      <h1 id="headline"></h1>
+      <p class="sub" id="subline"></p>
+      <div id="map" class="hidden"></div>
+      <div class="card" id="details"></div>
+      <div class="foot" id="foot"></div>
+    </div>
+    <div id="notFound" class="gone hidden">
+      <h1>This tracking link is not available</h1>
+      <p class="sub">It may have expired after delivery. Please contact the company that sent it.</p>
+    </div>
+  </main>
+  <script src="/vendor/leaflet/leaflet.js"></script>
+  <script>
+  (function () {
+    var token = decodeURIComponent(location.pathname.split('/').filter(Boolean).pop() || '');
+    var POLL_MS = 30000;
+    var STALE_MIN = 20;
+    var map, truck, dest, timer;
+    var $ = function (id) { return document.getElementById(id); };
+
+    function time(iso) {
+      return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+    function dateTime(iso) {
+      var d = new Date(iso);
+      var today = new Date().toDateString() === d.toDateString();
+      return (today ? 'today' : d.toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' })) + ' at ' + time(iso);
+    }
+    function minutesAgo(iso) { return Math.max(0, Math.round((Date.now() - new Date(iso).getTime()) / 60000)); }
+    function ago(iso) {
+      var m = minutesAgo(iso);
+      if (m < 1) return 'just now';
+      if (m < 60) return m + ' min ago';
+      return Math.round(m / 60) + ' h ago';
+    }
+    function set(id, text) { $(id).textContent = text || ''; }
+
+    function rows(items) {
+      var box = $('details');
+      box.replaceChildren();
+      items.filter(function (r) { return r[1]; }).forEach(function (r) {
+        var row = document.createElement('div'); row.className = 'row';
+        var k = document.createElement('span'); k.className = 'k'; k.textContent = r[0];
+        var v = document.createElement('span'); v.className = 'v' + (r[2] ? ' ' + r[2] : ''); v.textContent = r[1];
+        row.append(k, v); box.append(row);
+      });
+      box.classList.toggle('hidden', box.childElementCount === 0);
+    }
+
+    function pin(color, size) {
+      return L.divIcon({ className: '', iconSize: [size, size], iconAnchor: [size / 2, size / 2],
+        html: '<div style="width:' + size + 'px;height:' + size + 'px;border-radius:50%;background:' + color +
+          ';border:3px solid #fff;box-shadow:0 1px 5px rgba(0,0,0,.35)"></div>' });
+    }
+
+    function drawMap(d) {
+      var hasTruck = d.latitude != null && d.longitude != null;
+      var hasDest = d.destinationLatitude != null && d.destinationLongitude != null;
+      var el = $('map');
+      if (!hasTruck && !hasDest) { el.classList.add('hidden'); return; }
+      el.classList.remove('hidden');
+      if (!map) {
+        map = L.map(el, { zoomControl: false, attributionControl: true });
+        L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+          maxZoom: 18, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+        }).addTo(map);
+      }
+      var css = getComputedStyle(document.documentElement);
+      var pts = [];
+      if (hasDest) {
+        var dll = [d.destinationLatitude, d.destinationLongitude];
+        dest = dest || L.marker(dll, { icon: pin(css.getPropertyValue('--text').trim() || '#16181D', 14) }).addTo(map);
+        dest.setLatLng(dll); pts.push(dll);
+      }
+      if (hasTruck) {
+        var tll = [d.latitude, d.longitude];
+        truck = truck || L.marker(tll, { icon: pin(css.getPropertyValue('--accent').trim() || '#2E5BDB', 18) }).addTo(map);
+        truck.setLatLng(tll); pts.push(tll);
+      } else if (truck) { map.removeLayer(truck); truck = null; }
+      if (pts.length === 1) map.setView(pts[0], 13);
+      else map.fitBounds(pts, { padding: [40, 40], maxZoom: 14 });
+    }
+
+    function render(d) {
+      $('content').classList.remove('hidden');
+      set('company', d.companyName);
+      var st = $('status');
+      st.className = 'status ' + (d.status === 'OnTheWay' ? 'onTheWay' : d.status === 'Delivered' ? 'delivered' : '');
+      var to = d.customerName || d.destination || 'you';
+      var stale = d.positionAtUtc && minutesAgo(d.positionAtUtc) > STALE_MIN;
+
+      if (d.status === 'Delivered') {
+        set('statusText', 'Delivered');
+        set('headline', 'Delivered ' + dateTime(d.deliveredAtUtc));
+        set('subline', d.recipientName ? 'Received by ' + d.recipientName + '.' : '');
+      } else if (d.status === 'OnTheWay') {
+        set('statusText', 'On the way');
+        var etaPassed = d.etaUtc && new Date(d.etaUtc).getTime() < Date.now() - 5 * 60000;
+        if (stale) {
+          // An estimate from an old position is not news; say what we actually know.
+          set('headline', 'On the way to ' + to);
+          set('subline', 'No update from the truck since ' + time(d.positionAtUtc) + '. This can happen in areas with poor signal.'
+            + (d.etaUtc && !etaPassed ? ' The last estimate was around ' + time(d.etaUtc) + '.' : ''));
+        } else if (d.etaUtc && d.remainingKm === 0) {
+          set('headline', 'Arriving now');
+          set('subline', '');
+        } else if (d.etaUtc && !etaPassed) {
+          set('headline', 'Arriving around ' + time(d.etaUtc));
+          set('subline', 'Estimate from the truck\u2019s last position' + (d.remainingKm ? ' (about ' + Math.round(d.remainingKm) + ' km away)' : '') + '. Traffic and stops can change it.');
+        } else {
+          set('headline', 'On the way to ' + to);
+          set('subline', '');
+        }
+      } else {
+        set('statusText', 'Scheduled');
+        set('headline', d.plannedDeliveryUtc ? 'Planned for ' + dateTime(d.plannedDeliveryUtc) : 'Your delivery is scheduled');
+        set('subline', 'You can follow the truck here once it leaves.');
+      }
+
+      rows([
+        ['Order', d.reference],
+        ['For', d.customerName],
+        ['From', d.origin],
+        ['To', d.destination],
+        ['Truck last seen', d.positionAtUtc ? ago(d.positionAtUtc) + (stale ? ' — waiting for an update' : '') : null, stale ? 'stale' : '']
+      ]);
+      drawMap(d);
+      set('foot', d.status === 'Delivered' ? '' : 'This page updates by itself.');
+      if (d.status === 'Delivered' && timer) { clearInterval(timer); timer = null; }
+    }
+
+    function load() {
+      fetch('/api/public/track/' + encodeURIComponent(token), { headers: { Accept: 'application/json' } })
+        .then(function (r) {
+          if (r.status === 404) { $('content').classList.add('hidden'); $('notFound').classList.remove('hidden');
+            if (timer) clearInterval(timer); return null; }
+          if (!r.ok) throw new Error('HTTP ' + r.status);
+          return r.json();
+        })
+        .then(function (d) { if (d) render(d); })
+        .catch(function () { /* keep the last good view; next poll retries */ });
+    }
+
+    load();
+    timer = setInterval(load, POLL_MS);
+  })();
+  </script>
+</body>

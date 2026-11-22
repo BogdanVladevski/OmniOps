@@ -10,6 +10,7 @@ public record DemoStatusDto(
     bool IsDemoOrganization);
 
 public record DemoBootstrapDto(
-    int VehiclesSimulated,
-    int TotalPacketsQueued,
+    int JobsCreated,
+    int TrucksOnTheWay,
+    int LocationPoints,
     string Message);

@@ -185,3 +185,67 @@ export const demoApi = {
       body: JSON.stringify({ packetsPerVehicle }),
     }),
 };
+
+/** Absolute URL for an API path, e.g. a job's public tracking page. */
+export function apiUrl(path) {
+  return `${getApiConfig().apiBaseUrl}${path}`;
+}
+
+/** Headers for requests the app makes outside apiFetch (images, uploads). */
+export function authHeaders() {
+  const { apiToken } = getApiConfig();
+  return apiToken ? { Authorization: `Bearer ${apiToken}` } : {};
+}
+
+export const jobsApi = {
+  list: (scope = 'active') => apiFetch(`/api/v1/jobs?scope=${scope}`),
+  get: (jobId) => apiFetch(`/api/v1/jobs/${jobId}`),
+  assignable: () => apiFetch('/api/v1/jobs/assignable'),
+  create: (body) => apiFetch('/api/v1/jobs', { method: 'POST', body: JSON.stringify(body) }),
+  documentUrl: (jobId, documentId) => apiUrl(`/api/v1/jobs/${jobId}/documents/${documentId}`),
+};
+
+export const driverApi = {
+  jobs: (driverId) => apiFetch(`/api/v1/driver/jobs?driverId=${driverId}`),
+  start: (jobId) => apiFetch(`/api/v1/driver/jobs/${jobId}/start`, { method: 'POST' }),
+  sendLocations: (jobId, points) =>
+    apiFetch(`/api/v1/driver/jobs/${jobId}/locations`, { method: 'POST', body: JSON.stringify({ points }) }),
+  deliver: (jobId, body) =>
+    apiFetch(`/api/v1/driver/jobs/${jobId}/deliver`, { method: 'POST', body: JSON.stringify(body) }),
+
+  /** Uploads one photo. `photo` is an image-picker asset ({ uri, mimeType, fileName }). */
+  async uploadPhoto(jobId, photo, coords) {
+    const form = new FormData();
+    const type = photo.mimeType ?? 'image/jpeg';
+    const name = photo.fileName ?? `delivery-${Date.now()}.jpg`;
+    if (Platform.OS === 'web') {
+      const blob = await (await fetch(photo.uri)).blob();
+      form.append('file', blob, name);
+    } else {
+      form.append('file', { uri: photo.uri, name, type });
+    }
+    const query = coords ? `?latitude=${coords.latitude}&longitude=${coords.longitude}` : '';
+    const response = await fetch(apiUrl(`/api/v1/driver/jobs/${jobId}/photos${query}`), {
+      method: 'POST',
+      headers: authHeaders(),
+      body: form,
+    });
+    if (!response.ok) throw new Error(parseApiError(response.status, await response.text()));
+    return response.json();
+  },
+};
+
+/**
+ * Looks up coordinates for an address with OpenStreetMap's Nominatim (free, 1 request/second,
+ * fine for a dispatcher creating jobs; a paid geocoder is needed at scale). Returns null if not found.
+ */
+export async function geocode(address) {
+  const q = encodeURIComponent(address.trim());
+  if (!q) return null;
+  const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${q}`, {
+    headers: { Accept: 'application/json' },
+  });
+  if (!response.ok) return null;
+  const [hit] = await response.json();
+  return hit ? { latitude: Number(hit.lat), longitude: Number(hit.lon), label: hit.display_name } : null;
+}

@@ -5,6 +5,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { FleetProvider, useFleet } from './contexts/FleetContext';
 import { ThemeProvider, useTheme } from './contexts/ThemeContext';
+import { DriverModeProvider, useDriverMode } from './contexts/DriverModeContext';
 import ErrorBoundary from './components/ui/ErrorBoundary';
 import OfflineBanner from './components/ui/OfflineBanner';
 import OnboardingWizard, { useOnboarding } from './components/OnboardingWizard';
@@ -16,6 +17,8 @@ import FleetManagement from './components/FleetManagement';
 import AnalyticsPanel from './components/AnalyticsPanel';
 import AlertsFeed from './components/AlertsFeed';
 import AdminPanel from './components/AdminPanel';
+import JobsBoard from './components/JobsBoard';
+import DriverApp from './components/driver/DriverApp';
 import { alertMeta } from './utils/alerts';
 import { useLayout } from './utils/layout';
 
@@ -37,6 +40,7 @@ function Navigator({ onSearch }) {
       })}
     >
       <Tab.Screen name="Live" component={LiveView} />
+      <Tab.Screen name="Jobs" component={JobsBoard} />
       <Tab.Screen name="Alerts" component={AlertsFeed} />
       <Tab.Screen name="Analytics" component={AnalyticsPanel} />
       <Tab.Screen name="Fleet" component={FleetManagement} />
@@ -46,6 +50,21 @@ function Navigator({ onSearch }) {
 }
 
 function AppShell() {
+  const { driver, ready } = useDriverMode();
+  const { isDark } = useTheme();
+  if (!ready) return null;
+  if (driver) {
+    return (
+      <>
+        <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor="transparent" translucent />
+        <DriverApp />
+      </>
+    );
+  }
+  return <OfficeShell />;
+}
+
+function OfficeShell() {
   const { colors, isDark } = useTheme();
   const navigationRef = useRef(null);
   const { visible: onboardingVisible, complete: completeOnboarding } = useOnboarding();
@@ -106,7 +125,9 @@ export default function App() {
     <SafeAreaProvider>
       <ThemeProvider>
         <ErrorBoundary>
-          <AppShell />
+          <DriverModeProvider>
+            <AppShell />
+          </DriverModeProvider>
         </ErrorBoundary>
       </ThemeProvider>
     </SafeAreaProvider>

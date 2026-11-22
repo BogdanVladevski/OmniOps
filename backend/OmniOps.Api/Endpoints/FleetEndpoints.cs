@@ -34,15 +34,6 @@ public static class FleetEndpoints
             async (Guid vehicleId, AssignDriverRequest body, IMediator m) =>
                 Results.Ok(await m.Send(new AssignDriverToVehicleCommand(vehicleId, body.DriverId))),
             requireAuth);
-        MapPost(app, "/api/trips",
-            async (CreateTripCommand cmd, IMediator m) => Results.Created($"/api/trips", await m.Send(cmd)),
-            requireAuth);
-        MapPost(app, "/api/trips/{tripId:guid}/start",
-            async (Guid tripId, IMediator m) => Results.Ok(await m.Send(new StartTripCommand(tripId))),
-            requireAuth);
-        MapPost(app, "/api/trips/{tripId:guid}/complete",
-            async (Guid tripId, IMediator m) => Results.Ok(await m.Send(new CompleteTripCommand(tripId))),
-            requireAuth);
         MapPost(app, "/api/depots",
             async (CreateDepotCommand cmd, IMediator m) => Results.Created($"/api/depots", await m.Send(cmd)),
             requireAuth);

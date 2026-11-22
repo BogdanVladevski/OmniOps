@@ -50,6 +50,8 @@ check "Vehicle health" GET "/api/predictions/vehicles/$VEHICLE_ID/health"
 check "Tenant workspaces" GET "/api/v1/tenant/organizations/01000000-0000-0000-0000-000000000001/workspaces"
 check "Admin audit logs" GET "/api/v1/admin/audit-logs"
 check "Mobile sync" GET "/api/v1/mobile/sync"
+check "Delivery jobs" GET "/api/v1/jobs?scope=all"
+check "Job assignables" GET "/api/v1/jobs/assignable"
 check "Dev JWT" POST "/api/auth/token" '{"subject":"smoke-user","scopes":["vehicle:read","platform:admin"]}'
 
 echo ""

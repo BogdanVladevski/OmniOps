@@ -3,8 +3,10 @@ import { StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { radius, spacing, typography } from '../theme/tokens';
-import { adminApi } from '../utils/api';
+import { adminApi, demoApi } from '../utils/api';
+import { notifyJobsChanged } from '../utils/events';
 import { useLayout } from '../utils/layout';
+import DriverModeCard from './DriverModeCard';
 import RetryPanel from './ui/RetryPanel';
 import { SkeletonCard } from './ui/SkeletonLoader';
 import { Button, Card, EmptyNote, Field, Page, Pill, SectionTitle, Segmented, timeAgo } from './ui/kit';
@@ -14,6 +16,33 @@ const THEME_OPTIONS = [
   { key: 'light', label: 'Light' },
   { key: 'dark', label: 'Dark' },
 ];
+
+/** Demo trucks only move when the demo is refreshed; this puts them where they would be now. */
+function DemoDayCard() {
+  const { colors } = useTheme();
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState(null);
+  const run = async () => {
+    setBusy(true);
+    try {
+      setMessage((await demoApi.bootstrap()).message);
+      notifyJobsChanged();
+    } catch (e) {
+      setMessage(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Card style={styles.demoCard}>
+      <Text style={[typography.body, { color: colors.textSecondary }]}>
+        Loads a demo delivery day, or moves the demo trucks to where they would be by now.
+      </Text>
+      <View><Button label={busy ? 'Loading…' : 'Load or refresh demo day'} variant="secondary" onPress={run} disabled={busy} /></View>
+      {message ? <Text style={[typography.caption, { color: colors.muted }]}>{message}</Text> : null}
+    </Card>
+  );
+}
 
 export default function AdminPanel() {
   const { colors, themeMode, setThemeMode } = useTheme();
@@ -95,6 +124,12 @@ export default function AdminPanel() {
         </Card>
       )}
 
+      <SectionTitle title="Demo data" />
+      <DemoDayCard />
+
+      <SectionTitle title="Driver mode" />
+      <DriverModeCard />
+
       <SectionTitle title="Appearance" />
       <Card>
         <Segmented options={THEME_OPTIONS} value={themeMode} onChange={setThemeMode} />
@@ -149,6 +184,7 @@ export default function AdminPanel() {
 }
 
 const styles = StyleSheet.create({
+  demoCard: { gap: spacing.md },
   flex: { flex: 1 },
   columns: { flexDirection: 'row', gap: spacing.xl, alignItems: 'flex-start' },
   gap: { gap: spacing.md },

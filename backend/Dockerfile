@@ -23,6 +23,8 @@ WORKDIR /app
 RUN apk add --no-cache curl
 
 RUN addgroup -S omniops && adduser -S omniops -G omniops
+# Uploaded files (delivery photos); mount a volume here so they survive container rebuilds.
+RUN mkdir -p /app/data/uploads && chown -R omniops:omniops /app/data
 USER omniops
 
 ENV ASPNETCORE_URLS=http://+:8080

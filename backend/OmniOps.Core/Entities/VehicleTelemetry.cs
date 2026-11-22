@@ -12,14 +12,16 @@ namespace OmniOps.Core.Entities
         public double Latitude { get; set; }
         public double Longitude { get; set; }
         public double Speed { get; set; }
-        public double FuelLevel { get; set; }
+        /// <summary>Fuel level in %; null when the source cannot measure it (e.g. a driver's phone).</summary>
+        public double? FuelLevel { get; set; }
         public double? Heading { get; set; }
         public double? BatteryLevel { get; set; }
 
         /// <summary>Extensible sensor readings as JSON, e.g. {"humidity":42.1,"doorOpen":false}.</summary>
         public string? SensorReadingsJson { get; set; }
 
-        public double EngineTemperature { get; set; }
+        /// <summary>Cargo temperature in °C (legacy name); null when no cargo sensor reported one.</summary>
+        public double? EngineTemperature { get; set; }
         public DateTime Timestamp { get; set; }
 
         private readonly List<IDomainEvent> _domainEvents = new();

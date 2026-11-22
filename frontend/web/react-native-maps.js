@@ -58,8 +58,13 @@ const MapView = forwardRef(function MapView(
     },
     fitToCoordinates(coords = [], { edgePadding } = {}) {
       if (!map || coords.length === 0) return;
-      const pad = edgePadding ? Math.max(edgePadding.top ?? 0, edgePadding.left ?? 0) : 40;
-      map.fitBounds(L.latLngBounds(coords.map(toLatLng)), { padding: [pad, pad] });
+      // Per-side padding, so a floating panel on one side does not shrink the map on every side.
+      const p = { top: 40, left: 40, right: 40, bottom: 40, ...(edgePadding ?? {}) };
+      map.fitBounds(L.latLngBounds(coords.map(toLatLng)), {
+        paddingTopLeft: [p.left, p.top],
+        paddingBottomRight: [p.right, p.bottom],
+        maxZoom: 13,
+      });
     },
   }), [map]);
 

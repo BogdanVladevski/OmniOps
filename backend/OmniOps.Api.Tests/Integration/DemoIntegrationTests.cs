@@ -18,15 +18,28 @@ public class DemoIntegrationTests(OmniOpsApiFixture fixture)
     }
 
     [Fact]
-    public async Task BootstrapDemo_QueuesTelemetryPackets()
+    public async Task BootstrapDemo_LoadsADeliveryDay_AndReRunningMovesTrucksInsteadOfDuplicating()
     {
-        var response = await fixture.Client.PostAsJsonAsync(
-            "/api/v1/demo/bootstrap",
-            new { packetsPerVehicle = 2 });
+        var first = await fixture.Client.PostAsJsonAsync("/api/v1/demo/bootstrap", new { });
+        first.EnsureSuccessStatusCode();
+        var second = await fixture.Client.PostAsJsonAsync("/api/v1/demo/bootstrap", new { });
+        second.EnsureSuccessStatusCode();
+        Assert.Equal(0, (await second.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("jobsCreated").GetInt32());
 
-        response.EnsureSuccessStatusCode();
-        var body = await response.Content.ReadFromJsonAsync<JsonElement>();
-        Assert.True(body.GetProperty("vehiclesSimulated").GetInt32() > 0);
-        Assert.True(body.GetProperty("totalPacketsQueued").GetInt32() > 0);
+        var jobs = await fixture.Client.GetFromJsonAsync<JsonElement[]>("/api/v1/jobs?scope=active");
+        var demo = jobs!.Where(j => j.GetProperty("reference").GetString()?.StartsWith("DEMO-") == true).ToList();
+
+        Assert.Equal(3, demo.Count);
+        var onTheWay = demo.Where(j => j.GetProperty("status").GetString() == "InProgress").ToList();
+        Assert.Equal(2, onTheWay.Count);
+        Assert.All(onTheWay, j =>
+        {
+            Assert.Equal(JsonValueKind.Number, j.GetProperty("lastLatitude").ValueKind);
+            Assert.Equal(JsonValueKind.String, j.GetProperty("etaUtc").ValueKind);
+            Assert.True(j.GetProperty("remainingKm").GetDouble() > 0);
+            // The trail ends at "now", so the office does not see a stale truck.
+            Assert.True(DateTime.UtcNow - j.GetProperty("lastPositionAtUtc").GetDateTime().ToUniversalTime() < TimeSpan.FromMinutes(2));
+        });
+        Assert.Single(demo, j => j.GetProperty("status").GetString() == "Planned");
     }
 }

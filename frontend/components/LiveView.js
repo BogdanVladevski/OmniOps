@@ -1,22 +1,23 @@
-// Home screen: the live map with every shipment, and a panel that tells each shipment's temperature story.
+// Home screen: where every delivery is right now and when it arrives.
 // Laptop: floating panel on the left. Phone: bottom sheet that expands on tap.
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import MapView, { Circle, Marker, Polygon, PROVIDER_DEFAULT } from 'react-native-maps';
+import MapView, { Circle, Marker, Polygon, Polyline, PROVIDER_DEFAULT } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFleet } from '../contexts/FleetContext';
 import { useTheme } from '../contexts/ThemeContext';
-import { elevation, radius, spacing, typography } from '../theme/tokens';
-import { alertSummary, groupAlerts } from '../utils/alerts';
-import { telemetryApi } from '../utils/api';
-import { getVehicleStatus, resolveShipmentIdForVehicle } from '../utils/fleetConfig';
+import { elevation, radius, spacing, toneColors, typography } from '../theme/tokens';
+import { jobsApi } from '../utils/api';
+import { groupJobsForToday, isPositionStale, jobProgress, jobTitle } from '../utils/jobs';
+import { onJobsChanged } from '../utils/events';
 import { useLayout } from '../utils/layout';
-import IncidentReplay from './IncidentReplay';
-import { BarChart, Button, Divider, TempRangeBar, timeAgo } from './ui/kit';
+import { shareTrackingLink } from './JobsBoard';
+import { Button, Divider, Pill, timeAgo } from './ui/kit';
 
-const INITIAL_REGION = { latitude: 41.9965, longitude: 21.4314, latitudeDelta: 0.08, longitudeDelta: 0.08 };
-const money = (n) => `$${Math.round(n ?? 0).toLocaleString()}`;
+const INITIAL_REGION = { latitude: 41.75, longitude: 21.45, latitudeDelta: 1.6, longitudeDelta: 1.6 };
+const POLL_MS = 15000;
+const clock = (iso) => new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
 function parsePolygon(json) {
   try {
@@ -26,94 +27,88 @@ function parsePolygon(json) {
   }
 }
 
-/** 'out' | 'attention' | 'ok' | 'offline' */
-function shipmentStatus(t) {
-  if (!t) return 'offline';
-  const s = t.shipment;
-  if (s && (t.engineTemperature > s.maxSafeTempCelsius || t.engineTemperature < s.minSafeTempCelsius)) return 'out';
-  return getVehicleStatus(t) === 'warning' ? 'attention' : 'ok';
-}
+const hasPosition = (job) => job?.lastLatitude != null && job?.lastLongitude != null;
+const hasDestination = (job) => job?.destinationLatitude != null && job?.destinationLongitude != null;
 
-function statusText(status, t) {
-  if (status === 'out') return 'Out of safe range';
-  if (status === 'attention') return 'Needs a look';
-  if (status === 'offline') return 'No signal';
-  return t ? `Updated ${timeAgo(t.timestamp)}` : '';
-}
-
-function ShipmentRow({ id, t, selected, onPress }) {
+function JobRow({ job, selected, onPress }) {
   const { colors } = useTheme();
-  const status = shipmentStatus(t);
-  const s = t?.shipment;
-  const red = status === 'out';
+  const progress = jobProgress(job);
+  const tone = progress.tone === 'warning' ? colors.warning : progress.tone === 'ok' ? colors.ok : colors.text;
   return (
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={`${s?.productName ?? id}, ${t ? `${t.engineTemperature} degrees` : 'no signal'}`}
+      accessibilityLabel={`${jobTitle(job)}, ${progress.primary} ${progress.secondary}`}
       style={({ hovered, pressed }) => [styles.row, (selected || hovered || pressed) && { backgroundColor: colors.sunken }]}
     >
       <View style={styles.flex}>
-        <Text style={[typography.bodyStrong, { color: colors.text }]} numberOfLines={1}>{s?.productName ?? id}</Text>
+        <Text style={[typography.bodyStrong, { color: colors.text }]} numberOfLines={1}>{jobTitle(job)}</Text>
         <Text style={[typography.caption, { color: colors.muted }]} numberOfLines={1}>
-          {id}{s ? ` · safe ${s.minSafeTempCelsius}–${s.maxSafeTempCelsius} °C` : ''}
+          {[job.vehicleLabel, job.destination].filter(Boolean).join(' · ')}
         </Text>
       </View>
       <View style={styles.rowRight}>
-        <Text style={[typography.number, { color: red ? colors.critical : colors.text }]}>
-          {t ? `${t.engineTemperature}°` : '—'}
-        </Text>
-        <Text style={[typography.caption, { color: red ? colors.critical : status === 'attention' ? colors.warning : colors.muted }]} numberOfLines={1}>
-          {statusText(status, t)}
-        </Text>
+        <Text style={[typography.number, { color: tone }]} numberOfLines={1}>{progress.primary}</Text>
+        {progress.secondary ? (
+          <Text style={[typography.caption, { color: progress.tone === 'warning' ? colors.warning : colors.muted }]} numberOfLines={1}>
+            {progress.secondary}
+          </Text>
+        ) : null}
       </View>
     </Pressable>
   );
 }
 
-function ShipmentList({ ids, vehicles, selectedId, onSelect }) {
+function Section({ title, jobs, selectedId, onSelect }) {
   const { colors } = useTheme();
-  const summary = useMemo(() => {
-    const live = ids.map((id) => vehicles[id]).filter(Boolean);
-    const out = live.filter((t) => shipmentStatus(t) === 'out');
-    return {
-      live: live.length,
-      out: out.length,
-      total: live.reduce((n, t) => n + (t.shipment?.valueAtRiskUsd ?? 0), 0),
-      atRisk: out.reduce((n, t) => n + (t.shipment?.valueAtRiskUsd ?? 0), 0),
-    };
-  }, [ids, vehicles]);
+  if (!jobs.length) return null;
+  return (
+    <View>
+      <Text style={[typography.label, styles.sectionTitle, { color: colors.textSecondary }]}>{title}</Text>
+      {jobs.map((job, i) => (
+        <View key={job.id}>
+          {i > 0 ? <Divider inset={spacing.lg} /> : null}
+          <JobRow job={job} selected={job.id === selectedId} onPress={() => onSelect(job)} />
+        </View>
+      ))}
+    </View>
+  );
+}
 
-  // Problems first, then by name.
-  const sorted = [...ids].sort((a, b) => {
-    const rank = { out: 0, attention: 1, ok: 2, offline: 3 };
-    return rank[shipmentStatus(vehicles[a])] - rank[shipmentStatus(vehicles[b])] || a.localeCompare(b);
-  });
-
+function JobList({ groups, loading, error, selectedId, onSelect, onCreate }) {
+  const { colors } = useTheme();
+  const silent = groups.onTheWay.filter((j) => isPositionStale(j)).length;
+  const total = groups.onTheWay.length + groups.planned.length + groups.delivered.length;
   return (
     <View>
       <View style={styles.panelHeader}>
-        <Text style={[typography.title, { color: colors.text }]}>Shipments in transit</Text>
+        <Text style={[typography.title, { color: colors.text }]}>Today</Text>
         <Text style={[typography.body, { color: colors.textSecondary }]}>
-          {summary.live} on the road
-          {summary.out > 0 ? <Text style={{ color: colors.critical }}>{` · ${summary.out} out of safe range`}</Text> : ' · all within safe range'}
+          {groups.onTheWay.length} on the way · {groups.planned.length} not started · {groups.delivered.length} delivered
         </Text>
-        <Text style={[typography.caption, { color: colors.muted }]}>
-          {money(summary.total)} of medicine{summary.atRisk > 0 ? ` · ${money(summary.atRisk)} at risk` : ''}
-        </Text>
+        {silent > 0 ? (
+          <Text style={[typography.caption, { color: colors.warning }]}>
+            {silent} truck{silent === 1 ? ' has' : 's have'} not reported for a while
+          </Text>
+        ) : null}
+        {error ? <Text style={[typography.caption, { color: colors.critical }]}>{error}</Text> : null}
       </View>
       <Divider />
-      {sorted.map((id, i) => (
-        <View key={id}>
-          {i > 0 ? <Divider inset={spacing.lg} /> : null}
-          <ShipmentRow id={id} t={vehicles[id]} selected={id === selectedId} onPress={() => onSelect(id)} />
+      {!loading && total === 0 ? (
+        <View style={styles.empty}>
+          <Text style={[typography.bodyStrong, { color: colors.text }]}>No deliveries today</Text>
+          <Text style={[typography.body, { color: colors.textSecondary }]}>
+            Create a job for each delivery. Its truck appears here once the driver starts the trip.
+          </Text>
+          <Button label="Create a job" onPress={onCreate} />
         </View>
-      ))}
-      <Divider />
-      <Text style={[typography.caption, styles.explainer, { color: colors.muted }]}>
-        Each truck reports its cargo temperature every few seconds. OmniOps compares every reading with the
-        product's safe range and alerts the crew the moment it is crossed.
-      </Text>
+      ) : (
+        <>
+          <Section title="On the way" jobs={groups.onTheWay} selectedId={selectedId} onSelect={onSelect} />
+          <Section title="Not started" jobs={groups.planned} selectedId={selectedId} onSelect={onSelect} />
+          <Section title="Delivered" jobs={groups.delivered} selectedId={selectedId} onSelect={onSelect} />
+        </>
+      )}
     </View>
   );
 }
@@ -123,105 +118,138 @@ function Fact({ label, value }) {
   return (
     <View style={styles.fact}>
       <Text style={[typography.caption, { color: colors.muted }]}>{label}</Text>
-      <Text style={[typography.bodyStrong, { color: colors.text }]} numberOfLines={1}>{value}</Text>
+      <Text style={[typography.bodyStrong, { color: colors.text }]} numberOfLines={1}>{value || '—'}</Text>
     </View>
   );
 }
 
-function ShipmentDetail({ id, t, alerts, onBack, onReplay, onOpenAlerts }) {
+function JobDetail({ job, onBack, onOpenJob }) {
   const { colors } = useTheme();
-  const [trend, setTrend] = useState(null);
-  const s = t?.shipment;
-  const status = shipmentStatus(t);
-  const red = status === 'out';
+  const [notice, setNotice] = useState(null);
+  const progress = jobProgress(job);
+  const stale = isPositionStale(job);
 
-  useEffect(() => {
-    let cancelled = false;
-    const to = new Date();
-    const from = new Date(to.getTime() - 60 * 60 * 1000);
-    telemetryApi
-      .aggregations(id, from.toISOString(), to.toISOString(), 5)
-      .then((rows) => !cancelled && setTrend((rows ?? []).map((r) => r.avgTemperature)))
-      .catch(() => !cancelled && setTrend([]));
-    return () => { cancelled = true; };
-  }, [id, t?.timestamp]);
-
-  const recent = groupAlerts(alerts.filter((a) => a.vehicleId === id)).slice(0, 3);
+  let headline;
+  let sub;
+  if (job.status === 'InProgress') {
+    if (stale) {
+      headline = 'No signal';
+      sub = `The phone has not reported since ${clock(job.lastPositionAtUtc)} (${timeAgo(job.lastPositionAtUtc)}).`;
+    } else if (job.remainingKm === 0) {
+      headline = 'Arriving now';
+      sub = 'The truck is at the destination.';
+    } else if (job.etaUtc) {
+      headline = `Arrives around ${clock(job.etaUtc)}`;
+      sub = `About ${Math.round(job.remainingKm)} km to go. Estimate from the last position.`;
+    } else {
+      headline = 'On the way';
+      sub = hasPosition(job) ? 'No map position for the destination, so no arrival estimate.' : 'Waiting for the first location from the phone.';
+    }
+  } else if (job.status === 'Planned') {
+    headline = 'Not started';
+    sub = 'The truck appears on the map when the driver starts the trip.';
+  } else {
+    headline = `Delivered ${job.deliveredAtUtc ? clock(job.deliveredAtUtc) : ''}`.trim();
+    sub = job.recipientName ? `Received by ${job.recipientName}.` : '';
+  }
 
   return (
     <View>
-      <Pressable onPress={onBack} style={styles.back} accessibilityRole="button" accessibilityLabel="Back to all shipments">
+      <Pressable onPress={onBack} style={styles.back} accessibilityRole="button" accessibilityLabel="Back to today's deliveries">
         <Ionicons name="chevron-back" size={18} color={colors.accent} />
-        <Text style={[typography.label, { color: colors.accent }]}>All shipments</Text>
+        <Text style={[typography.label, { color: colors.accent }]}>Today</Text>
       </Pressable>
 
       <View style={styles.detailHead}>
-        <Text style={[typography.headline, { color: colors.text }]}>{s?.productName ?? id}</Text>
-        <Text style={[typography.caption, { color: colors.muted }]}>
-          {s ? `Batch ${s.batchNumber} · ` : ''}{id}
-        </Text>
+        <Text style={[typography.headline, { color: colors.text }]}>{jobTitle(job)}</Text>
+        <Text style={[typography.caption, { color: colors.muted }]}>{job.destination}</Text>
       </View>
 
       <View style={styles.reading}>
-        <Text style={[typography.reading, { color: red ? colors.critical : colors.text }]}>
-          {t ? `${t.engineTemperature} °C` : '—'}
-        </Text>
-        <Text style={[typography.body, { color: red ? colors.critical : colors.textSecondary }]}>
-          {red ? 'Cargo is outside its safe range' : s ? 'Cargo is within its safe range' : statusText(status, t)}
-        </Text>
-      </View>
-      {s ? <View style={styles.pad}><TempRangeBar value={t.engineTemperature} min={s.minSafeTempCelsius} max={s.maxSafeTempCelsius} /></View> : null}
-
-      <View style={styles.pad}>
-        <Text style={[typography.label, { color: colors.textSecondary, marginBottom: spacing.sm }]}>Last hour</Text>
-        <BarChart values={trend ?? []} color={red ? colors.critical : colors.text} height={64} emptyText={trend ? 'Not enough history yet' : 'Loading…'} />
+        <Pill label={progress.tone === 'warning' ? 'Needs a call' : job.status === 'Completed' ? 'Delivered' : job.status === 'Planned' ? 'Planned' : 'On the way'} tone={progress.tone} />
+        <Text style={[typography.headline, { color: stale ? colors.warning : colors.text, marginTop: spacing.sm }]}>{headline}</Text>
+        {sub ? <Text style={[typography.body, { color: colors.textSecondary }]}>{sub}</Text> : null}
       </View>
 
       <View style={[styles.facts, styles.pad]}>
-        <Fact label="Value at risk" value={s ? money(s.valueAtRiskUsd) : '—'} />
-        <Fact label="Speed" value={t ? `${t.speed} km/h` : '—'} />
-        <Fact label="Sensor battery" value={t?.batteryLevel != null ? `${Math.round(t.batteryLevel)}%` : '—'} />
-        <Fact label="Last reading" value={t ? timeAgo(t.timestamp) : '—'} />
+        <Fact label="Truck" value={job.vehicleLabel} />
+        <Fact label="Driver" value={job.driverName} />
+        <Fact label="Order" value={job.reference} />
+        <Fact label="Speed" value={job.status === 'InProgress' && job.lastSpeedKmh != null && !stale ? `${Math.round(job.lastSpeedKmh)} km/h` : null} />
+        <Fact label="From" value={job.origin} />
+        <Fact label="Last seen" value={job.lastPositionAtUtc ? timeAgo(job.lastPositionAtUtc) : null} />
       </View>
 
       <Divider />
-      <View style={styles.pad}>
-        <Text style={[typography.label, { color: colors.textSecondary }]}>Recent alerts</Text>
-        {recent.length === 0 ? (
-          <Text style={[typography.body, { color: colors.muted, marginTop: spacing.sm }]}>None for this truck.</Text>
-        ) : (
-          recent.map((g) => (
-            <Pressable key={g.key} onPress={onOpenAlerts} style={styles.alertLine}>
-              <View style={[styles.dot, { backgroundColor: g.meta.severity === 'critical' ? colors.critical : g.meta.severity === 'warning' ? colors.warning : colors.muted }]} />
-              <View style={styles.flex}>
-                <Text style={[typography.label, { color: colors.text }]} numberOfLines={1}>
-                  {g.meta.label}{g.count > 1 ? ` ×${g.count}` : ''}
-                </Text>
-                <Text style={[typography.caption, { color: colors.muted }]} numberOfLines={1}>{alertSummary(g.alert) || timeAgo(g.alert.generatedAt)}</Text>
-              </View>
-              <Text style={[typography.caption, { color: colors.muted }]}>{timeAgo(g.alert.generatedAt)}</Text>
-            </Pressable>
-          ))
-        )}
-        <View style={styles.actions}>
-          <Button label="Replay last hour" variant="secondary" onPress={onReplay} style={styles.flex} />
-          <Button label="All alerts" onPress={onOpenAlerts} style={styles.flex} />
-        </View>
+      <View style={[styles.pad, styles.actions]}>
+        {job.trackingPath && job.status !== 'Completed' ? (
+          <Button
+            label="Send customer link"
+            variant="secondary"
+            onPress={async () => setNotice(await shareTrackingLink(job))}
+            style={styles.flex}
+          />
+        ) : null}
+        <Button label="Open job" onPress={onOpenJob} style={styles.flex} />
       </View>
+      {notice ? <Text style={[typography.caption, styles.notice, { color: colors.ok }]}>{notice}</Text> : null}
     </View>
   );
 }
 
 export default function LiveView({ navigation }) {
-  const { vehicleIds, vehicles, geofences, alerts, setSelectedVehicleId } = useFleet();
+  const { vehicles, geofences } = useFleet();
   const { colors, isDark } = useTheme();
   const { isWide, height } = useLayout();
   const insets = useSafeAreaInsets();
   const mapRef = useRef(null);
-  const [detailId, setDetailId] = useState(null);
+  const fitted = useRef(false);
+  const [jobs, setJobs] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [selectedId, setSelectedId] = useState(null);
   const [mapType, setMapType] = useState('standard');
   const [expanded, setExpanded] = useState(false);
-  const [replay, setReplay] = useState(null);
+
+  const load = useCallback(async () => {
+    try {
+      setJobs(await jobsApi.list('active'));
+      setError(null);
+    } catch (e) {
+      setError(e.message);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    load();
+    const timer = setInterval(load, POLL_MS);
+    const offChanged = onJobsChanged(load);
+    const offFocus = navigation?.addListener?.('focus', load);
+    return () => { clearInterval(timer); offChanged(); offFocus?.(); };
+  }, [load, navigation]);
+
+  const groups = useMemo(() => groupJobsForToday(jobs), [jobs]);
+  const selected = jobs.find((j) => j.id === selectedId);
+
+  // Trucks with telemetry but no running job: shown quietly so the office still knows where they are.
+  const busyTrucks = new Set(groups.onTheWay.map((j) => j.vehicleLabel));
+  const idleTrucks = Object.entries(vehicles ?? {})
+    .filter(([id, t]) => !busyTrucks.has(id) && t?.latitude && t?.longitude);
+
+  // Frame all moving trucks and their destinations once, when they first arrive.
+  useEffect(() => {
+    if (fitted.current || groups.onTheWay.length === 0) return;
+    const coords = groups.onTheWay.flatMap((j) => [
+      hasPosition(j) && { latitude: j.lastLatitude, longitude: j.lastLongitude },
+      hasDestination(j) && { latitude: j.destinationLatitude, longitude: j.destinationLongitude },
+    ]).filter(Boolean);
+    if (coords.length) {
+      fitted.current = true;
+      setTimeout(() => mapRef.current?.fitToCoordinates(coords, { edgePadding: { top: 80, left: isWide ? 420 : 40, right: 40, bottom: isWide ? 40 : 280 } }), 300);
+    }
+  }, [groups.onTheWay, isWide]);
 
   const collapsedHeight = 248;
   const expandedHeight = Math.round(height * 0.72);
@@ -230,29 +258,28 @@ export default function LiveView({ navigation }) {
     Animated.timing(sheetHeight, { toValue: expanded ? expandedHeight : collapsedHeight, duration: 220, useNativeDriver: false }).start();
   }, [expanded, expandedHeight, sheetHeight]);
 
-  const select = (id) => {
-    setSelectedVehicleId(id);
-    setDetailId(id);
+  const select = (job) => {
+    setSelectedId(job.id);
     setExpanded(true);
-    const t = vehicles[id];
-    if (t?.latitude && t?.longitude) {
-      mapRef.current?.animateToRegion({ latitude: t.latitude, longitude: t.longitude, latitudeDelta: 0.03, longitudeDelta: 0.03 }, 700);
+    const focus = hasPosition(job)
+      ? { latitude: job.lastLatitude, longitude: job.lastLongitude }
+      : hasDestination(job) ? { latitude: job.destinationLatitude, longitude: job.destinationLongitude } : null;
+    if (focus && hasPosition(job) && hasDestination(job) && job.status === 'InProgress') {
+      mapRef.current?.fitToCoordinates(
+        [focus, { latitude: job.destinationLatitude, longitude: job.destinationLongitude }],
+        { edgePadding: { top: 80, left: isWide ? 420 : 40, right: 40, bottom: isWide ? 40 : 320 } },
+      );
+    } else if (focus) {
+      mapRef.current?.animateToRegion({ ...focus, latitudeDelta: 0.3, longitudeDelta: 0.3 }, 700);
     }
-  };
-
-  const openReplay = (id) => {
-    const latest = alerts.find((a) => a.vehicleId === id);
-    setReplay({ alert: latest ?? { vehicleId: id, generatedAt: new Date().toISOString() }, shipmentId: resolveShipmentIdForVehicle(id, vehicles) });
   };
 
   const zoneStroke = isDark ? 'rgba(122,155,255,0.8)' : 'rgba(46,91,219,0.7)';
   const zoneFill = isDark ? 'rgba(122,155,255,0.08)' : 'rgba(46,91,219,0.06)';
-  const pinColor = (id) => {
-    if (id === detailId) return colors.accent;
-    const s = shipmentStatus(vehicles[id]);
-    if (s === 'out') return colors.critical;
-    if (s === 'attention') return colors.warning;
-    return isDark ? '#D5D7DB' : '#16181D';
+  const quiet = isDark ? '#8A8F99' : '#9CA0A8';
+  const truckColor = (job) => {
+    if (isPositionStale(job)) return toneColors(colors, 'warning').fg;
+    return job.id === selectedId ? colors.accent : isDark ? '#D5D7DB' : '#16181D';
   };
 
   const map = (
@@ -273,35 +300,68 @@ export default function LiveView({ navigation }) {
         const coords = parsePolygon(g.polygonCoordinatesJson);
         return coords.length >= 3 ? <Polygon key={g.id} coordinates={coords} strokeColor={zoneStroke} fillColor={zoneFill} /> : null;
       })}
-      {vehicleIds.map((id) => {
-        const t = vehicles[id];
-        if (!t?.latitude || !t?.longitude) return null;
-        return (
-          <Marker
-            key={id}
-            coordinate={{ latitude: t.latitude, longitude: t.longitude }}
-            title={t.shipment?.productName ?? id}
-            description={`${id} · ${t.engineTemperature} °C`}
-            pinColor={pinColor(id)}
-            onPress={() => select(id)}
-            opacity={detailId && id !== detailId ? 0.7 : 1}
-          />
-        );
-      })}
+
+      {idleTrucks.map(([id, t]) => (
+        <Marker
+          key={`idle-${id}`}
+          coordinate={{ latitude: t.latitude, longitude: t.longitude }}
+          title={id}
+          description={`No delivery running · seen ${timeAgo(t.timestamp)}`}
+          pinColor={quiet}
+          opacity={0.6}
+        />
+      ))}
+
+      {selected && hasPosition(selected) && hasDestination(selected) && selected.status === 'InProgress' ? (
+        <Polyline
+          coordinates={[
+            { latitude: selected.lastLatitude, longitude: selected.lastLongitude },
+            { latitude: selected.destinationLatitude, longitude: selected.destinationLongitude },
+          ]}
+          strokeColor={colors.accent}
+          strokeWidth={2}
+          lineDashPattern={[6, 6]}
+        />
+      ) : null}
+      {selected && hasDestination(selected) ? (
+        <Marker
+          key={`dest-${selected.id}`}
+          coordinate={{ latitude: selected.destinationLatitude, longitude: selected.destinationLongitude }}
+          title={jobTitle(selected)}
+          description={selected.destination}
+          pinColor={isDark ? '#ECEDEF' : '#16181D'}
+          opacity={0.9}
+        />
+      ) : null}
+
+      {groups.onTheWay.filter(hasPosition).map((job) => (
+        <Marker
+          key={job.id}
+          coordinate={{ latitude: job.lastLatitude, longitude: job.lastLongitude }}
+          title={`${job.vehicleLabel} → ${jobTitle(job)}`}
+          description={jobProgress(job).primary === 'No signal' ? `No signal since ${clock(job.lastPositionAtUtc)}` : job.etaUtc ? `Arrives around ${clock(job.etaUtc)}` : 'On the way'}
+          pinColor={truckColor(job)}
+          onPress={() => select(job)}
+        />
+      ))}
     </MapView>
   );
 
-  const content = detailId ? (
-    <ShipmentDetail
-      id={detailId}
-      t={vehicles[detailId]}
-      alerts={alerts}
-      onBack={() => { setDetailId(null); setExpanded(false); }}
-      onReplay={() => openReplay(detailId)}
-      onOpenAlerts={() => navigation.navigate('Alerts')}
+  const content = selected ? (
+    <JobDetail
+      job={selected}
+      onBack={() => { setSelectedId(null); setExpanded(false); }}
+      onOpenJob={() => navigation.navigate('Jobs', { openJobId: selected.id })}
     />
   ) : (
-    <ShipmentList ids={vehicleIds} vehicles={vehicles} selectedId={detailId} onSelect={select} />
+    <JobList
+      groups={groups}
+      loading={loading}
+      error={error}
+      selectedId={selectedId}
+      onSelect={select}
+      onCreate={() => navigation.navigate('Jobs', { create: true })}
+    />
   );
 
   const mapTypeToggle = (
@@ -336,15 +396,6 @@ export default function LiveView({ navigation }) {
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: spacing.xl }}>{content}</ScrollView>
         </Animated.View>
       )}
-
-      <IncidentReplay
-        visible={!!replay}
-        alert={replay?.alert}
-        shipmentId={replay?.shipmentId}
-        apiBaseUrl={process.env.EXPO_PUBLIC_API_URL}
-        apiToken={process.env.EXPO_PUBLIC_API_TOKEN}
-        onClose={() => setReplay(null)}
-      />
     </View>
   );
 }
@@ -360,16 +411,16 @@ const styles = StyleSheet.create({
   mapToggle: { flexDirection: 'row', borderRadius: radius.md, borderWidth: StyleSheet.hairlineWidth, padding: 3 },
   mapToggleItem: { paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8 },
   panelHeader: { paddingHorizontal: spacing.lg, paddingTop: spacing.lg, paddingBottom: spacing.md, gap: 2 },
+  sectionTitle: { paddingHorizontal: spacing.lg, paddingTop: spacing.md, paddingBottom: spacing.xs },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.lg, paddingVertical: spacing.md },
   rowRight: { alignItems: 'flex-end', maxWidth: 140 },
-  explainer: { paddingHorizontal: spacing.lg, paddingVertical: spacing.lg },
+  empty: { padding: spacing.lg, gap: spacing.md },
   back: { flexDirection: 'row', alignItems: 'center', gap: 2, paddingHorizontal: spacing.md, paddingTop: spacing.md },
   detailHead: { paddingHorizontal: spacing.lg, paddingTop: spacing.sm, gap: 2 },
-  reading: { paddingHorizontal: spacing.lg, paddingTop: spacing.lg },
+  reading: { paddingHorizontal: spacing.lg, paddingTop: spacing.lg, gap: 2 },
   pad: { paddingHorizontal: spacing.lg, paddingVertical: spacing.md },
   facts: { flexDirection: 'row', flexWrap: 'wrap', rowGap: spacing.md },
   fact: { width: '50%', gap: 2 },
-  alertLine: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingVertical: spacing.sm },
-  dot: { width: 7, height: 7, borderRadius: 4 },
-  actions: { flexDirection: 'row', gap: spacing.sm, marginTop: spacing.md },
+  actions: { flexDirection: 'row', gap: spacing.sm },
+  notice: { paddingHorizontal: spacing.lg, paddingBottom: spacing.md },
 });

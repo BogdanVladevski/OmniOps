@@ -17,6 +17,9 @@ public sealed class OmniOpsApiFixture : IAsyncLifetime
 
     public HttpClient Client { get; private set; } = null!;
 
+    /// <summary>Uploaded files go to a throwaway folder, never into the source tree.</summary>
+    public string StorageRoot { get; } = Path.Combine(Path.GetTempPath(), "omniops-it-" + Guid.NewGuid().ToString("N"));
+
     public async Task InitializeAsync()
     {
         await _postgres.StartAsync();
@@ -33,6 +36,7 @@ public sealed class OmniOpsApiFixture : IAsyncLifetime
                         ["Jwt:RequireAuthentication"] = "false",
                         ["Jwt:Secret"] = "integration-test-secret-at-least-32-chars",
                         ["Fleet:VehicleIds"] = "Truck-001,Truck-002,Truck-003",
+                        ["Storage:RootPath"] = StorageRoot,
                     });
                 });
 
@@ -61,6 +65,10 @@ public sealed class OmniOpsApiFixture : IAsyncLifetime
         Client.Dispose();
         await Factory.DisposeAsync();
         await _postgres.DisposeAsync();
+        if (Directory.Exists(StorageRoot))
+        {
+            Directory.Delete(StorageRoot, recursive: true);
+        }
     }
 }
 

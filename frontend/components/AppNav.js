@@ -10,6 +10,7 @@ import { useLayout } from '../utils/layout';
 
 export const TAB_META = {
   Live: { icon: 'navigate', label: 'Live' },
+  Jobs: { icon: 'clipboard', label: 'Jobs' },
   Alerts: { icon: 'notifications', label: 'Alerts' },
   Analytics: { icon: 'bar-chart', label: 'Analytics' },
   Fleet: { icon: 'cube', label: 'Fleet' },

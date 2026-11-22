@@ -885,20 +885,76 @@ namespace OmniOps.Infrastructure.Migrations
                     b.Property<DateTime?>("CompletedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CustomerName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<double?>("DeliveredLatitude")
+                        .HasColumnType("double precision");
+
+                    b.Property<double?>("DeliveredLongitude")
+                        .HasColumnType("double precision");
+
+                    b.Property<string>("DeliveryNote")
+                        .HasMaxLength(1000)
+                        .HasColumnType("character varying(1000)");
+
                     b.Property<string>("Destination")
                         .HasColumnType("text");
+
+                    b.Property<double?>("DestinationLatitude")
+                        .HasColumnType("double precision");
+
+                    b.Property<double?>("DestinationLongitude")
+                        .HasColumnType("double precision");
 
                     b.Property<Guid?>("DriverId")
                         .HasColumnType("uuid");
 
+                    b.Property<Guid>("FleetId")
+                        .HasColumnType("uuid");
+
+                    b.Property<double?>("LastLatitude")
+                        .HasColumnType("double precision");
+
+                    b.Property<double?>("LastLongitude")
+                        .HasColumnType("double precision");
+
+                    b.Property<DateTime?>("LastPositionAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<double?>("LastSpeedKmh")
+                        .HasColumnType("double precision");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("Origin")
                         .HasColumnType("text");
+
+                    b.Property<DateTime?>("PlannedDeliveryUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("RecipientName")
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<string>("Reference")
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
 
                     b.Property<DateTime?>("StartedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
                     b.Property<int>("Status")
                         .HasColumnType("integer");
+
+                    b.Property<string>("TrackingToken")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
 
                     b.Property<Guid>("VehicleId")
                         .HasColumnType("uuid");
@@ -907,9 +963,62 @@ namespace OmniOps.Infrastructure.Migrations
 
                     b.HasIndex("DriverId");
 
+                    b.HasIndex("TrackingToken")
+                        .IsUnique();
+
+                    b.HasIndex("OrganizationId", "Status");
+
                     b.HasIndex("VehicleId", "Status");
 
+                    b.HasIndex("OrganizationId", "DriverId", "Status");
+
                     b.ToTable("Trips");
+                });
+
+            modelBuilder.Entity("OmniOps.Core.Entities.TripDocument", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CapturedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("ContentType")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<int>("Kind")
+                        .HasColumnType("integer");
+
+                    b.Property<double?>("Latitude")
+                        .HasColumnType("double precision");
+
+                    b.Property<double?>("Longitude")
+                        .HasColumnType("double precision");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<long>("SizeBytes")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("StorageKey")
+                        .IsRequired()
+                        .HasMaxLength(300)
+                        .HasColumnType("character varying(300)");
+
+                    b.Property<Guid>("TripId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TripId");
+
+                    b.HasIndex("OrganizationId", "TripId");
+
+                    b.ToTable("TripDocuments");
                 });
 
             modelBuilder.Entity("OmniOps.Core.Entities.Vehicle", b =>
@@ -1014,10 +1123,10 @@ namespace OmniOps.Infrastructure.Migrations
                     b.Property<double?>("BatteryLevel")
                         .HasColumnType("double precision");
 
-                    b.Property<double>("EngineTemperature")
+                    b.Property<double?>("EngineTemperature")
                         .HasColumnType("double precision");
 
-                    b.Property<double>("FuelLevel")
+                    b.Property<double?>("FuelLevel")
                         .HasColumnType("double precision");
 
                     b.Property<double?>("Heading")
@@ -1191,6 +1300,17 @@ namespace OmniOps.Infrastructure.Migrations
                     b.Navigation("Vehicle");
                 });
 
+            modelBuilder.Entity("OmniOps.Core.Entities.TripDocument", b =>
+                {
+                    b.HasOne("OmniOps.Core.Entities.Trip", "Trip")
+                        .WithMany("Documents")
+                        .HasForeignKey("TripId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Trip");
+                });
+
             modelBuilder.Entity("OmniOps.Core.Entities.Vehicle", b =>
                 {
                     b.HasOne("OmniOps.Core.Entities.Driver", "AssignedDriver")
@@ -1255,6 +1375,11 @@ namespace OmniOps.Infrastructure.Migrations
             modelBuilder.Entity("OmniOps.Core.Entities.Team", b =>
                 {
                     b.Navigation("Members");
+                });
+
+            modelBuilder.Entity("OmniOps.Core.Entities.Trip", b =>
+                {
+                    b.Navigation("Documents");
                 });
 
             modelBuilder.Entity("OmniOps.Core.Entities.Vehicle", b =>

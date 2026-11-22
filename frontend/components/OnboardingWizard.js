@@ -12,6 +12,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { demoApi, getApiConfig } from '../utils/api';
+import { notifyJobsChanged } from '../utils/events';
 import { useTheme } from '../contexts/ThemeContext';
 import { radius, spacing, typography } from '../theme/tokens';
 
@@ -20,22 +21,22 @@ const STORAGE_KEY = '@omniops/onboarding_complete';
 const STEPS = [
   {
     title: 'Welcome to OmniOps',
-    body: 'OmniOps protects temperature-sensitive medicines in transit. It watches every shipment\'s cargo temperature in real time and alerts your team the moment one leaves its safe range.',
+    body: 'Run your deliveries from one place: see where every truck is, tell customers when it arrives, and get proof of delivery the moment the goods are handed over.',
     icon: 'snow',
   },
   {
-    title: 'Connected to your fleet',
-    body: 'Trucks stream their location and cargo temperature to OmniOps every few seconds. This app is connected to the endpoint below.',
+    title: 'No hardware needed',
+    body: 'Drivers use this same app on their phone in driver mode. Their phone shares the truck\'s location during a delivery. This app is connected to the server below.',
     icon: 'radio-outline',
   },
   {
     title: 'See it working',
-    body: 'Load a few minutes of demo journeys so the overview, live map and alerts fill with realistic data.',
+    body: 'Load a demo day: two trucks on the road with live positions, and one delivery waiting to start.',
     icon: 'play-circle-outline',
   },
   {
     title: 'You are all set',
-    body: 'Start on the Overview: it shows which shipments are safe, which need attention, and how much value is at risk. On a computer, press Ctrl K to search.',
+    body: 'Live shows today\'s deliveries and when each one arrives. Create deliveries under Jobs and send customers their tracking link. On a computer, press Ctrl K to search.',
     icon: 'checkmark-circle-outline',
   },
 ];
@@ -91,7 +92,8 @@ export default function OnboardingWizard({ visible, onComplete }) {
     setBootstrapMsg(null);
     try {
       const result = await demoApi.bootstrap(6);
-      setBootstrapMsg(result.message ?? `Queued ${result.totalPacketsQueued} packets.`);
+      setBootstrapMsg(result.message ?? 'Demo day loaded.');
+      notifyJobsChanged();
       await demoApi.status().then(setDemoStatus).catch(() => {});
     } catch (e) {
       setBootstrapMsg(e.message);
@@ -182,7 +184,7 @@ export default function OnboardingWizard({ visible, onComplete }) {
             ]}
           >
             <Text style={styles.primaryText}>
-              {isLast ? 'Get started' : isBootstrapStep && !bootstrapMsg ? 'Load demo telemetry' : 'Continue'}
+              {isLast ? 'Get started' : isBootstrapStep && !bootstrapMsg ? 'Load demo day' : 'Continue'}
             </Text>
           </Pressable>
         </View>

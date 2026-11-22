@@ -8,6 +8,9 @@ public interface ITelemetryRepository
     Task AddAsync(VehicleTelemetry telemetry, CancellationToken cancellationToken = default);
     Task SaveChangesAsync(CancellationToken cancellationToken = default);
 
+    /// <summary>Which of these packet ids are already stored (lets clients safely resend after a restart).</summary>
+    Task<IReadOnlySet<Guid>> GetExistingIdsAsync(IReadOnlyCollection<Guid> ids, CancellationToken cancellationToken = default);
+
     Task<IReadOnlyList<VehicleTelemetry>> GetByVehicleInTimeRangeAsync(
         string vehicleId,
         DateTime fromUtc,

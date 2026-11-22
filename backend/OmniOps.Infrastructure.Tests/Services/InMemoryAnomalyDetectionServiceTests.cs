@@ -82,6 +82,22 @@ public class InMemoryAnomalyDetectionServiceTests
     }
 
     [Fact]
+    public async Task ReadingWithoutCargoTemperature_IsNotFlaggedAndKeepsExcursionTimer()
+    {
+        var service = CreateService();
+        var shipment = CreateShipment();
+
+        await service.AnalyzeTelemetryAsync(Reading(12, T0), shipment);
+        var gps = Reading(0, T0.AddSeconds(30));
+        gps.EngineTemperature = null;
+        var gpsResult = await service.AnalyzeTelemetryAsync(gps, shipment);
+        var later = await service.AnalyzeTelemetryAsync(Reading(12, T0.AddSeconds(90)), shipment);
+
+        Assert.False(gpsResult.IsAnomaly);
+        Assert.Equal(90, later.ExcursionDurationSeconds);
+    }
+
+    [Fact]
     public async Task WithoutShipment_NothingIsFlagged()
     {
         var result = await CreateService().AnalyzeTelemetryAsync(Reading(40, T0));
