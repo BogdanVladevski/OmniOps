@@ -29,6 +29,8 @@ public class JwtTokenService : IJwtTokenService
         _options = options.Value;
     }
 
+    public const string IssuedAtMsClaim = "iat_ms";
+
     public string GenerateToken(IEnumerable<string> scopes, TokenTenantContext? tenant = null, TimeSpan? lifetime = null)
     {
         if (!_options.IsConfigured())
@@ -55,6 +57,9 @@ public class JwtTokenService : IJwtTokenService
         {
             new(JwtRegisteredClaimNames.Sub, tenant?.Subject ?? "omniops-client"),
             new(JwtRegisteredClaimNames.Jti, Guid.NewGuid().ToString()),
+            new(JwtRegisteredClaimNames.Iat, DateTimeOffset.UtcNow.ToUnixTimeSeconds().ToString(), ClaimValueTypes.Integer64),
+            // Millisecond issue time: ending sessions must also end tokens issued earlier in the same second.
+            new(IssuedAtMsClaim, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString(), ClaimValueTypes.Integer64),
             new("scope", string.Join(' ', scopeList))
         };
 

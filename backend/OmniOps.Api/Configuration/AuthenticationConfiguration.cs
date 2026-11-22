@@ -70,6 +70,27 @@ public static partial class ServiceRegistration
 
                         return Task.CompletedTask;
                     },
+
+                    // Account tokens stop working as soon as the person is removed or their sessions are ended.
+                    OnTokenValidated = async context =>
+                    {
+                        var principal = context.Principal;
+                        if ((principal?.FindFirst("role") ?? principal?.FindFirst(System.Security.Claims.ClaimTypes.Role)) is null
+                            || !Guid.TryParse(principal.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value
+                                ?? principal.FindFirst("sub")?.Value, out var userId))
+                        {
+                            return;
+                        }
+
+                        var issuedAt = long.TryParse(principal.FindFirst(JwtTokenService.IssuedAtMsClaim)?.Value, out var ms)
+                            ? DateTimeOffset.FromUnixTimeMilliseconds(ms).UtcDateTime
+                            : DateTime.MinValue;
+                        var sessions = context.HttpContext.RequestServices.GetRequiredService<OmniOps.Core.Interfaces.IAccountSessions>();
+                        if (!await sessions.IsCurrentAsync(userId, issuedAt, context.HttpContext.RequestAborted))
+                        {
+                            context.Fail("This sign-in has ended.");
+                        }
+                    },
                 };
             });
     }

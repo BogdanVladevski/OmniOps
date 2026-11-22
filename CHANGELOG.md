@@ -6,6 +6,9 @@ All notable changes to OmniOps are documented in this file.
 
 ### Added
 
+- Team: owners invite dispatchers or other owners by email (Admin → Team); the invitation link works once, for 7 days, and is emailed when SMTP is set up — otherwise the owner copies it into WhatsApp, Viber or email. Owners change roles, remove people (signed out at once) and withdraw invitations; a company always keeps at least one owner
+- Passwords: "Forgot password?" sends a one-hour, single-use reset link when email is set up; otherwise an owner creates one for a teammate from the Team card. Resetting or changing a password signs the account out on every other device
+- Account settings: change your name and password, sign out on all devices; owners rename the company
 - Company accounts: sign up (company, first fleet, owner), sign in with email and password, sign out; owners and office staff see only their own company
 - Drivers connect their phone with a one-time 8-character code from the office (Admin → Connect a driver's phone); a driver sees only their own jobs and nothing of the office
 - Fleet: add trucks from the app
@@ -28,6 +31,8 @@ All notable changes to OmniOps are documented in this file.
 - Every fleet, vehicle, driver, incident, analytics, prediction, telemetry, audit-log and live-update path is limited to the caller's company (several still assumed a single company); truck history is stored per fleet so same-named trucks in different companies never mix
 - Sign-in is required by default and the API refuses to start outside Development with it switched off; requests without a company are refused instead of becoming the demo company
 - Wrong passwords lock an account for 15 minutes after 5 tries; refresh tokens are single use
+- Removing a person, changing their role, resetting or changing a password and "sign out on all devices" end existing sign-ins immediately, not when their access token expires
+- The old, unfinished `POST /api/v1/tenant/invitations` endpoint (its invitations could never be accepted) was removed
 
 ### Changed
 

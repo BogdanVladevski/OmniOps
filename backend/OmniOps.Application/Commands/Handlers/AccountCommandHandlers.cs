@@ -16,6 +16,12 @@ internal static partial class AccountRules
     public const int MaxFailedSignIns = 5;
     public static readonly TimeSpan Lockout = TimeSpan.FromMinutes(15);
     public static readonly TimeSpan PairingCodeLifetime = TimeSpan.FromHours(24);
+    public static readonly TimeSpan InvitationLifetime = TimeSpan.FromDays(7);
+    public static readonly TimeSpan PasswordResetLifetime = TimeSpan.FromHours(1);
+
+    /// <summary>Unguessable token for a link (URL-safe).</summary>
+    public static string NewLinkToken() =>
+        Convert.ToBase64String(RandomNumberGenerator.GetBytes(32)).TrimEnd('=').Replace('+', '-').Replace('/', '_');
 
     // No 0/O, 1/I/L: codes are read aloud and typed on a phone.
     private const string CodeAlphabet = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";

@@ -30,8 +30,6 @@ public static class TenantEndpoints
             Results.Created("/api/v1/tenant/workspaces", await m.Send(new CreateWorkspaceCommand(body.OrganizationId, body.Name, body.DefaultFleetId))), requireAuth);
         MapPost(v1, "/teams", async (CreateTeamBody body, IMediator m) =>
             Results.Created("/api/v1/tenant/teams", await m.Send(new CreateTeamCommand(body.OrganizationId, body.Name))), requireAuth);
-        MapPost(v1, "/invitations", async (InviteBody body, IMediator m) =>
-            Results.Ok(await m.Send(new InviteMemberCommand(body.OrganizationId, body.Email, body.Role))), requireAuth);
         MapPut(v1, "/organizations/{organizationId:guid}/settings", async (Guid organizationId, UpdateSettingsBody body, IMediator m) =>
             Results.Ok(await m.Send(new UpdateTenantSettingsCommand(
                 organizationId, body.TimeZone, body.Locale, body.EmailNotificationsEnabled, body.PushNotificationsEnabled))), requireAuth);
@@ -58,6 +56,5 @@ public static class TenantEndpoints
     private sealed record CreateOrgBody(string Name, string Slug);
     private sealed record CreateWorkspaceBody(Guid OrganizationId, string Name, Guid? DefaultFleetId);
     private sealed record CreateTeamBody(Guid OrganizationId, string Name);
-    private sealed record InviteBody(Guid OrganizationId, string Email, string Role);
     private sealed record UpdateSettingsBody(string TimeZone, string Locale, bool EmailNotificationsEnabled, bool PushNotificationsEnabled);
 }

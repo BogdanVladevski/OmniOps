@@ -7,6 +7,7 @@ import { FleetProvider, useFleet } from './contexts/FleetContext';
 import { ThemeProvider, useTheme } from './contexts/ThemeContext';
 import { SessionProvider, useSession } from './contexts/SessionContext';
 import AuthScreens from './components/AuthScreens';
+import { pendingLink } from './utils/links';
 import { isDriver } from './utils/session';
 import ErrorBoundary from './components/ui/ErrorBoundary';
 import OfflineBanner from './components/ui/OfflineBanner';
@@ -54,8 +55,11 @@ function Navigator({ onSearch }) {
 function AppShell() {
   const { session, ready } = useSession();
   const { isDark } = useTheme();
+  // An invitation or password-reset link wins over whoever is signed in on this device.
+  const [link, setLink] = useState(pendingLink);
   if (!ready) return null;
   const bar = <StatusBar barStyle={isDark ? 'light-content' : 'dark-content'} backgroundColor="transparent" translucent />;
+  if (link) return <>{bar}<AuthScreens link={link} onLinkDone={() => setLink(null)} /></>;
   if (!session) return <>{bar}<AuthScreens /></>;
   if (isDriver(session)) return <>{bar}<DriverApp /></>;
   // Keyed by account so switching accounts starts from a clean slate (no other company's data on screen).

@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using OmniOps.Core.Entities;
+using OmniOps.Core.Enums;
 using OmniOps.Core.Interfaces;
 using OmniOps.Infrastructure.Data;
 
@@ -36,6 +37,35 @@ public class AccountRepository : IAccountRepository
 
     public Task<string?> OrganizationNameAsync(Guid organizationId, CancellationToken cancellationToken = default) =>
         _context.Organizations.AsNoTracking().Where(o => o.Id == organizationId).Select(o => o.Name).FirstOrDefaultAsync(cancellationToken);
+
+    public Task<Organization?> GetOrganizationAsync(Guid organizationId, CancellationToken cancellationToken = default) =>
+        _context.Organizations.FirstOrDefaultAsync(o => o.Id == organizationId, cancellationToken);
+
+    public async Task<IReadOnlyList<UserAccount>> ListOfficeAsync(Guid organizationId, CancellationToken cancellationToken = default) =>
+        await _context.UserAccounts
+            .Where(u => u.OrganizationId == organizationId && u.Role != UserRole.Driver)
+            .OrderBy(u => u.Role).ThenBy(u => u.DisplayName)
+            .ToListAsync(cancellationToken);
+
+    public Task<int> CountActiveOwnersAsync(Guid organizationId, CancellationToken cancellationToken = default) =>
+        _context.UserAccounts.CountAsync(
+            u => u.OrganizationId == organizationId && u.Role == UserRole.Owner && u.IsActive, cancellationToken);
+
+    public Task<AccountLink?> GetLinkAsync(string tokenHash, CancellationToken cancellationToken = default) =>
+        _context.AccountLinks.FirstOrDefaultAsync(l => l.TokenHash == tokenHash, cancellationToken);
+
+    public Task<AccountLink?> GetLinkAsync(Guid organizationId, Guid linkId, CancellationToken cancellationToken = default) =>
+        _context.AccountLinks.FirstOrDefaultAsync(l => l.OrganizationId == organizationId && l.Id == linkId, cancellationToken);
+
+    public async Task<IReadOnlyList<AccountLink>> ListOpenInvitationsAsync(Guid organizationId, DateTime now, CancellationToken cancellationToken = default) =>
+        await _context.AccountLinks
+            .Where(l => l.OrganizationId == organizationId && l.Purpose == AccountLinkPurpose.Invitation
+                && l.UsedAtUtc == null && l.RevokedAtUtc == null && l.ExpiresAtUtc > now)
+            .OrderByDescending(l => l.CreatedAtUtc)
+            .ToListAsync(cancellationToken);
+
+    public async Task AddLinkAsync(AccountLink link, CancellationToken cancellationToken = default) =>
+        await _context.AccountLinks.AddAsync(link, cancellationToken);
 
     public async Task AddOrganizationAsync(Organization organization, Workspace workspace, Fleet fleet, CancellationToken cancellationToken = default)
     {

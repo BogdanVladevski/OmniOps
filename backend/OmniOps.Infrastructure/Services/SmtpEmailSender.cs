@@ -33,10 +33,19 @@ public class SmtpEmailSender : IEmailSender
 public class PublicLinks : IPublicLinks
 {
     private readonly string _base;
+    private readonly string _app;
 
-    public PublicLinks(IOptions<PublicUrlOptions> options) => _base = options.Value.BaseUrl.TrimEnd('/');
+    public PublicLinks(IOptions<PublicUrlOptions> options)
+    {
+        _base = options.Value.BaseUrl.TrimEnd('/');
+        _app = options.Value.AppUrl.TrimEnd('/');
+    }
 
     public string Invoice(string token) => $"{_base}/i/{token}";
 
     public string Tracking(string token) => $"{_base}/t/{token}";
+
+    public string Join(string token) => $"{_app}/?join={Uri.EscapeDataString(token)}";
+
+    public string PasswordReset(string token) => $"{_app}/?reset={Uri.EscapeDataString(token)}";
 }

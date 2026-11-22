@@ -314,6 +314,34 @@ export const accountApi = {
   pair: (code) => apiFetch('/api/v1/account/pair', { method: 'POST', body: JSON.stringify({ code }) }),
   demo: () => apiFetch('/api/v1/account/demo', { method: 'POST' }),
   driverCode: (driverId) => apiFetch('/api/v1/account/driver-codes', { method: 'POST', body: JSON.stringify({ driverId }) }),
+
+  // Team (owners)
+  team: () => apiFetch('/api/v1/account/team'),
+  invite: (email, role) => apiFetch('/api/v1/account/team/invitations', { method: 'POST', body: JSON.stringify({ email, role }) }),
+  revokeInvitation: (id) => apiFetch(`/api/v1/account/team/invitations/${id}`, { method: 'DELETE' }),
+  setRole: (userId, role) => apiFetch(`/api/v1/account/team/${userId}/role`, { method: 'PUT', body: JSON.stringify({ role }) }),
+  removeTeammate: (userId) => apiFetch(`/api/v1/account/team/${userId}`, { method: 'DELETE' }),
+  resetLink: (userId) => apiFetch(`/api/v1/account/team/${userId}/reset-link`, { method: 'POST' }),
+  updateCompany: (name) => apiFetch('/api/v1/account/company', { method: 'PUT', body: JSON.stringify({ name }) }),
+
+  // Links opened from an email or message
+  invitation: (token) => apiFetch(`/api/v1/account/invitations/${encodeURIComponent(token)}`),
+  accept: (token, name, password) =>
+    apiFetch(`/api/v1/account/invitations/${encodeURIComponent(token)}/accept`, { method: 'POST', body: JSON.stringify({ name, password }) }),
+  forgotPassword: (email) => apiFetch('/api/v1/account/forgot-password', { method: 'POST', body: JSON.stringify({ email }) }),
+  resetPassword: (token, password) => apiFetch('/api/v1/account/reset-password', { method: 'POST', body: JSON.stringify({ token, password }) }),
+
+  // Signed in
+  changePassword: (currentPassword, newPassword) =>
+    apiFetch('/api/v1/account/password', { method: 'POST', body: JSON.stringify({ currentPassword, newPassword }) }),
+  updateProfile: (displayName) => apiFetch('/api/v1/account/me', { method: 'PUT', body: JSON.stringify({ displayName }) }),
+  async signOutEverywhere() {
+    try {
+      await apiFetch('/api/v1/account/sign-out-everywhere', { method: 'POST' });
+    } finally {
+      await setSession(null);
+    }
+  },
   async signOut() {
     const refreshToken = getSession()?.refreshToken;
     await setSession(null);
