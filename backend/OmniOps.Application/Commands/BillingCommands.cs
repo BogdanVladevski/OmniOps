@@ -16,7 +16,10 @@ public record SaveBillingProfileCommand(
     string Currency,
     decimal DefaultVatRatePercent,
     int DefaultPaymentTermsDays,
-    string InvoicePrefix) : IRequest<BillingProfileDto>, IAuthorizedRequest
+    string InvoicePrefix,
+    int FreeWaitingMinutes = 120,
+    decimal? WaitingRatePerHour = null,
+    string? TimeZone = null) : IRequest<BillingProfileDto>, IAuthorizedRequest
 {
     public string RequiredPolicy => AuthorizationPolicies.FleetAdmin;
 }

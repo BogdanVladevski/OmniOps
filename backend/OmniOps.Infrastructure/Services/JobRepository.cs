@@ -78,6 +78,14 @@ public class JobRepository : IJobRepository
             .OrderBy(d => d.FullName)
             .ToListAsync(cancellationToken);
 
+    public async Task<IReadOnlyList<Trip>> ListWaitingAsync(CancellationToken cancellationToken = default) =>
+        await _context.Trips
+            .Include(t => t.Vehicle)
+            .Where(t => (t.Status == TripStatus.Planned && t.PickupArrivedAtUtc != null && t.PickupWaitAlertedAtUtc == null)
+                || (t.Status == TripStatus.InProgress && t.DeliveryArrivedAtUtc != null && t.DeliveryWaitAlertedAtUtc == null))
+            .Take(500)
+            .ToListAsync(cancellationToken);
+
     public async Task AddAsync(Trip job, CancellationToken cancellationToken = default) =>
         await _context.Trips.AddAsync(job, cancellationToken);
 

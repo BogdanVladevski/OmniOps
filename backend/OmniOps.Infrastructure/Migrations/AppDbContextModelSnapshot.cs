@@ -227,6 +227,9 @@ namespace OmniOps.Infrastructure.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
+                    b.Property<int>("FreeWaitingMinutes")
+                        .HasColumnType("integer");
+
                     b.Property<string>("Iban")
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
@@ -252,8 +255,14 @@ namespace OmniOps.Infrastructure.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
 
+                    b.Property<string>("TimeZone")
+                        .HasColumnType("text");
+
                     b.Property<DateTime>("UpdatedAtUtc")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<decimal?>("WaitingRatePerHour")
+                        .HasColumnType("numeric");
 
                     b.HasKey("OrganizationId");
 
@@ -1290,9 +1299,24 @@ namespace OmniOps.Infrastructure.Migrations
                     b.Property<double?>("DeliveredLongitude")
                         .HasColumnType("double precision");
 
+                    b.Property<double?>("DeliveryArrivalLatitude")
+                        .HasColumnType("double precision");
+
+                    b.Property<double?>("DeliveryArrivalLongitude")
+                        .HasColumnType("double precision");
+
+                    b.Property<int?>("DeliveryArrivalSource")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("DeliveryArrivedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("DeliveryNote")
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)");
+
+                    b.Property<DateTime?>("DeliveryWaitAlertedAtUtc")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Destination")
                         .HasColumnType("text");
@@ -1335,6 +1359,27 @@ namespace OmniOps.Infrastructure.Migrations
 
                     b.Property<string>("Origin")
                         .HasColumnType("text");
+
+                    b.Property<double?>("OriginLatitude")
+                        .HasColumnType("double precision");
+
+                    b.Property<double?>("OriginLongitude")
+                        .HasColumnType("double precision");
+
+                    b.Property<double?>("PickupArrivalLatitude")
+                        .HasColumnType("double precision");
+
+                    b.Property<double?>("PickupArrivalLongitude")
+                        .HasColumnType("double precision");
+
+                    b.Property<int?>("PickupArrivalSource")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("PickupArrivedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("PickupWaitAlertedAtUtc")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<DateTime?>("PlannedDeliveryUtc")
                         .HasColumnType("timestamp with time zone");

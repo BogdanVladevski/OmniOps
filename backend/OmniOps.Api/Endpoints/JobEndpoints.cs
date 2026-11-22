@@ -32,7 +32,7 @@ public static class JobEndpoints
             var job = await m.Send(new CreateJobCommand(
                 body.VehicleId, body.DriverId, body.CustomerName ?? string.Empty, body.Reference, body.Origin,
                 body.Destination ?? string.Empty, body.DestinationLatitude, body.DestinationLongitude, body.PlannedDeliveryUtc,
-                body.MinTempCelsius, body.MaxTempCelsius));
+                body.MinTempCelsius, body.MaxTempCelsius, body.OriginLatitude, body.OriginLongitude));
             return Results.Created($"/api/v1/jobs/{job.Id}", job);
         });
 
@@ -60,6 +60,10 @@ public static class JobEndpoints
             var body = http.HasJsonContentType() ? await http.ReadFromJsonAsync<StartBody>() : null;
             return Results.Ok(await m.Send(new StartJobCommand(jobId, body?.StartedAt)));
         });
+
+        // "I've arrived": { stop: "pickup" | "delivery", arrivedAt, latitude, longitude }.
+        driver.MapPost("/jobs/{jobId:guid}/arrived", async (Guid jobId, ArrivedBody body, IMediator m) =>
+            Results.Ok(await m.Send(new MarkArrivedCommand(jobId, body.Stop ?? string.Empty, body.ArrivedAt, body.Latitude, body.Longitude))));
 
         driver.MapPost("/jobs/{jobId:guid}/locations", async (Guid jobId, LocationsBody body, IMediator m) =>
             Results.Ok(await m.Send(new RecordJobLocationsCommand(jobId, body.Points ?? []))));
@@ -142,11 +146,15 @@ public static class JobEndpoints
         double? DestinationLongitude,
         DateTimeOffset? PlannedDeliveryUtc,
         double? MinTempCelsius,
-        double? MaxTempCelsius);
+        double? MaxTempCelsius,
+        double? OriginLatitude,
+        double? OriginLongitude);
 
     private record LocationsBody(IReadOnlyList<JobLocationPoint>? Points);
 
     private record DeliverBody(string? RecipientName, string? Note, double? Latitude, double? Longitude, DateTimeOffset? DeliveredAt);
 
     private record StartBody(DateTimeOffset? StartedAt);
+
+    private record ArrivedBody(string? Stop, DateTimeOffset? ArrivedAt, double? Latitude, double? Longitude);
 }

@@ -29,6 +29,8 @@ public class Trip
     /// <summary>Customer's order / PO / consignment number.</summary>
     public string? Reference { get; set; }
 
+    public double? OriginLatitude { get; set; }
+    public double? OriginLongitude { get; set; }
     public double? DestinationLatitude { get; set; }
     public double? DestinationLongitude { get; set; }
     public DateTime? PlannedDeliveryUtc { get; set; }
@@ -55,6 +57,20 @@ public class Trip
 
     /// <summary>Invoice issued for this delivery, if any.</summary>
     public Guid? InvoiceId { get; set; }
+
+    // Waiting time (detention). Pickup: from arrival until the trip starts. Delivery: from arrival until delivered.
+    public DateTime? PickupArrivedAtUtc { get; set; }
+    public ArrivalSource? PickupArrivalSource { get; set; }
+    public double? PickupArrivalLatitude { get; set; }
+    public double? PickupArrivalLongitude { get; set; }
+    public DateTime? DeliveryArrivedAtUtc { get; set; }
+    public ArrivalSource? DeliveryArrivalSource { get; set; }
+    public double? DeliveryArrivalLatitude { get; set; }
+    public double? DeliveryArrivalLongitude { get; set; }
+
+    /// <summary>When the office was told free waiting time ran out (once per stop).</summary>
+    public DateTime? PickupWaitAlertedAtUtc { get; set; }
+    public DateTime? DeliveryWaitAlertedAtUtc { get; set; }
 
     public Vehicle Vehicle { get; set; } = null!;
     public Driver? Driver { get; set; }

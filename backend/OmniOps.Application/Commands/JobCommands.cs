@@ -17,10 +17,26 @@ public record CreateJobCommand(
     double? DestinationLongitude,
     DateTimeOffset? PlannedDeliveryUtc,
     double? MinTempCelsius = null,
-    double? MaxTempCelsius = null) : IRequest<JobDto>, IAuthorizedRequest
+    double? MaxTempCelsius = null,
+    double? OriginLatitude = null,
+    double? OriginLongitude = null) : IRequest<JobDto>, IAuthorizedRequest
 {
     public string RequiredPolicy => AuthorizationPolicies.VehicleRead;
 }
+
+/// <summary>
+/// Driver: "I've arrived" at the pickup (before starting the trip) or the delivery. Starts the waiting clock with
+/// the phone's position as evidence. GPS also detects delivery arrivals by itself; the earlier record wins.
+/// Repeating it is harmless.
+/// </summary>
+public record MarkArrivedCommand(Guid JobId, string Stop, DateTimeOffset? ArrivedAt, double? Latitude, double? Longitude)
+    : IRequest<JobDto>, IAuthorizedRequest
+{
+    public string RequiredPolicy => AuthorizationPolicies.JobWork;
+}
+
+/// <summary>System: tells the office when a truck's free waiting time has run out (once per stop).</summary>
+public record ProcessWaitingAlertsCommand : IRequest<int>;
 
 /// <summary>
 /// Driver starts the job. Repeating it is harmless (phones retry). <paramref name="StartedAt"/> is when the driver

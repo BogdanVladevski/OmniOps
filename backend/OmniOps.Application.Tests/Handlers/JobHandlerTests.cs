@@ -457,7 +457,7 @@ public class JobHandlerTests
     {
         var tenants = Substitute.For<ITenantRepository>();
         tenants.GetOrganizationAsync(OrgA, Arg.Any<CancellationToken>()).Returns(new Organization { Id = OrgA, Name = "Vardar Transport" });
-        return new GetPublicTrackingQueryHandler(_jobs, tenants);
+        return new GetPublicTrackingQueryHandler(_jobs, tenants, Substitute.For<IInvoiceRepository>());
     }
 
     [Fact]

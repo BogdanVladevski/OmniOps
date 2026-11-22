@@ -18,6 +18,9 @@ public class SaveBillingProfileCommandValidator : AbstractValidator<SaveBillingP
         RuleFor(x => x.Currency).Matches("^[A-Z]{3}$").WithMessage("Use a 3-letter currency code such as EUR or MKD.");
         RuleFor(x => x.DefaultVatRatePercent).InclusiveBetween(0, 50);
         RuleFor(x => x.DefaultPaymentTermsDays).InclusiveBetween(0, 180);
+        RuleFor(x => x.FreeWaitingMinutes).InclusiveBetween(0, 24 * 60).WithMessage("Free waiting time must be between 0 and 24 hours.");
+        RuleFor(x => x.WaitingRatePerHour).InclusiveBetween(0, 10_000).When(x => x.WaitingRatePerHour.HasValue);
+        RuleFor(x => x.TimeZone).MaximumLength(64);
         RuleFor(x => x.InvoicePrefix).NotEmpty().Matches("^[A-Za-z0-9]{1,12}$")
             .WithMessage("Use up to 12 letters or digits, e.g. INV.");
     }

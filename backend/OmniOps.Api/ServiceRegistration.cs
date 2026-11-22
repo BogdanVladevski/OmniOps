@@ -121,6 +121,7 @@ public static partial class ServiceRegistration
         builder.Services.AddHostedService<OutboxPublisherWorker>();
         builder.Services.AddHostedService<NotificationDeliveryWorker>();
         builder.Services.AddHostedService<InvoiceReminderWorker>();
+        builder.Services.AddHostedService<WaitingAlertWorker>();
         builder.Services.AddSignalR()
             .AddJsonProtocol(options =>
             {
