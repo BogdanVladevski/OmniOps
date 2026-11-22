@@ -87,6 +87,13 @@ export function parseApiError(status, text) {
   return text.length > 200 ? `${text.slice(0, 200)}…` : text;
 }
 
+/** An error the server answered with (as opposed to no connection). `status` is the HTTP status. */
+export function httpError(status, text) {
+  const error = new Error(parseApiError(status, text));
+  error.status = status;
+  return error;
+}
+
 export async function apiFetch(path, options = {}, retried = false) {
   const { apiBaseUrl, apiToken } = getApiConfig();
   if (!apiBaseUrl) throw new Error('Missing EXPO_PUBLIC_API_URL');
@@ -102,10 +109,7 @@ export async function apiFetch(path, options = {}, retried = false) {
   if (response.status === 401 && !retried && getSession()?.refreshToken && (await refreshSession())) {
     return apiFetch(path, options, true);
   }
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(parseApiError(response.status, text));
-  }
+  if (!response.ok) throw httpError(response.status, await response.text());
   if (response.status === 204) return null;
   return response.json();
 }
@@ -236,6 +240,17 @@ export function authHeaders() {
   return apiToken ? { Authorization: `Bearer ${apiToken}` } : {};
 }
 
+/**
+ * A signed-in file (e.g. a job photo) as a local object URL. Browsers can't send the sign-in token with
+ * <img>, so the web app downloads the file itself. Caller revokes the URL when done.
+ */
+export async function authorizedObjectUrl(url, retried = false) {
+  const response = await fetch(url, { headers: authHeaders() });
+  if (response.status === 401 && !retried && (await refreshSession())) return authorizedObjectUrl(url, true);
+  if (!response.ok) throw httpError(response.status, '');
+  return URL.createObjectURL(await response.blob());
+}
+
 export const jobsApi = {
   list: (scope = 'active') => apiFetch(`/api/v1/jobs?scope=${scope}`),
   get: (jobId) => apiFetch(`/api/v1/jobs/${jobId}`),
@@ -246,17 +261,20 @@ export const jobsApi = {
 
 export const driverApi = {
   jobs: (driverId) => apiFetch(`/api/v1/driver/jobs?driverId=${driverId}`),
-  start: (jobId) => apiFetch(`/api/v1/driver/jobs/${jobId}/start`, { method: 'POST' }),
+  /** startedAt: when Start was tapped (the phone may have been offline). */
+  start: (jobId, startedAt) =>
+    apiFetch(`/api/v1/driver/jobs/${jobId}/start`, { method: 'POST', body: JSON.stringify({ startedAt: startedAt ?? null }) }),
   sendLocations: (jobId, points) =>
     apiFetch(`/api/v1/driver/jobs/${jobId}/locations`, { method: 'POST', body: JSON.stringify({ points }) }),
   deliver: (jobId, body) =>
     apiFetch(`/api/v1/driver/jobs/${jobId}/deliver`, { method: 'POST', body: JSON.stringify(body) }),
 
   /**
-   * Uploads one photo for a job. `photo` is an image-picker asset ({ uri, mimeType, fileName }).
-   * kind: 'DeliveryPhoto' | 'PickupDocument' | 'TemperaturePhoto' (needs temperatureCelsius).
+   * Uploads one photo for a job. `photo` is { uri, mimeType?, fileName? }.
+   * kind: 'DeliveryPhoto' | 'PickupDocument' | 'TemperaturePhoto' (needs temperatureCelsius) | 'Signature' | 'Exception' (need note).
+   * extra: { clientId, capturedAt, note } — clientId makes a resend safe; capturedAt is when it was taken.
    */
-  async uploadDocument(jobId, kind, photo, coords, temperatureCelsius) {
+  async uploadDocument(jobId, kind, photo, coords, temperatureCelsius, extra = {}, retried = false) {
     const form = new FormData();
     const type = photo.mimeType ?? 'image/jpeg';
     const name = photo.fileName ?? `${kind}-${Date.now()}.jpg`;
@@ -269,12 +287,19 @@ export const driverApi = {
     const params = new URLSearchParams({ kind });
     if (coords) { params.set('latitude', coords.latitude); params.set('longitude', coords.longitude); }
     if (temperatureCelsius != null) params.set('temperatureCelsius', temperatureCelsius);
+    if (extra.clientId) params.set('clientId', extra.clientId);
+    if (extra.capturedAt) params.set('capturedAt', extra.capturedAt);
+    if (extra.note) form.append('note', extra.note);
     const response = await fetch(apiUrl(`/api/v1/driver/jobs/${jobId}/documents?${params}`), {
       method: 'POST',
       headers: authHeaders(),
       body: form,
     });
-    if (!response.ok) throw new Error(parseApiError(response.status, await response.text()));
+    // Sent from the queue long after it was taken, the access token may have expired meanwhile.
+    if (response.status === 401 && !retried && (await refreshSession())) {
+      return driverApi.uploadDocument(jobId, kind, photo, coords, temperatureCelsius, extra, true);
+    }
+    if (!response.ok) throw httpError(response.status, await response.text());
     return response.json();
   },
 };

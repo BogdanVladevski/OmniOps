@@ -101,7 +101,7 @@ public record InvoiceOverviewDto(
     IReadOnlyList<InvoiceSummaryDto> Invoices,
     IReadOnlyList<UninvoicedJobDto> ToInvoice);
 
-public record PublicInvoiceDocumentDto(Guid Id, string Kind, DateTime CapturedAtUtc, double? TemperatureCelsius);
+public record PublicInvoiceDocumentDto(Guid Id, string Kind, DateTime CapturedAtUtc, double? TemperatureCelsius, string? Note = null);
 
 /// <summary>The customer's invoice page: the invoice plus the delivery's proof. Nothing internal.</summary>
 public record PublicInvoiceDto(
@@ -147,7 +147,7 @@ public record PublicInvoiceDto(
             job?.Reference, job?.Origin, job?.Destination, job?.CompletedAtUtc, job?.RecipientName,
             job?.MinTempCelsius, job?.MaxTempCelsius,
             (job?.Documents ?? []).OrderBy(d => d.CapturedAtUtc)
-                .Select(d => new PublicInvoiceDocumentDto(d.Id, d.Kind.ToString(), d.CapturedAtUtc, d.TemperatureCelsius)).ToList());
+                .Select(d => new PublicInvoiceDocumentDto(d.Id, d.Kind.ToString(), d.CapturedAtUtc, d.TemperatureCelsius, d.Note)).ToList());
     }
 }
 

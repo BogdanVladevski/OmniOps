@@ -1,15 +1,16 @@
 // The office's job board: create delivery jobs, see where each one is, read the proof, send the customer a link.
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Image, Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useTheme } from '../contexts/ThemeContext';
 import { radius, spacing, toneColors, typography } from '../theme/tokens';
-import { apiUrl, authHeaders, geocode, jobsApi } from '../utils/api';
+import { apiUrl, geocode, jobsApi } from '../utils/api';
 import { notifyJobsChanged } from '../utils/events';
 import { shareLink } from '../utils/share';
 import {
   TEMPERATURE_PRESETS, formatCelsius, formatRange, isOutOfRange, isPositionStale, isRefrigerated, jobStatusMeta, jobTitle,
   parseTemperatureInput, temperatureStatus,
 } from '../utils/jobs';
+import AuthImage from './ui/AuthImage';
 import { Button, Card, EmptyNote, Field, Page, Pill, Segmented, Sheet, timeAgo } from './ui/kit';
 
 const SCOPES = [
@@ -165,16 +166,17 @@ function NewJobSheet({ visible, onClose, onCreated }) {
   );
 }
 
-function DocumentThumb({ job, document, size = 120 }) {
+function DocumentThumb({ job, document, size = 120, wide = false }) {
   const { colors } = useTheme();
   return (
-    <Pressable onPress={() => Platform.OS === 'web' && Linking.openURL(jobsApi.documentUrl(job.id, document.id))}>
-      <Image
-        source={{ uri: jobsApi.documentUrl(job.id, document.id), headers: authHeaders() }}
-        style={[styles.photo, { width: size, height: size, borderColor: colors.border, backgroundColor: colors.sunken }]}
-        accessibilityLabel={`Photo taken ${new Date(document.capturedAtUtc).toLocaleString()}`}
-      />
-    </Pressable>
+    <AuthImage
+      url={jobsApi.documentUrl(job.id, document.id)}
+      resizeMode={wide ? 'contain' : 'cover'}
+      style={[styles.photo, wide
+        ? { width: size, height: size * 0.4, borderColor: colors.border, backgroundColor: '#FFFFFF' }
+        : { width: size, height: size, borderColor: colors.border, backgroundColor: colors.sunken }]}
+      accessibilityLabel={`Photo taken ${new Date(document.capturedAtUtc).toLocaleString()}`}
+    />
   );
 }
 
@@ -267,6 +269,35 @@ function JobSheet({ jobId, onClose, onNotice, onInvoice }) {
             </View>
           ) : null}
           <DocumentGroup title="Proof of delivery" empty="No photos yet." job={job} documents={docs('DeliveryPhoto')} />
+          {docs('Signature').length ? (
+            <View style={styles.gapSm}>
+              <Text style={[typography.title, { color: colors.text }]}>Receiver's signature</Text>
+              {docs('Signature').map((d) => (
+                <View key={d.id} style={styles.gapSm}>
+                  <DocumentThumb job={job} document={d} size={260} wide />
+                  <Text style={[typography.caption, { color: colors.muted }]}>
+                    {[d.note, new Date(d.capturedAtUtc).toLocaleString()].filter(Boolean).join(' · ')}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          ) : null}
+          {docs('Exception').length ? (
+            <View style={styles.gapSm}>
+              <Text style={[typography.title, { color: colors.warning }]}>Problems reported by the driver</Text>
+              <Card padded={false}>
+                {docs('Exception').map((d, i) => (
+                  <View key={d.id} style={[styles.readingRow, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border }]}>
+                    <DocumentThumb job={job} document={d} size={44} />
+                    <View style={styles.flex}>
+                      <Text style={[typography.label, { color: colors.text }]}>{d.note}</Text>
+                      <Text style={[typography.caption, { color: colors.muted }]}>{new Date(d.capturedAtUtc).toLocaleString()}</Text>
+                    </View>
+                  </View>
+                ))}
+              </Card>
+            </View>
+          ) : null}
           <View style={styles.formRow}>
             <Button label="Close" variant="secondary" onPress={onClose} style={styles.flex} />
             {job.trackingPath ? (
