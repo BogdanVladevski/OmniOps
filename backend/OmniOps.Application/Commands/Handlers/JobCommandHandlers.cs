@@ -1,0 +1,324 @@
+using System.Text.Json;
+using MediatR;
+using Microsoft.Extensions.Logging;
+using OmniOps.Application.Dtos;
+using OmniOps.Core.Domain;
+using OmniOps.Core.Entities;
+using OmniOps.Core.Enums;
+using OmniOps.Core.Exceptions;
+using OmniOps.Core.Interfaces;
+
+namespace OmniOps.Application.Commands.Handlers;
+
+/// <summary>Alert types broadcast for delivery-job milestones (the app maps these to labels).</summary>
+public static class JobAlerts
+{
+    public const string Delivered = "JobDelivered";
+}
+
+public class CreateJobCommandHandler : IRequestHandler<CreateJobCommand, JobDto>
+{
+    private readonly IJobRepository _jobs;
+    private readonly ITenantContext _tenant;
+    private readonly IAuditService _audit;
+
+    public CreateJobCommandHandler(IJobRepository jobs, ITenantContext tenant, IAuditService audit)
+    {
+        _jobs = jobs;
+        _tenant = tenant;
+        _audit = audit;
+    }
+
+    public async Task<JobDto> Handle(CreateJobCommand request, CancellationToken cancellationToken)
+    {
+        var organizationId = _tenant.OrganizationId;
+        var vehicle = await _jobs.GetVehicleAsync(request.VehicleId, organizationId, cancellationToken)
+            ?? throw new KeyNotFoundException($"Vehicle {request.VehicleId} not found.");
+
+        Driver? driver = null;
+        if (request.DriverId is { } driverId)
+        {
+            driver = await _jobs.GetDriverAsync(driverId, organizationId, cancellationToken)
+                ?? throw new KeyNotFoundException($"Driver {driverId} not found.");
+        }
+
+        var job = new Trip
+        {
+            Id = Guid.NewGuid(),
+            OrganizationId = organizationId,
+            FleetId = vehicle.FleetId,
+            VehicleId = vehicle.Id,
+            DriverId = driver?.Id,
+            Status = TripStatus.Planned,
+            CreatedAtUtc = DateTime.UtcNow,
+            CustomerName = request.CustomerName.Trim(),
+            Reference = request.Reference?.Trim(),
+            Origin = request.Origin?.Trim(),
+            Destination = request.Destination.Trim(),
+            DestinationLatitude = request.DestinationLatitude,
+            DestinationLongitude = request.DestinationLongitude,
+            PlannedDeliveryUtc = request.PlannedDeliveryUtc,
+            TrackingToken = TrackingToken.Create(),
+            Vehicle = vehicle,
+            Driver = driver,
+        };
+
+        await _jobs.AddAsync(job, cancellationToken);
+        // Audit saves pending changes too, so the job and its audit record commit together.
+        await _audit.LogAsync("Create", "Job", job.Id.ToString(), _tenant.UserId,
+            $"{job.CustomerName} → {job.Destination}", cancellationToken);
+        return JobDto.FromEntity(job);
+    }
+}
+
+public class StartJobCommandHandler : IRequestHandler<StartJobCommand, JobDto>
+{
+    private readonly IJobRepository _jobs;
+    private readonly ITenantContext _tenant;
+    private readonly IAuditService _audit;
+
+    public StartJobCommandHandler(IJobRepository jobs, ITenantContext tenant, IAuditService audit)
+    {
+        _jobs = jobs;
+        _tenant = tenant;
+        _audit = audit;
+    }
+
+    public async Task<JobDto> Handle(StartJobCommand request, CancellationToken cancellationToken)
+    {
+        var job = await _jobs.GetAsync(request.JobId, _tenant.OrganizationId, cancellationToken)
+            ?? throw new KeyNotFoundException($"Job {request.JobId} not found.");
+
+        switch (job.Status)
+        {
+            case TripStatus.InProgress:
+                return JobDto.FromEntity(job);
+            case TripStatus.Completed:
+                throw new BusinessRuleException("This job is already delivered.");
+            case TripStatus.Cancelled:
+                throw new BusinessRuleException("This job was cancelled.");
+        }
+
+        job.Status = TripStatus.InProgress;
+        job.StartedAtUtc = DateTime.UtcNow;
+        await _audit.LogAsync("Start", "Job", job.Id.ToString(), _tenant.UserId, null, cancellationToken);
+        return JobDto.FromEntity(job);
+    }
+}
+
+public class RecordJobLocationsCommandHandler : IRequestHandler<RecordJobLocationsCommand, JobLocationsResultDto>
+{
+    /// <summary>Points the phone buffered just before delivery may arrive after it; accept them for this long.</summary>
+    private static readonly TimeSpan LateArrivalAllowance = TimeSpan.FromMinutes(5);
+
+    private readonly IJobRepository _jobs;
+    private readonly ITelemetryRepository _telemetry;
+    private readonly ITenantContext _tenant;
+    private readonly IMediator _mediator;
+    private readonly ILogger<RecordJobLocationsCommandHandler> _logger;
+
+    public RecordJobLocationsCommandHandler(
+        IJobRepository jobs,
+        ITelemetryRepository telemetry,
+        ITenantContext tenant,
+        IMediator mediator,
+        ILogger<RecordJobLocationsCommandHandler> logger)
+    {
+        _jobs = jobs;
+        _telemetry = telemetry;
+        _tenant = tenant;
+        _mediator = mediator;
+        _logger = logger;
+    }
+
+    public async Task<JobLocationsResultDto> Handle(RecordJobLocationsCommand request, CancellationToken cancellationToken)
+    {
+        var job = await _jobs.GetAsync(request.JobId, _tenant.OrganizationId, cancellationToken)
+            ?? throw new KeyNotFoundException($"Job {request.JobId} not found.");
+
+        if (job.Status == TripStatus.Planned)
+        {
+            throw new BusinessRuleException("Start the job before sending locations.");
+        }
+
+        if (job.Status == TripStatus.Cancelled)
+        {
+            throw new BusinessRuleException("This job was cancelled.");
+        }
+
+        var points = request.Points.OrderBy(p => p.RecordedAtUtc).ToList();
+        if (job.Status == TripStatus.Completed && job.CompletedAtUtc is { } deliveredAt)
+        {
+            points = points.Where(p => p.RecordedAtUtc <= deliveredAt + LateArrivalAllowance).ToList();
+        }
+
+        var existing = await _telemetry.GetExistingIdsAsync(points.Select(p => p.Id).ToList(), cancellationToken);
+        var fresh = points.Where(p => !existing.Contains(p.Id)).DistinctBy(p => p.Id).ToList();
+
+        // The job tells us exactly whose truck this is, so skip the global external-id lookup.
+        var tenant = new VehicleTenant(job.OrganizationId, job.FleetId);
+        foreach (var point in fresh)
+        {
+            // A TransientProcessingException here propagates (503): points already stored are skipped
+            // on the phone's retry, the rest are processed then.
+            await _mediator.Send(new ProcessTelemetryCommand(ToTelemetry(point, job.Vehicle.ExternalId), tenant), cancellationToken);
+        }
+
+        var latest = fresh.LastOrDefault();
+        if (latest is not null && (job.LastPositionAtUtc is null || latest.RecordedAtUtc > job.LastPositionAtUtc))
+        {
+            job.LastLatitude = latest.Latitude;
+            job.LastLongitude = latest.Longitude;
+            job.LastSpeedKmh = latest.SpeedKmh;
+            job.LastPositionAtUtc = latest.RecordedAtUtc;
+            await _jobs.SaveChangesAsync(cancellationToken);
+        }
+
+        _logger.LogInformation(
+            "Job {JobId}: stored {Accepted} location point(s), skipped {Skipped}",
+            job.Id, fresh.Count, request.Points.Count - fresh.Count);
+
+        return new JobLocationsResultDto(fresh.Count, request.Points.Count - fresh.Count);
+    }
+
+    private static VehicleTelemetry ToTelemetry(JobLocationPoint point, string vehicleExternalId) => new()
+    {
+        Id = point.Id,
+        VehicleId = vehicleExternalId,
+        Latitude = point.Latitude,
+        Longitude = point.Longitude,
+        Speed = Math.Max(0, point.SpeedKmh ?? 0),
+        Heading = point.Heading,
+        // A phone measures neither fuel nor cargo temperature; leave them empty rather than 0.
+        FuelLevel = null,
+        EngineTemperature = null,
+        SensorReadingsJson = JsonSerializer.Serialize(new { source = "phone", accuracyMeters = point.AccuracyMeters }),
+        Timestamp = DateTime.SpecifyKind(point.RecordedAtUtc, DateTimeKind.Utc),
+    };
+}
+
+public class AddJobPhotoCommandHandler : IRequestHandler<AddJobPhotoCommand, JobDocumentDto>
+{
+    private readonly IJobRepository _jobs;
+    private readonly IFileStore _files;
+    private readonly ITenantContext _tenant;
+
+    public AddJobPhotoCommandHandler(IJobRepository jobs, IFileStore files, ITenantContext tenant)
+    {
+        _jobs = jobs;
+        _files = files;
+        _tenant = tenant;
+    }
+
+    public async Task<JobDocumentDto> Handle(AddJobPhotoCommand request, CancellationToken cancellationToken)
+    {
+        var job = await _jobs.GetAsync(request.JobId, _tenant.OrganizationId, cancellationToken)
+            ?? throw new KeyNotFoundException($"Job {request.JobId} not found.");
+
+        if (job.Status != TripStatus.InProgress)
+        {
+            throw new BusinessRuleException(job.Status == TripStatus.Planned
+                ? "Start the job before adding delivery photos."
+                : "This job is closed; photos can no longer be added.");
+        }
+
+        if (job.Documents.Count(d => d.Kind == TripDocumentKind.DeliveryPhoto) >= AddJobPhotoCommand.MaxPhotosPerJob)
+        {
+            throw new BusinessRuleException($"A job can have at most {AddJobPhotoCommand.MaxPhotosPerJob} delivery photos.");
+        }
+
+        var extension = AddJobPhotoCommand.AllowedTypes[request.ContentType];
+        var document = new TripDocument
+        {
+            Id = Guid.NewGuid(),
+            OrganizationId = job.OrganizationId,
+            TripId = job.Id,
+            Kind = TripDocumentKind.DeliveryPhoto,
+            ContentType = request.ContentType,
+            SizeBytes = request.SizeBytes,
+            CapturedAtUtc = DateTime.UtcNow,
+            Latitude = request.Latitude,
+            Longitude = request.Longitude,
+        };
+        document.StorageKey = $"{job.OrganizationId:N}/{job.Id:N}/{document.Id:N}.{extension}";
+
+        // File first: a failed database write leaves an orphan file, never a record pointing at nothing.
+        await _files.SaveAsync(document.StorageKey, request.Content, cancellationToken);
+        await _jobs.AddDocumentAsync(document, cancellationToken);
+        await _jobs.SaveChangesAsync(cancellationToken);
+        return JobDocumentDto.FromEntity(document);
+    }
+}
+
+public class DeliverJobCommandHandler : IRequestHandler<DeliverJobCommand, JobDto>
+{
+    private readonly IJobRepository _jobs;
+    private readonly ITenantContext _tenant;
+    private readonly IAuditService _audit;
+    private readonly ITelemetryBroadcastService _broadcast;
+    private readonly ILogger<DeliverJobCommandHandler> _logger;
+
+    public DeliverJobCommandHandler(
+        IJobRepository jobs,
+        ITenantContext tenant,
+        IAuditService audit,
+        ITelemetryBroadcastService broadcast,
+        ILogger<DeliverJobCommandHandler> logger)
+    {
+        _jobs = jobs;
+        _tenant = tenant;
+        _audit = audit;
+        _broadcast = broadcast;
+        _logger = logger;
+    }
+
+    public async Task<JobDto> Handle(DeliverJobCommand request, CancellationToken cancellationToken)
+    {
+        var job = await _jobs.GetAsync(request.JobId, _tenant.OrganizationId, cancellationToken)
+            ?? throw new KeyNotFoundException($"Job {request.JobId} not found.");
+
+        switch (job.Status)
+        {
+            case TripStatus.Completed:
+                return JobDto.FromEntity(job);
+            case TripStatus.Planned:
+                throw new BusinessRuleException("Start the job before marking it delivered.");
+            case TripStatus.Cancelled:
+                throw new BusinessRuleException("This job was cancelled.");
+        }
+
+        if (!job.Documents.Any(d => d.Kind == TripDocumentKind.DeliveryPhoto))
+        {
+            throw new BusinessRuleException("Add at least one delivery photo before confirming delivery.");
+        }
+
+        job.Status = TripStatus.Completed;
+        job.CompletedAtUtc = DateTime.UtcNow;
+        job.RecipientName = request.RecipientName.Trim();
+        job.DeliveryNote = string.IsNullOrWhiteSpace(request.Note) ? null : request.Note.Trim();
+        job.DeliveredLatitude = request.Latitude;
+        job.DeliveredLongitude = request.Longitude;
+
+        // Saves the job and the audit record together.
+        await _audit.LogAsync("Deliver", "Job", job.Id.ToString(), _tenant.UserId,
+            $"Received by {job.RecipientName}", cancellationToken);
+
+        // Committed — now tell the office.
+        try
+        {
+            var who = job.CustomerName ?? job.Destination ?? "the customer";
+            await _broadcast.BroadcastAlertAsync(
+                job.Vehicle.ExternalId,
+                JobAlerts.Delivered,
+                $"Delivered to {who}",
+                $"{job.Vehicle.ExternalId} delivered{(job.Reference is null ? "" : $" order {job.Reference}")} — received by {job.RecipientName}.",
+                cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Delivery broadcast failed for job {JobId}", job.Id);
+        }
+
+        return JobDto.FromEntity(job);
+    }
+}

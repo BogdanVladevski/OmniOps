@@ -9,12 +9,13 @@ public class TelemetryDto
     public double Latitude { get; set; }
     public double Longitude { get; set; }
     public double Speed { get; set; }
-    public double FuelLevel { get; set; }
+    /// <summary>Fuel level in %; null when the source cannot measure it.</summary>
+    public double? FuelLevel { get; set; }
     public double? Heading { get; set; }
     public double? BatteryLevel { get; set; }
 
-    /// <summary>Cargo temperature in °C (sourced from EngineTemperature on the telemetry packet).</summary>
-    public double EngineTemperature { get; set; }
+    /// <summary>Cargo temperature in °C (sourced from EngineTemperature); null when no cargo sensor reported one.</summary>
+    public double? EngineTemperature { get; set; }
 
     public DateTime Timestamp { get; set; }
 

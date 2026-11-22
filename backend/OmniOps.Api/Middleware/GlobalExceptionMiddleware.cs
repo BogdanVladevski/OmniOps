@@ -3,6 +3,7 @@ using System.Text.Json;
 using FluentValidation;
 using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Mvc;
+using OmniOps.Core.Exceptions;
 
 namespace OmniOps.Api.Middleware;
 
@@ -22,11 +23,17 @@ public static class GlobalExceptionMiddleware
                     context.Request.Method, context.Request.Path);
 
                 context.Response.ContentType = "application/json";
+                if (exception is TransientProcessingException)
+                {
+                    context.Response.Headers.RetryAfter = "5";
+                }
                 context.Response.StatusCode = exception switch
                 {
                     ValidationException => (int)HttpStatusCode.BadRequest,
                     ArgumentException => (int)HttpStatusCode.BadRequest,
                     KeyNotFoundException => (int)HttpStatusCode.NotFound,
+                    BusinessRuleException => (int)HttpStatusCode.Conflict,
+                    TransientProcessingException => (int)HttpStatusCode.ServiceUnavailable,
                     _ => (int)HttpStatusCode.InternalServerError
                 };
 
@@ -36,6 +43,8 @@ public static class GlobalExceptionMiddleware
                     Title = exception switch
                     {
                         ValidationException => "Validation failed.",
+                        BusinessRuleException => exception.Message,
+                        TransientProcessingException => "Temporarily unavailable. Please retry.",
                         _ => "An error occurred processing your request."
                     },
                     Detail = app.Environment.IsDevelopment() ? exception?.Message : null

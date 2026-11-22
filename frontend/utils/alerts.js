@@ -10,6 +10,7 @@ const TYPES = {
   HarshAcceleration: { label: 'Harsh acceleration', severity: 'info', icon: 'trending-up' },
   LongIdle: { label: 'Long idle', severity: 'info', icon: 'pause-circle-outline' },
   GeofenceBreach: { label: 'Zone entry / exit', severity: 'info', icon: 'location-outline' },
+  JobDelivered: { label: 'Delivered', severity: 'info', icon: 'checkmark-circle-outline' },
 };
 
 export function alertMeta(alert) {

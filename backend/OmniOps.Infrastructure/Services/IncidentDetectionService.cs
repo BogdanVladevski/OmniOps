@@ -14,6 +14,7 @@ public class IncidentDetectionService : IIncidentDetectionService
     private const double HarshBrakeDelta = 25;
     private const double HarshAccelDelta = 20;
     private const int LongIdleMinutes = 15;
+    internal static readonly TimeSpan HarshEventMaxGap = TimeSpan.FromSeconds(5);
 
     private readonly IDistributedCache _cache;
     private readonly IShipmentRepository _shipmentRepository;
@@ -48,14 +49,17 @@ public class IncidentDetectionService : IIncidentDetectionService
         if (prev is not null)
         {
             var speedDelta = telemetry.Speed - prev.Speed;
-            if (speedDelta < -HarshBrakeDelta)
+            // A speed change only means harsh braking/acceleration if it happened within a few seconds.
+            // Phone GPS reports every ~15–30 s, where any normal stop would otherwise look harsh.
+            var closeEnough = telemetry.Timestamp - prev.Timestamp <= HarshEventMaxGap;
+            if (closeEnough && speedDelta < -HarshBrakeDelta)
             {
                 await TryAddAsync(telemetry, tenant, IncidentType.HarshBraking, IncidentSeverity.High,
                     $"Harsh braking — {telemetry.VehicleId}",
                     $"Speed dropped {Math.Abs(speedDelta):F0} km/h between readings.",
                     incidents, pendingCooldownKeys, cancellationToken);
             }
-            else if (speedDelta > HarshAccelDelta)
+            else if (closeEnough && speedDelta > HarshAccelDelta)
             {
                 await TryAddAsync(telemetry, tenant, IncidentType.HarshAcceleration, IncidentSeverity.Medium,
                     $"Harsh acceleration — {telemetry.VehicleId}",
@@ -95,9 +99,9 @@ public class IncidentDetectionService : IIncidentDetectionService
             ? null
             : await _shipmentRepository.GetActiveShipmentForVehicleAsync(
                 tenant.FleetId, telemetry.VehicleId, cancellationToken);
-        if (shipment is not null)
+        // No cargo reading (e.g. phone GPS) means no temperature verdict either way.
+        if (shipment is not null && telemetry.EngineTemperature is { } temp)
         {
-            var temp = telemetry.EngineTemperature;
             if (temp < shipment.MinSafeTempCelsius || temp > shipment.MaxSafeTempCelsius)
             {
                 await TryAddAsync(telemetry, tenant, IncidentType.TemperatureExcursion, IncidentSeverity.Critical,

@@ -4,7 +4,24 @@ All notable changes to OmniOps are documented in this file.
 
 ## [Unreleased]
 
+### Added
+
+- Delivery jobs: the office creates a job (truck, driver, customer, destination) on the new **Jobs** board and follows it live
+- Driver mode: a phone shows the driver's jobs, shares GPS while a trip runs (queued offline, resent safely), and closes the job with a photo and the recipient's name
+- Customer tracking page at `/t/{token}`: live position and arrival estimate while on the way, delivery time and recipient afterwards; no login, nothing about the driver or other jobs, expires a week after delivery
+- Delivery photos stored on a Docker volume (`STORAGE_ROOT_PATH`)
+
 ### Changed
+
+- Cargo temperature and fuel level are optional on telemetry; phone GPS sends neither, and no rule treats a missing reading as 0
+- Harsh braking/acceleration is only judged between readings at most 5 s apart (phone GPS every ~15–30 s made every stop look harsh)
+- Business-rule conflicts return 409 with a readable message; transient failures return 503 with `Retry-After`
+
+### Removed
+
+- Legacy `/api/trips` endpoints (replaced by `/api/v1/jobs`)
+
+### Changed (architecture)
 
 - Runs as one API container plus PostgreSQL. Telemetry ingestion moved from Kafka to a bounded in-process queue with the same retry rules; deduplication, excursion tracking and the latest-telemetry cache moved from Redis to process memory (single instance)
 - Cargo-temperature alerts are broadcast as `ReceiveAlert` (`TemperatureExcursion` / `TemperatureTrend`) after commit

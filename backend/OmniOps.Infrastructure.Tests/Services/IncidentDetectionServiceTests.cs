@@ -123,6 +123,32 @@ public class IncidentDetectionServiceTests
             Arg.Any<Guid>(), Arg.Any<string>(), Arg.Any<CancellationToken>());
     }
 
+    [Fact]
+    public async Task DetectAsync_PhonePacketWithoutCargoTemperature_RaisesNoExcursion()
+    {
+        // Regression guard: phone GPS has no cargo sensor. Treating "no reading" as 0°C against a 2–8°C
+        // shipment would raise a false critical excursion on every packet.
+        var packet = Telemetry(temp: 5, speed: 60);
+        packet.EngineTemperature = null;
+        packet.FuelLevel = null;
+
+        var result = await _service.DetectAsync(packet, Tenant);
+
+        Assert.DoesNotContain(result.Incidents, i => i.Type == IncidentType.TemperatureExcursion);
+    }
+
+    [Fact]
+    public async Task DetectAsync_SpeedDropAcrossLongGap_IsNotHarshBraking()
+    {
+        // Phone GPS reports every ~30 s; slowing from 90 to 0 over 30 s is a normal stop.
+        var baseline = await _service.DetectAsync(Telemetry(temp: 5, speed: 90), Tenant);
+        await baseline.CommitAsync();
+
+        var result = await _service.DetectAsync(Telemetry(temp: 5, speed: 0, secondsLater: 30), Tenant);
+
+        Assert.DoesNotContain(result.Incidents, i => i.Type == IncidentType.HarshBraking);
+    }
+
     private static readonly DateTime T0 = new(2026, 11, 21, 12, 0, 0, DateTimeKind.Utc);
 
     private static VehicleTelemetry Telemetry(double temp, double speed, int secondsLater = 0) => new()

@@ -52,6 +52,13 @@ public static partial class ServiceRegistration
         builder.Services.AddTransient<IVehicleRepository, VehicleRepository>();
         builder.Services.AddTransient<IDriverRepository, DriverRepository>();
         builder.Services.AddTransient<ITripRepository, TripRepository>();
+        builder.Services.AddTransient<IJobRepository, JobRepository>();
+        builder.Services.AddSingleton<IFileStore>(sp =>
+        {
+            var root = sp.GetRequiredService<IOptions<StorageOptions>>().Value.RootPath;
+            var env = sp.GetRequiredService<IWebHostEnvironment>();
+            return new LocalFileStore(Path.IsPathRooted(root) ? root : Path.Combine(env.ContentRootPath, root));
+        });
         builder.Services.AddTransient<IDepotRepository, DepotRepository>();
         builder.Services.AddTransient<IGeofenceRepository, GeofenceRepository>();
         builder.Services.AddTransient<IEventStore, EventStore>();

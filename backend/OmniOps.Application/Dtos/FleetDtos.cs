@@ -43,28 +43,6 @@ public record DriverDto(Guid Id, Guid FleetId, string FullName, string? LicenseN
         new(driver.Id, driver.FleetId, driver.FullName, driver.LicenseNumber, driver.SafetyScore);
 }
 
-public record TripDto(
-    Guid Id,
-    Guid VehicleId,
-    Guid? DriverId,
-    string Status,
-    DateTime? StartedAtUtc,
-    DateTime? CompletedAtUtc,
-    string? Origin,
-    string? Destination)
-{
-    public static TripDto FromEntity(Core.Entities.Trip trip) =>
-        new(
-            trip.Id,
-            trip.VehicleId,
-            trip.DriverId,
-            trip.Status.ToString(),
-            trip.StartedAtUtc,
-            trip.CompletedAtUtc,
-            trip.Origin,
-            trip.Destination);
-}
-
 public record DepotDto(Guid Id, Guid FleetId, string Name, double Latitude, double Longitude, int Capacity)
 {
     public static DepotDto FromEntity(Core.Entities.Depot depot) =>

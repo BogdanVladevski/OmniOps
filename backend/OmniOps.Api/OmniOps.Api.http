@@ -9,3 +9,29 @@ POST {{OmniOps.Api_HostAddress}}/api/test/simulate/Truck-001?packets=10
 Content-Type: application/json
 
 ###
+
+GET {{OmniOps.Api_HostAddress}}/api/v1/jobs/assignable
+Accept: application/json
+
+###
+
+# Create a job — use a vehicle id from /assignable
+POST {{OmniOps.Api_HostAddress}}/api/v1/jobs
+Content-Type: application/json
+
+{
+  "vehicleId": "00000000-0000-0000-0000-000000000000",
+  "customerName": "Apteka Zegin",
+  "reference": "PO-1042",
+  "origin": "Skopje depot",
+  "destination": "Bitola",
+  "destinationLatitude": 41.0297,
+  "destinationLongitude": 21.3292
+}
+
+###
+
+GET {{OmniOps.Api_HostAddress}}/api/v1/jobs?scope=active
+Accept: application/json
+
+###

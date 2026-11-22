@@ -43,6 +43,12 @@ public class InMemoryAnomalyDetectionService : IAnomalyDetectionService
 
     private AnomalyAnalysis Analyze(VehicleTelemetry telemetry, Shipment? shipment)
     {
+        // No cargo reading (e.g. phone GPS): nothing to judge, and the excursion timer must not move.
+        if (telemetry.EngineTemperature is not { } cargoTemperature)
+        {
+            return new AnomalyAnalysis(false);
+        }
+
         // ExternalId is unique per fleet only, so state is keyed by fleet as well as vehicle.
         var key = $"{shipment?.FleetId ?? Guid.Empty}:{telemetry.VehicleId}";
         var state = _states.GetOrAdd(key, _ => new VehicleState());
@@ -58,20 +64,20 @@ public class InMemoryAnomalyDetectionService : IAnomalyDetectionService
             }
 
             state.LastSeenUtc = telemetry.Timestamp;
-            state.History.Add((telemetry.Timestamp, telemetry.EngineTemperature));
+            state.History.Add((telemetry.Timestamp, cargoTemperature));
             if (state.History.Count > RollingWindowSize)
             {
                 state.History.RemoveRange(0, state.History.Count - RollingWindowSize);
             }
 
             temps = state.History.OrderBy(r => r.Timestamp).Select(r => r.CargoTemperature).ToList();
-            excursionSeconds = UpdateExcursionDuration(state, telemetry, shipment);
+            excursionSeconds = UpdateExcursionDuration(state, telemetry.Timestamp, cargoTemperature, shipment);
         }
 
         // Hard compliance: temp is outside safe range right now — always flag.
         if (shipment is not null)
         {
-            var temp = telemetry.EngineTemperature;
+            var temp = cargoTemperature;
             var outsideRange = temp > shipment.MaxSafeTempCelsius || temp < shipment.MinSafeTempCelsius;
 
             if (outsideRange)
@@ -96,7 +102,7 @@ public class InMemoryAnomalyDetectionService : IAnomalyDetectionService
         {
             _logger.LogInformation(
                 "Trend warning for {VehicleId}: {Product} cargo temp at {Temp}°C moving toward safe-range boundary",
-                telemetry.VehicleId, shipment.ProductName, telemetry.EngineTemperature);
+                telemetry.VehicleId, shipment.ProductName, cargoTemperature);
 
             return new AnomalyAnalysis(true, AnomalySeverity.Warning, 0);
         }
@@ -105,12 +111,11 @@ public class InMemoryAnomalyDetectionService : IAnomalyDetectionService
     }
 
     // Records when the current excursion started; resets when temp comes back in range.
-    private static int UpdateExcursionDuration(VehicleState state, VehicleTelemetry telemetry, Shipment? shipment)
+    private static int UpdateExcursionDuration(VehicleState state, DateTime timestamp, double temp, Shipment? shipment)
     {
         if (shipment is null)
             return 0;
 
-        var temp = telemetry.EngineTemperature;
         var inRange = temp >= shipment.MinSafeTempCelsius && temp <= shipment.MaxSafeTempCelsius;
 
         if (inRange)
@@ -119,8 +124,8 @@ public class InMemoryAnomalyDetectionService : IAnomalyDetectionService
             return 0;
         }
 
-        state.ExcursionStartUtc ??= telemetry.Timestamp;
-        return (int)(telemetry.Timestamp - state.ExcursionStartUtc.Value).TotalSeconds;
+        state.ExcursionStartUtc ??= timestamp;
+        return (int)(timestamp - state.ExcursionStartUtc.Value).TotalSeconds;
     }
 
     private sealed class VehicleState

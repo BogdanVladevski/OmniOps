@@ -85,6 +85,8 @@ public static partial class ServiceRegistration
             });
     }
 
+    public const string PublicTrackingPolicy = "public-tracking";
+
     private static void ConfigureRateLimiting(WebApplicationBuilder builder)
     {
         var rateLimitOptions = builder.Configuration
@@ -101,6 +103,17 @@ public static partial class ServiceRegistration
                     {
                         PermitLimit = rateLimitOptions.PermitLimit,
                         Window = TimeSpan.FromSeconds(rateLimitOptions.WindowSeconds),
+                        QueueLimit = 0
+                    }));
+
+            // Public tracking links are anonymous; a page polls about twice a minute.
+            options.AddPolicy(PublicTrackingPolicy, httpContext =>
+                RateLimitPartition.GetFixedWindowLimiter(
+                    partitionKey: httpContext.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+                    factory: _ => new FixedWindowRateLimiterOptions
+                    {
+                        PermitLimit = 60,
+                        Window = TimeSpan.FromMinutes(1),
                         QueueLimit = 0
                     }));
         });
