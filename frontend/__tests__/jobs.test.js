@@ -87,3 +87,50 @@ describe('live map grouping', () => {
     expect(jobProgress(jobs[1], now).secondary).toBe('about 15 km');
   });
 });
+
+describe('temperature log', () => {
+  const {
+    formatRange, hasRecentReading, isOutOfRange, parseTemperatureInput, temperatureStatus,
+  } = require('../utils/jobs');
+  const now = Date.UTC(2026, 11, 1, 12, 0);
+  const chilled = { minTempCelsius: 2, maxTempCelsius: 8, status: 'InProgress', temperatureReadingCount: 1, temperatureOutOfRangeCount: 0 };
+
+  it('reads what drivers type from the display, including a decimal comma', () => {
+    expect(parseTemperatureInput('4,5')).toBe(4.5);
+    expect(parseTemperatureInput(' -18 ')).toBe(-18);
+    expect(parseTemperatureInput('−20,0')).toBe(-20);
+    expect(parseTemperatureInput('5 °C')).toBe(5);
+    expect(parseTemperatureInput('+3')).toBe(3);
+  });
+
+  it('refuses things that are not a plausible reading', () => {
+    ['', 'abc', '45', '4.5.1', '-41', '1e1'].forEach((t) => expect(parseTemperatureInput(t)).toBeNull());
+  });
+
+  it('flags readings outside the range only for refrigerated jobs', () => {
+    expect(isOutOfRange(chilled, 9)).toBe(true);
+    expect(isOutOfRange(chilled, 8)).toBe(false);
+    expect(isOutOfRange({}, 30)).toBe(false);
+  });
+
+  it('puts a bad reading above an overdue check', () => {
+    const job = { ...chilled, temperatureOutOfRangeCount: 1, temperatureCheckDueUtc: new Date(now - 60000).toISOString() };
+    expect(temperatureStatus(job, now).tone).toBe('critical');
+    expect(formatRange(job)).toBe('2 to 8 °C');
+  });
+
+  it('warns when a check is overdue', () => {
+    expect(temperatureStatus({ ...chilled, temperatureCheckDueUtc: new Date(now - 60000).toISOString() }, now).label)
+      .toBe('Temperature check overdue');
+  });
+
+  it('says nothing about temperature for ordinary loads', () => {
+    expect(temperatureStatus({ status: 'InProgress' }, now)).toBeNull();
+  });
+
+  it('accepts a reading from the last 30 minutes for delivery', () => {
+    expect(hasRecentReading(new Date(now - 10 * 60000).toISOString(), now)).toBe(true);
+    expect(hasRecentReading(new Date(now - 45 * 60000).toISOString(), now)).toBe(false);
+    expect(hasRecentReading(null, now)).toBe(false);
+  });
+});

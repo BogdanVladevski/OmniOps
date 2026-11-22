@@ -67,3 +67,41 @@ public class GetLatestTelemetryQueryValidatorTests
         result.ShouldHaveValidationErrorFor(x => x.VehicleId);
     }
 }
+
+public class JobPaperworkValidatorTests
+{
+    private static OmniOps.Application.Commands.AddJobDocumentCommand Doc(OmniOps.Core.Enums.TripDocumentKind kind, double? celsius) =>
+        new(Guid.NewGuid(), kind, new MemoryStream([1]), "image/jpeg", 1, null, null, celsius);
+
+    [Fact]
+    public void TemperaturePhoto_WithoutAReading_IsRejected()
+    {
+        new AddJobDocumentCommandValidator().TestValidate(Doc(OmniOps.Core.Enums.TripDocumentKind.TemperaturePhoto, null))
+            .ShouldHaveValidationErrorFor(x => x.TemperatureCelsius);
+    }
+
+    [Fact]
+    public void TemperaturePhoto_WithAnImplausibleReading_IsRejected()
+    {
+        // e.g. the driver typed 45 instead of 4.5
+        new AddJobDocumentCommandValidator().TestValidate(Doc(OmniOps.Core.Enums.TripDocumentKind.TemperaturePhoto, 45))
+            .ShouldHaveValidationErrorFor(x => x.TemperatureCelsius);
+    }
+
+    [Fact]
+    public void DeliveryPhoto_NeedsNoReading()
+    {
+        new AddJobDocumentCommandValidator().TestValidate(Doc(OmniOps.Core.Enums.TripDocumentKind.DeliveryPhoto, null))
+            .ShouldNotHaveAnyValidationErrors();
+    }
+
+    [Theory]
+    [InlineData(2.0, null)]
+    [InlineData(8.0, 2.0)]
+    [InlineData(-60.0, 8.0)]
+    public void CreateJob_WithAnIncompleteOrInvertedRange_IsRejected(double min, double? max)
+    {
+        var cmd = new CreateJobCommand(Guid.NewGuid(), null, "Customer", null, null, "Bitola", null, null, null, min, max);
+        Assert.False(new CreateJobCommandValidator().Validate(cmd).IsValid);
+    }
+}

@@ -58,6 +58,8 @@ public class CreateJobCommandHandler : IRequestHandler<CreateJobCommand, JobDto>
             DestinationLatitude = request.DestinationLatitude,
             DestinationLongitude = request.DestinationLongitude,
             PlannedDeliveryUtc = request.PlannedDeliveryUtc?.UtcDateTime,
+            MinTempCelsius = request.MinTempCelsius,
+            MaxTempCelsius = request.MaxTempCelsius,
             TrackingToken = TrackingToken.Create(),
             Vehicle = vehicle,
             Driver = driver,
@@ -197,48 +199,48 @@ public class RecordJobLocationsCommandHandler : IRequestHandler<RecordJobLocatio
     };
 }
 
-public class AddJobPhotoCommandHandler : IRequestHandler<AddJobPhotoCommand, JobDocumentDto>
+public class AddJobDocumentCommandHandler : IRequestHandler<AddJobDocumentCommand, JobDocumentDto>
 {
     private readonly IJobRepository _jobs;
     private readonly IFileStore _files;
     private readonly ITenantContext _tenant;
+    private readonly ITelemetryBroadcastService _broadcast;
+    private readonly ILogger<AddJobDocumentCommandHandler> _logger;
 
-    public AddJobPhotoCommandHandler(IJobRepository jobs, IFileStore files, ITenantContext tenant)
+    public AddJobDocumentCommandHandler(
+        IJobRepository jobs,
+        IFileStore files,
+        ITenantContext tenant,
+        ITelemetryBroadcastService broadcast,
+        ILogger<AddJobDocumentCommandHandler> logger)
     {
         _jobs = jobs;
         _files = files;
         _tenant = tenant;
+        _broadcast = broadcast;
+        _logger = logger;
     }
 
-    public async Task<JobDocumentDto> Handle(AddJobPhotoCommand request, CancellationToken cancellationToken)
+    public async Task<JobDocumentDto> Handle(AddJobDocumentCommand request, CancellationToken cancellationToken)
     {
         var job = await _jobs.GetAsync(request.JobId, _tenant.OrganizationId, cancellationToken)
             ?? throw new KeyNotFoundException($"Job {request.JobId} not found.");
 
-        if (job.Status != TripStatus.InProgress)
-        {
-            throw new BusinessRuleException(job.Status == TripStatus.Planned
-                ? "Start the job before adding delivery photos."
-                : "This job is closed; photos can no longer be added.");
-        }
+        EnsureAllowed(job, request);
 
-        if (job.Documents.Count(d => d.Kind == TripDocumentKind.DeliveryPhoto) >= AddJobPhotoCommand.MaxPhotosPerJob)
-        {
-            throw new BusinessRuleException($"A job can have at most {AddJobPhotoCommand.MaxPhotosPerJob} delivery photos.");
-        }
-
-        var extension = AddJobPhotoCommand.AllowedTypes[request.ContentType];
+        var extension = AddJobDocumentCommand.AllowedTypes[request.ContentType];
         var document = new TripDocument
         {
             Id = Guid.NewGuid(),
             OrganizationId = job.OrganizationId,
             TripId = job.Id,
-            Kind = TripDocumentKind.DeliveryPhoto,
+            Kind = request.Kind,
             ContentType = request.ContentType,
             SizeBytes = request.SizeBytes,
             CapturedAtUtc = DateTime.UtcNow,
             Latitude = request.Latitude,
             Longitude = request.Longitude,
+            TemperatureCelsius = request.Kind == TripDocumentKind.TemperaturePhoto ? request.TemperatureCelsius : null,
         };
         document.StorageKey = $"{job.OrganizationId:N}/{job.Id:N}/{document.Id:N}.{extension}";
 
@@ -246,7 +248,75 @@ public class AddJobPhotoCommandHandler : IRequestHandler<AddJobPhotoCommand, Job
         await _files.SaveAsync(document.StorageKey, request.Content, cancellationToken);
         await _jobs.AddDocumentAsync(document, cancellationToken);
         await _jobs.SaveChangesAsync(cancellationToken);
+
+        // Saved — now an out-of-range reading reaches the office straight away.
+        if (document.TemperatureCelsius is { } celsius && JobTemperaturePolicy.IsOutOfRange(job, celsius))
+        {
+            await AlertOutOfRangeAsync(job, celsius, cancellationToken);
+        }
+
         return JobDocumentDto.FromEntity(document);
+    }
+
+    private static void EnsureAllowed(Trip job, AddJobDocumentCommand request)
+    {
+        var count = job.Documents.Count(d => d.Kind == request.Kind);
+        switch (request.Kind)
+        {
+            case TripDocumentKind.PickupDocument:
+                // Taken at loading, before or just after the trip starts.
+                if (job.Status is not (TripStatus.Planned or TripStatus.InProgress))
+                {
+                    throw new BusinessRuleException("This job is closed; documents can no longer be added.");
+                }
+
+                break;
+            case TripDocumentKind.TemperaturePhoto:
+                if (job.Status is not (TripStatus.Planned or TripStatus.InProgress))
+                {
+                    throw new BusinessRuleException("This job is closed; temperature readings can no longer be added.");
+                }
+
+                if (count >= AddJobDocumentCommand.MaxTemperatureReadings)
+                {
+                    throw new BusinessRuleException($"A job can have at most {AddJobDocumentCommand.MaxTemperatureReadings} temperature readings.");
+                }
+
+                return;
+            default:
+                if (job.Status != TripStatus.InProgress)
+                {
+                    throw new BusinessRuleException(job.Status == TripStatus.Planned
+                        ? "Start the job before adding delivery photos."
+                        : "This job is closed; photos can no longer be added.");
+                }
+
+                break;
+        }
+
+        if (count >= AddJobDocumentCommand.MaxPhotosPerKind)
+        {
+            throw new BusinessRuleException($"A job can have at most {AddJobDocumentCommand.MaxPhotosPerKind} photos of this kind.");
+        }
+    }
+
+    private async Task AlertOutOfRangeAsync(Trip job, double celsius, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _broadcast.BroadcastAlertAsync(
+                job.Vehicle.ExternalId,
+                CargoTemperatureAlerts.Excursion,
+                $"Load outside its temperature range — {job.Vehicle.ExternalId}",
+                $"{job.CustomerName ?? job.Destination}: driver logged {celsius:0.#} °C, " +
+                $"safe range {job.MinTempCelsius:0.#}–{job.MaxTempCelsius:0.#} °C.",
+                cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            // Never lose the reading because the live alert failed; it is in the log either way.
+            _logger.LogWarning(ex, "Temperature alert broadcast failed for job {JobId}", job.Id);
+        }
     }
 }
 
@@ -290,6 +360,11 @@ public class DeliverJobCommandHandler : IRequestHandler<DeliverJobCommand, JobDt
         if (!job.Documents.Any(d => d.Kind == TripDocumentKind.DeliveryPhoto))
         {
             throw new BusinessRuleException("Add at least one delivery photo before confirming delivery.");
+        }
+
+        if (JobTemperaturePolicy.IsRefrigerated(job) && !JobTemperaturePolicy.HasRecentReading(job, DateTime.UtcNow))
+        {
+            throw new BusinessRuleException("Log the load temperature (photo of the display) before confirming delivery.");
         }
 
         job.Status = TripStatus.Completed;

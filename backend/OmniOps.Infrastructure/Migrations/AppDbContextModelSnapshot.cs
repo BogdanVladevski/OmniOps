@@ -929,6 +929,12 @@ namespace OmniOps.Infrastructure.Migrations
                     b.Property<double?>("LastSpeedKmh")
                         .HasColumnType("double precision");
 
+                    b.Property<double?>("MaxTempCelsius")
+                        .HasColumnType("double precision");
+
+                    b.Property<double?>("MinTempCelsius")
+                        .HasColumnType("double precision");
+
                     b.Property<Guid>("OrganizationId")
                         .HasColumnType("uuid");
 
@@ -1008,6 +1014,9 @@ namespace OmniOps.Infrastructure.Migrations
                         .IsRequired()
                         .HasMaxLength(300)
                         .HasColumnType("character varying(300)");
+
+                    b.Property<double?>("TemperatureCelsius")
+                        .HasColumnType("double precision");
 
                     b.Property<Guid>("TripId")
                         .HasColumnType("uuid");

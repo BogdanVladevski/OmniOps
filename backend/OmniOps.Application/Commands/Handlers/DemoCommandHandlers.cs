@@ -19,14 +19,15 @@ public class BootstrapDemoCommandHandler : IRequestHandler<BootstrapDemoCommand,
 
     internal sealed record DemoRoute(
         string Reference, string VehicleLabel, string Customer, string Destination,
-        TimeSpan StartedAgo, (double Lat, double Lon)[] Path);
+        TimeSpan StartedAgo, (double Lat, double Lon)[] Path, (double Min, double Max)? ChilledRange = null);
 
     private static readonly (double, double) SkopjeDepot = (41.9981, 21.4254);
 
     internal static readonly DemoRoute[] Routes =
     [
         new($"{ReferencePrefix}1042", "Truck-001", "Vero Market Bitola", "Bitola, North Macedonia", TimeSpan.FromMinutes(70),
-            [SkopjeDepot, (41.94, 21.53), (41.715, 21.775), (41.55, 21.70), (41.345, 21.555), (41.20, 21.45), (41.0316, 21.3302)]),
+            [SkopjeDepot, (41.94, 21.53), (41.715, 21.775), (41.55, 21.70), (41.345, 21.555), (41.20, 21.45), (41.0316, 21.3302)],
+            ChilledRange: (2, 8)),
         new($"{ReferencePrefix}1043", "Truck-002", "Tinex Kumanovo", "Kumanovo, North Macedonia", TimeSpan.FromMinutes(15),
             [SkopjeDepot, (42.03, 21.55), (42.08, 21.65), (42.1322, 21.7144)]),
         new($"{ReferencePrefix}1044", "Truck-003", "Ramstore Tetovo", "Tetovo, North Macedonia", TimeSpan.Zero,
@@ -121,6 +122,8 @@ public class BootstrapDemoCommandHandler : IRequestHandler<BootstrapDemoCommand,
             DestinationLatitude = end.Lat,
             DestinationLongitude = end.Lon,
             PlannedDeliveryUtc = running ? null : now.AddHours(3),
+            MinTempCelsius = route.ChilledRange?.Min,
+            MaxTempCelsius = route.ChilledRange?.Max,
             TrackingToken = TrackingToken.Create(),
         };
     }

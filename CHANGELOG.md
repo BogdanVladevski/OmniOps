@@ -6,6 +6,9 @@ All notable changes to OmniOps are documented in this file.
 
 ### Added
 
+- Delivery paperwork: the driver photographs the signed loading note (CMR) at pickup; delivery photos and loading notes are grouped on the job
+- Temperature log for refrigerated jobs: the office sets a range (chilled 2–8 °C, frozen −25 to −18 °C or custom); the driver logs the fridge display reading with a photo at loading, every 2 hours and at delivery; a reading outside the range alerts the office at once; a refrigerated job cannot be closed without a reading from the last 30 minutes
+- `POST /api/v1/driver/jobs/{id}/documents?kind=PickupDocument|DeliveryPhoto|TemperaturePhoto[&temperatureCelsius=]`
 - Live is now a map of today's deliveries: trucks on the way with arrival times, jobs not started, deliveries made; a truck whose phone stops reporting is flagged "No signal" instead of showing an out-of-date arrival time
 - "Load demo day" (onboarding and Admin) creates two trucks on the road with a GPS trail and one planned delivery; running it again moves the trucks to where they would be by now
 - Delivery jobs: the office creates a job (truck, driver, customer, destination) on the new **Jobs** board and follows it live

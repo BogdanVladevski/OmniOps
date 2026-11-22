@@ -33,6 +33,11 @@ public class Trip
     public double? DestinationLongitude { get; set; }
     public DateTime? PlannedDeliveryUtc { get; set; }
 
+    /// <summary>Safe cargo range for refrigerated loads (both set or both null). Turns on the temperature log.</summary>
+    public double? MinTempCelsius { get; set; }
+
+    public double? MaxTempCelsius { get; set; }
+
     /// <summary>Unguessable token for the public tracking link; null disables the link.</summary>
     public string? TrackingToken { get; set; }
 

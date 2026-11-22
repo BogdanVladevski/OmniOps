@@ -9,7 +9,7 @@ import { useFleet } from '../contexts/FleetContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { elevation, radius, spacing, toneColors, typography } from '../theme/tokens';
 import { jobsApi } from '../utils/api';
-import { groupJobsForToday, isPositionStale, jobProgress, jobTitle } from '../utils/jobs';
+import { formatCelsius, groupJobsForToday, isPositionStale, jobProgress, jobTitle, temperatureStatus } from '../utils/jobs';
 import { onJobsChanged } from '../utils/events';
 import { useLayout } from '../utils/layout';
 import { shareTrackingLink } from './JobsBoard';
@@ -33,6 +33,7 @@ const hasDestination = (job) => job?.destinationLatitude != null && job?.destina
 function JobRow({ job, selected, onPress }) {
   const { colors } = useTheme();
   const progress = jobProgress(job);
+  const temp = temperatureStatus(job);
   const tone = progress.tone === 'warning' ? colors.warning : progress.tone === 'ok' ? colors.ok : colors.text;
   return (
     <Pressable
@@ -46,6 +47,9 @@ function JobRow({ job, selected, onPress }) {
         <Text style={[typography.caption, { color: colors.muted }]} numberOfLines={1}>
           {[job.vehicleLabel, job.destination].filter(Boolean).join(' · ')}
         </Text>
+        {temp && temp.tone !== 'neutral' && temp.tone !== 'ok' ? (
+          <Text style={[typography.caption, { color: toneColors(colors, temp.tone).fg }]} numberOfLines={1}>{temp.label}</Text>
+        ) : null}
       </View>
       <View style={styles.rowRight}>
         <Text style={[typography.number, { color: tone }]} numberOfLines={1}>{progress.primary}</Text>
@@ -178,7 +182,18 @@ function JobDetail({ job, onBack, onOpenJob }) {
         <Fact label="Speed" value={job.status === 'InProgress' && job.lastSpeedKmh != null && !stale ? `${Math.round(job.lastSpeedKmh)} km/h` : null} />
         <Fact label="From" value={job.origin} />
         <Fact label="Last seen" value={job.lastPositionAtUtc ? timeAgo(job.lastPositionAtUtc) : null} />
+        {job.minTempCelsius != null ? (
+          <Fact
+            label="Load temperature"
+            value={job.lastTemperatureCelsius != null ? `${formatCelsius(job.lastTemperatureCelsius)} · ${timeAgo(job.lastTemperatureAtUtc)}` : 'Not logged yet'}
+          />
+        ) : null}
       </View>
+      {temperatureStatus(job) && temperatureStatus(job).tone !== 'ok' && temperatureStatus(job).tone !== 'neutral' ? (
+        <Text style={[typography.label, styles.notice, { color: toneColors(colors, temperatureStatus(job).tone).fg }]}>
+          {temperatureStatus(job).label}
+        </Text>
+      ) : null}
 
       <Divider />
       <View style={[styles.pad, styles.actions]}>

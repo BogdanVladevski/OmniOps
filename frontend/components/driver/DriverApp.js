@@ -1,4 +1,4 @@
-// The driver's phone: today's jobs, start a trip (shares GPS), photograph proof of delivery, confirm delivery.
+// The driver's phone: today's jobs, loading note, temperature log, live GPS during the trip, proof of delivery.
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Image, Platform, Pressable, RefreshControl, ScrollView, StyleSheet, Text, View } from 'react-native';
 import * as Location from 'expo-location';
@@ -7,7 +7,10 @@ import { useDriverMode } from '../../contexts/DriverModeContext';
 import { useTheme } from '../../contexts/ThemeContext';
 import { radius, spacing, typography } from '../../theme/tokens';
 import { driverApi } from '../../utils/api';
-import { jobStatusMeta, jobTitle, toLocationPoint } from '../../utils/jobs';
+import {
+  formatCelsius, formatRange, hasRecentReading, isOutOfRange, isRefrigerated, jobStatusMeta, jobTitle,
+  parseTemperatureInput, toLocationPoint,
+} from '../../utils/jobs';
 import { enqueuePoints, flushPoints, pendingPoints } from '../../utils/locationQueue';
 import Screen from '../Screen';
 import { Button, Card, EmptyNote, Field, Pill, timeAgo } from '../ui/kit';
@@ -111,16 +114,61 @@ function TrackingLine({ tracking }) {
   return <Text style={[typography.label, { color: tone }]}>{text}</Text>;
 }
 
+/** Opens the camera (or gallery) and returns the chosen image asset, or null if cancelled. */
+async function pickPhoto(fromLibrary) {
+  if (!fromLibrary && Platform.OS !== 'web') {
+    const permission = await ImagePicker.requestCameraPermissionsAsync();
+    if (!permission.granted) throw new Error('Camera access is off. Turn it on in Settings, or choose a photo from the gallery.');
+  }
+  const options = { mediaTypes: ['images'], quality: 0.6, exif: false };
+  const result = fromLibrary ? await ImagePicker.launchImageLibraryAsync(options) : await ImagePicker.launchCameraAsync(options);
+  return result.canceled || !result.assets?.length ? null : result.assets[0];
+}
+
+function PhotoButtons({ label, busy, disabled, onPick }) {
+  return (
+    <View style={styles.row}>
+      <Button label={busy ? 'Uploading…' : label} onPress={() => onPick(false)} disabled={disabled} style={styles.flex} />
+      {Platform.OS !== 'web' ? (
+        <Button label="From gallery" variant="secondary" onPress={() => onPick(true)} disabled={disabled} style={styles.flex} />
+      ) : null}
+    </View>
+  );
+}
+
+function Thumbs({ uris }) {
+  const { colors } = useTheme();
+  if (!uris.length) return null;
+  return (
+    <View style={styles.thumbs}>
+      {uris.map((uri) => <Image key={uri} source={{ uri }} style={[styles.thumb, { borderColor: colors.border }]} />)}
+    </View>
+  );
+}
+
 function JobScreen({ job, onBack, onChanged }) {
   const { colors } = useTheme();
   const [busy, setBusy] = useState(null);
   const [message, setMessage] = useState(null);
-  const [photos, setPhotos] = useState([]);
+  const [deliveryPhotos, setDeliveryPhotos] = useState([]);
+  const [pickupPhotos, setPickupPhotos] = useState([]);
+  const [reading, setReading] = useState('');
+  const [readings, setReadings] = useState([]); // logged on this screen: { value, at, uri }
   const [recipient, setRecipient] = useState('');
   const [note, setNote] = useState('');
+  const [tempMessage, setTempMessage] = useState(null);
+  // Counts the server already had when this screen opened; photos taken here are added on top.
+  // (The job object refreshes after "Start trip", so adding its count to local photos would double count.)
+  const baseline = useRef({ pickup: job.pickupDocumentCount ?? 0, delivery: job.photoCount ?? 0 }).current;
   const onTheWay = job.status === 'InProgress';
+  const open = job.status === 'Planned' || onTheWay;
   const tracking = useJobTracking(job.id, onTheWay);
-  const uploadedCount = Math.max(job.photoCount ?? 0, photos.length);
+  const refrigerated = isRefrigerated(job);
+  const deliveryCount = baseline.delivery + deliveryPhotos.length;
+  const pickupCount = baseline.pickup + pickupPhotos.length;
+  const lastLocal = readings[readings.length - 1];
+  const lastReading = lastLocal ?? (job.lastTemperatureAtUtc ? { value: job.lastTemperatureCelsius, at: job.lastTemperatureAtUtc } : null);
+  const parsedReading = parseTemperatureInput(reading);
 
   const run = async (name, fn) => {
     setBusy(name);
@@ -136,19 +184,24 @@ function JobScreen({ job, onBack, onChanged }) {
 
   const start = () => run('start', async () => onChanged(await driverApi.start(job.id)));
 
-  const addPhoto = (fromLibrary) => run('photo', async () => {
-    if (!fromLibrary && Platform.OS !== 'web') {
-      const permission = await ImagePicker.requestCameraPermissionsAsync();
-      if (!permission.granted) throw new Error('Camera access is off. Turn it on in Settings, or choose a photo from the gallery.');
-    }
-    const options = { mediaTypes: ['images'], quality: 0.6, exif: false };
-    const result = fromLibrary
-      ? await ImagePicker.launchImageLibraryAsync(options)
-      : await ImagePicker.launchCameraAsync(options);
-    if (result.canceled || !result.assets?.length) return;
-    const asset = result.assets[0];
-    await driverApi.uploadPhoto(job.id, asset, await currentCoords());
-    setPhotos((p) => [...p, asset.uri]);
+  const addPhoto = (kind, onDone) => (fromLibrary) => run(kind, async () => {
+    const asset = await pickPhoto(fromLibrary);
+    if (!asset) return;
+    await driverApi.uploadDocument(job.id, kind, asset, await currentCoords());
+    onDone(asset.uri);
+  });
+
+  const logTemperature = (fromLibrary) => run('temperature', async () => {
+    setTempMessage(null);
+    if (parsedReading == null) throw new Error('Enter the temperature shown on the display first.');
+    const asset = await pickPhoto(fromLibrary);
+    if (!asset) return;
+    const saved = await driverApi.uploadDocument(job.id, 'TemperaturePhoto', asset, await currentCoords(), parsedReading);
+    setReadings((r) => [...r, { value: saved.temperatureCelsius, at: saved.capturedAtUtc, uri: asset.uri }]);
+    setReading('');
+    setTempMessage(isOutOfRange(job, saved.temperatureCelsius)
+      ? { bad: true, text: `${formatCelsius(saved.temperatureCelsius)} is outside ${formatRange(job)}. The office has been told. Check the fridge unit's setting.` }
+      : { bad: false, text: `${formatCelsius(saved.temperatureCelsius)} saved.` });
   });
 
   const deliver = () => run('deliver', async () => {
@@ -164,10 +217,15 @@ function JobScreen({ job, onBack, onChanged }) {
   });
 
   const status = jobStatusMeta(job.status);
-  const canDeliver = uploadedCount > 0 && recipient.trim().length > 0 && !busy;
+  const readingOk = !refrigerated || hasRecentReading(lastReading?.at);
+  const canDeliver = deliveryCount > 0 && readingOk && recipient.trim().length > 0 && !busy;
+  const dueAt = lastReading?.at
+    ? new Date(new Date(lastReading.at).getTime() + 2 * 60 * 60 * 1000)
+    : null;
+  const overdue = onTheWay && refrigerated && (!lastReading || dueAt.getTime() <= Date.now());
 
   return (
-    <ScrollView contentContainerStyle={styles.screen}>
+    <ScrollView contentContainerStyle={styles.screen} keyboardShouldPersistTaps="handled">
       <Pressable onPress={onBack} accessibilityRole="button" hitSlop={12}>
         <Text style={[typography.label, { color: colors.accent }]}>‹ All jobs</Text>
       </Pressable>
@@ -179,9 +237,62 @@ function JobScreen({ job, onBack, onChanged }) {
           {[job.origin, job.destination].filter(Boolean).join('  →  ')}
         </Text>
         <Text style={[typography.caption, { color: colors.muted }]}>
-          {[job.reference && `Order ${job.reference}`, job.vehicleLabel].filter(Boolean).join(' · ')}
+          {[job.reference && `Order ${job.reference}`, job.vehicleLabel, refrigerated && `Keep at ${formatRange(job)}`].filter(Boolean).join(' · ')}
         </Text>
       </View>
+
+      {open ? (
+        <Card style={styles.gapMd}>
+          <Text style={[typography.title, { color: colors.text }]}>Loading note</Text>
+          <Text style={[typography.body, { color: colors.textSecondary }]}>
+            {pickupCount > 0
+              ? `${pickupCount} photo${pickupCount === 1 ? '' : 's'} of the loading paperwork attached.`
+              : 'Photograph the signed loading note or CMR when you collect the goods. It goes with the invoice.'}
+          </Text>
+          <Thumbs uris={pickupPhotos} />
+          <PhotoButtons
+            label={pickupCount > 0 ? 'Add another page' : 'Photograph loading note'}
+            busy={busy === 'PickupDocument'}
+            disabled={!!busy}
+            onPick={addPhoto('PickupDocument', (uri) => setPickupPhotos((p) => [...p, uri]))}
+          />
+        </Card>
+      ) : null}
+
+      {open && refrigerated ? (
+        <Card style={styles.gapMd}>
+          <View style={styles.row}>
+            <Text style={[typography.title, styles.flex, { color: colors.text }]}>Load temperature</Text>
+            <Text style={[typography.label, { color: colors.textSecondary }]}>{formatRange(job)}</Text>
+          </View>
+          <Text style={[typography.body, { color: lastReading && isOutOfRange(job, lastReading.value) ? colors.critical : overdue ? colors.warning : colors.textSecondary }]}>
+            {lastReading
+              ? `Last: ${formatCelsius(lastReading.value)} at ${new Date(lastReading.at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}. `
+                + (onTheWay ? (overdue ? 'Next check is due now.' : `Next check by ${dueAt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}.`) : '')
+              : 'Log the temperature at loading, every 2 hours on the road, and at delivery.'}
+          </Text>
+          <Thumbs uris={readings.map((r) => r.uri)} />
+          <Field
+            label="Reading on the fridge display (°C)"
+            placeholder="e.g. 4,5"
+            value={reading}
+            onChangeText={setReading}
+            keyboardType="numbers-and-punctuation"
+          />
+          {reading && parsedReading == null ? (
+            <Text style={[typography.caption, { color: colors.critical }]}>Enter a number like 4,5 or −18.</Text>
+          ) : null}
+          <PhotoButtons
+            label="Photograph display and save"
+            busy={busy === 'temperature'}
+            disabled={!!busy || parsedReading == null}
+            onPick={logTemperature}
+          />
+          {tempMessage ? (
+            <Text style={[typography.label, { color: tempMessage.bad ? colors.critical : colors.ok }]}>{tempMessage.text}</Text>
+          ) : null}
+        </Card>
+      ) : null}
 
       {job.status === 'Planned' ? (
         <Card style={styles.gapMd}>
@@ -198,24 +309,24 @@ function JobScreen({ job, onBack, onChanged }) {
           <Card style={styles.gapMd}>
             <Text style={[typography.title, { color: colors.text }]}>Proof of delivery</Text>
             <Text style={[typography.body, { color: colors.textSecondary }]}>
-              Photograph the signed delivery note or the goods at the door. At least one photo is needed.
+              Photograph the signed delivery note or the goods at the door. At least one photo is needed
+              {refrigerated ? ', plus a temperature reading taken at the door.' : '.'}
             </Text>
-            {photos.length ? (
-              <View style={styles.thumbs}>
-                {photos.map((uri) => <Image key={uri} source={{ uri }} style={[styles.thumb, { borderColor: colors.border }]} />)}
-              </View>
+            <Thumbs uris={deliveryPhotos} />
+            {deliveryCount > deliveryPhotos.length ? (
+              <Text style={[typography.caption, { color: colors.muted }]}>{deliveryCount} photo(s) already attached.</Text>
             ) : null}
-            {uploadedCount > photos.length ? (
-              <Text style={[typography.caption, { color: colors.muted }]}>{uploadedCount} photo(s) already attached.</Text>
-            ) : null}
-            <View style={styles.row}>
-              <Button label={busy === 'photo' ? 'Uploading…' : 'Take photo'} onPress={() => addPhoto(false)} disabled={!!busy} style={styles.flex} />
-              {Platform.OS !== 'web' ? (
-                <Button label="From gallery" variant="secondary" onPress={() => addPhoto(true)} disabled={!!busy} style={styles.flex} />
-              ) : null}
-            </View>
+            <PhotoButtons
+              label="Take photo"
+              busy={busy === 'DeliveryPhoto'}
+              disabled={!!busy}
+              onPick={addPhoto('DeliveryPhoto', (uri) => setDeliveryPhotos((p) => [...p, uri]))}
+            />
             <Field label="Received by" placeholder="Name of the person who took the goods" value={recipient} onChangeText={setRecipient} autoCapitalize="words" />
             <Field label="Note (optional)" placeholder="e.g. Left at gate 2, one pallet short" value={note} onChangeText={setNote} multiline />
+            {refrigerated && !readingOk ? (
+              <Text style={[typography.caption, { color: colors.warning }]}>Log the temperature at the door before confirming.</Text>
+            ) : null}
             <Button label={busy === 'deliver' ? 'Confirming…' : 'Confirm delivery'} onPress={deliver} disabled={!canDeliver} style={styles.big} />
           </Card>
         </>
