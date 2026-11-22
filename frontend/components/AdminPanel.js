@@ -5,6 +5,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { radius, spacing, typography } from '../theme/tokens';
 import { adminApi } from '../utils/api';
 import { useLayout } from '../utils/layout';
+import DriverModeCard from './DriverModeCard';
 import RetryPanel from './ui/RetryPanel';
 import { SkeletonCard } from './ui/SkeletonLoader';
 import { Button, Card, EmptyNote, Field, Page, Pill, SectionTitle, Segmented, timeAgo } from './ui/kit';
@@ -94,6 +95,9 @@ export default function AdminPanel() {
           ))}
         </Card>
       )}
+
+      <SectionTitle title="Driver mode" />
+      <DriverModeCard />
 
       <SectionTitle title="Appearance" />
       <Card>

@@ -32,25 +32,6 @@ public record AssignDriverToVehicleCommand(Guid VehicleId, Guid DriverId) : IReq
     public string RequiredPolicy => AuthorizationPolicies.VehicleRead;
 }
 
-public record CreateTripCommand(
-    Guid VehicleId,
-    Guid? DriverId,
-    string? Origin,
-    string? Destination) : IRequest<TripDto>, IAuthorizedRequest, ITransactionalRequest
-{
-    public string RequiredPolicy => AuthorizationPolicies.VehicleRead;
-}
-
-public record StartTripCommand(Guid TripId) : IRequest<TripDto>, IAuthorizedRequest, ITransactionalRequest
-{
-    public string RequiredPolicy => AuthorizationPolicies.VehicleRead;
-}
-
-public record CompleteTripCommand(Guid TripId) : IRequest<TripDto>, IAuthorizedRequest, ITransactionalRequest
-{
-    public string RequiredPolicy => AuthorizationPolicies.VehicleRead;
-}
-
 public record CreateDepotCommand(
     Guid FleetId,
     string Name,

@@ -20,6 +20,21 @@ public class TelemetryRepository : ITelemetryRepository
         await _context.Telemetries.AddAsync(telemetry, cancellationToken);
     }
 
+    public async Task<IReadOnlySet<Guid>> GetExistingIdsAsync(
+        IReadOnlyCollection<Guid> ids, CancellationToken cancellationToken = default)
+    {
+        if (ids.Count == 0)
+        {
+            return new HashSet<Guid>();
+        }
+
+        var found = await _context.Telemetries.AsNoTracking()
+            .Where(t => ids.Contains(t.Id))
+            .Select(t => t.Id)
+            .ToListAsync(cancellationToken);
+        return found.ToHashSet();
+    }
+
     public Task SaveChangesAsync(CancellationToken cancellationToken = default)
     {
         return _context.SaveChangesAsync(cancellationToken);

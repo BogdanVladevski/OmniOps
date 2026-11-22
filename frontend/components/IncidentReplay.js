@@ -12,14 +12,16 @@ import MapView, { Marker, Polyline, PROVIDER_DEFAULT } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { buildReplayWindow, fetchShipmentReplay } from '../utils/replayApi';
 import { useLayout } from '../utils/layout';
+import { hasReading } from '../utils/fleetConfig';
 
 function isExcursion(temp, minSafe, maxSafe) {
-  return temp < minSafe || temp > maxSafe;
+  return hasReading(temp) && (temp < minSafe || temp > maxSafe);
 }
 
 function TemperatureChart({ points, minSafe, maxSafe, currentIndex }) {
   const chartHeight = 120;
-  const temps = points.map((point) => point.engineTemperature);
+  // Phone GPS points have no temperature; the chart shows only real readings.
+  const temps = points.map((point) => point.engineTemperature).filter(hasReading);
   const minTemp = Math.min(minSafe, ...temps) - 2;
   const maxTemp = Math.max(maxSafe, ...temps) + 2;
   const range = Math.max(maxTemp - minTemp, 1);
@@ -46,6 +48,7 @@ function TemperatureChart({ points, minSafe, maxSafe, currentIndex }) {
           const left = points.length === 1 ? '50%' : `${(index / (points.length - 1)) * 100}%`;
           const excursion = isExcursion(point.engineTemperature, minSafe, maxSafe);
           const active = index === currentIndex;
+          if (!hasReading(point.engineTemperature)) return null;
 
           return (
             <View
@@ -239,7 +242,7 @@ export default function IncidentReplay({ visible, alert, shipmentId, onClose, ap
                   <Marker
                     coordinate={{ latitude: currentPoint.latitude, longitude: currentPoint.longitude }}
                     title={replay?.vehicleId}
-                    description={`${currentPoint.engineTemperature.toFixed(1)}°C`}
+                    description={hasReading(currentPoint.engineTemperature) ? `${currentPoint.engineTemperature.toFixed(1)}°C` : undefined}
                     pinColor="#FF3B30"
                   />
                 ) : null}

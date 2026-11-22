@@ -49,6 +49,7 @@ try
         app.UseHttpsRedirection();
     }
 
+    app.UseStaticFiles();
     app.UseCors();
 
     var jwtOptions = app.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<JwtOptions>>().Value;
@@ -77,6 +78,7 @@ try
     app.MapNotificationEndpoints();
     app.MapAdminEndpoints();
     app.MapMobileEndpoints();
+    app.MapJobEndpoints();
     app.MapDemoEndpoints();
     app.MapHealthEndpoints();
     app.MapObservabilityEndpoints();

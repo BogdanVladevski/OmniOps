@@ -1,6 +1,7 @@
 // Shared building blocks. Quiet by default: hairline borders, no icon tiles, colour only for status.
 import React from 'react';
-import { Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { Modal, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useTheme } from '../../contexts/ThemeContext';
 import { radius, spacing, toneColors, typography } from '../../theme/tokens';
 import { useLayout } from '../../utils/layout';
@@ -253,6 +254,34 @@ export function EmptyNote({ title, body }) {
   );
 }
 
+/** Bottom sheet on phones, centred dialog on wide screens. */
+export function Sheet({ visible, onClose, children, width = 560 }) {
+  const { colors } = useTheme();
+  const { isWide } = useLayout();
+  const insets = useSafeAreaInsets();
+  return (
+    <Modal visible={visible} animationType="fade" transparent onRequestClose={onClose}>
+      <Pressable
+        style={[styles.backdrop, { backgroundColor: colors.overlay }, isWide && styles.backdropCentered]}
+        onPress={onClose}
+      >
+        <Pressable
+          onPress={() => {}}
+          style={[
+            styles.sheet,
+            { backgroundColor: colors.card, paddingBottom: Math.max(insets.bottom, spacing.lg) + spacing.sm },
+            isWide && [styles.sheetWide, { width }],
+          ]}
+        >
+          <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.sheetContent}>
+            {children}
+          </ScrollView>
+        </Pressable>
+      </Pressable>
+    </Modal>
+  );
+}
+
 export function timeAgo(iso) {
   const t = new Date(iso).getTime();
   if (!Number.isFinite(t)) return '';
@@ -267,6 +296,11 @@ export function timeAgo(iso) {
 
 const styles = StyleSheet.create({
   flex: { flex: 1 },
+  backdrop: { flex: 1, justifyContent: 'flex-end' },
+  backdropCentered: { justifyContent: 'center', alignItems: 'center' },
+  sheet: { borderTopLeftRadius: radius.xl, borderTopRightRadius: radius.xl, padding: spacing.xl, maxHeight: '90%' },
+  sheetWide: { borderRadius: radius.xl, maxWidth: '94%' },
+  sheetContent: { gap: spacing.lg },
   pageScroll: { paddingBottom: spacing.xxxl },
   pageInner: { width: '100%', maxWidth: 1080, alignSelf: 'center', paddingTop: spacing.xl },
   pageHeader: { marginBottom: spacing.xl, gap: spacing.md },

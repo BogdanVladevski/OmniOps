@@ -107,11 +107,14 @@ public class GetFleetTelemetryQueryHandler : IRequestHandler<GetFleetTelemetryQu
             ConfiguredVehicleCount = configuredCount,
             ActiveVehicleCount = vehicles.Count,
             WarningCount = warningCount,
-            AverageFuelLevel = Math.Round(vehicles.Average(v => v.FuelLevel), 1),
-            AverageEngineTemperature = Math.Round(vehicles.Average(v => v.EngineTemperature), 1),
+            AverageFuelLevel = RoundOrNull(vehicles.Average(v => v.FuelLevel)),
+            AverageEngineTemperature = RoundOrNull(vehicles.Average(v => v.EngineTemperature)),
             ExcursionCount = excursionCount
         };
     }
+
+    // Average over nullable values ignores missing readings and is null when none were reported.
+    private static double? RoundOrNull(double? value) => value is { } v ? Math.Round(v, 1) : null;
 
     private static bool IsWarning(TelemetryDto telemetry)
     {

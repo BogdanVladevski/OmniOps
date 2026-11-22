@@ -18,6 +18,7 @@ public class AppDbContext : DbContext
     public DbSet<Vehicle> Vehicles => Set<Vehicle>();
     public DbSet<Driver> Drivers => Set<Driver>();
     public DbSet<Trip> Trips => Set<Trip>();
+    public DbSet<TripDocument> TripDocuments => Set<TripDocument>();
     public DbSet<Depot> Depots => Set<Depot>();
     public DbSet<VehicleMaintenanceRecord> VehicleMaintenanceRecords => Set<VehicleMaintenanceRecord>();
     public DbSet<Geofence> Geofences => Set<Geofence>();
@@ -181,9 +182,27 @@ public class AppDbContext : DbContext
         {
             entity.HasKey(e => e.Id);
             entity.HasIndex(e => new { e.VehicleId, e.Status });
+            entity.HasIndex(e => new { e.OrganizationId, e.Status });
+            entity.HasIndex(e => new { e.OrganizationId, e.DriverId, e.Status });
+            entity.HasIndex(e => e.TrackingToken).IsUnique();
+            entity.Property(e => e.CustomerName).HasMaxLength(200);
+            entity.Property(e => e.Reference).HasMaxLength(100);
+            entity.Property(e => e.TrackingToken).HasMaxLength(64);
+            entity.Property(e => e.RecipientName).HasMaxLength(200);
+            entity.Property(e => e.DeliveryNote).HasMaxLength(1000);
             entity.HasOne(e => e.Vehicle).WithMany(v => v.Trips).HasForeignKey(e => e.VehicleId);
             entity.HasOne(e => e.Driver).WithMany().HasForeignKey(e => e.DriverId)
                 .OnDelete(DeleteBehavior.SetNull);
+        });
+
+        modelBuilder.Entity<TripDocument>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => new { e.OrganizationId, e.TripId });
+            entity.Property(e => e.StorageKey).HasMaxLength(300);
+            entity.Property(e => e.ContentType).HasMaxLength(100);
+            entity.HasOne(e => e.Trip).WithMany(t => t.Documents).HasForeignKey(e => e.TripId)
+                .OnDelete(DeleteBehavior.Cascade);
         });
 
         modelBuilder.Entity<Depot>(entity =>

@@ -50,6 +50,7 @@ public static class EnvironmentConfiguration
         MapEnv(envVars, "Database:Database", "POSTGRES_DB");
         MapEnv(envVars, "Database:Username", "POSTGRES_USER");
         MapEnv(envVars, "Database:Password", "POSTGRES_PASSWORD");
+        MapEnv(envVars, "Storage:RootPath", "STORAGE_ROOT_PATH");
         MapEnv(envVars, "Ingestion:QueueCapacity", "INGESTION_QUEUE_CAPACITY");
         MapEnv(envVars, "Ingestion:ProcessingRetryMaxAttempts", "INGESTION_RETRY_MAX_ATTEMPTS");
         MapEnv(envVars, "Ingestion:ProcessingRetryDelayMilliseconds", "INGESTION_RETRY_DELAY_MS");

@@ -99,63 +99,6 @@ public class AssignDriverToVehicleCommandHandler : IRequestHandler<AssignDriverT
     }
 }
 
-public class CreateTripCommandHandler : IRequestHandler<CreateTripCommand, TripDto>
-{
-    private readonly ITripRepository _tripRepository;
-
-    public CreateTripCommandHandler(ITripRepository tripRepository) => _tripRepository = tripRepository;
-
-    public async Task<TripDto> Handle(CreateTripCommand request, CancellationToken cancellationToken)
-    {
-        var trip = new Trip
-        {
-            Id = Guid.NewGuid(),
-            VehicleId = request.VehicleId,
-            DriverId = request.DriverId,
-            Origin = request.Origin,
-            Destination = request.Destination,
-            Status = TripStatus.Planned
-        };
-        await _tripRepository.AddAsync(trip, cancellationToken);
-        await _tripRepository.SaveChangesAsync(cancellationToken);
-        return TripDto.FromEntity(trip);
-    }
-}
-
-public class StartTripCommandHandler : IRequestHandler<StartTripCommand, TripDto>
-{
-    private readonly ITripRepository _tripRepository;
-
-    public StartTripCommandHandler(ITripRepository tripRepository) => _tripRepository = tripRepository;
-
-    public async Task<TripDto> Handle(StartTripCommand request, CancellationToken cancellationToken)
-    {
-        var trip = await _tripRepository.GetByIdAsync(request.TripId, cancellationToken)
-            ?? throw new KeyNotFoundException($"Trip {request.TripId} not found.");
-        trip.Status = TripStatus.InProgress;
-        trip.StartedAtUtc = DateTime.UtcNow;
-        await _tripRepository.SaveChangesAsync(cancellationToken);
-        return TripDto.FromEntity(trip);
-    }
-}
-
-public class CompleteTripCommandHandler : IRequestHandler<CompleteTripCommand, TripDto>
-{
-    private readonly ITripRepository _tripRepository;
-
-    public CompleteTripCommandHandler(ITripRepository tripRepository) => _tripRepository = tripRepository;
-
-    public async Task<TripDto> Handle(CompleteTripCommand request, CancellationToken cancellationToken)
-    {
-        var trip = await _tripRepository.GetByIdAsync(request.TripId, cancellationToken)
-            ?? throw new KeyNotFoundException($"Trip {request.TripId} not found.");
-        trip.Status = TripStatus.Completed;
-        trip.CompletedAtUtc = DateTime.UtcNow;
-        await _tripRepository.SaveChangesAsync(cancellationToken);
-        return TripDto.FromEntity(trip);
-    }
-}
-
 public class CreateDepotCommandHandler : IRequestHandler<CreateDepotCommand, DepotDto>
 {
     private readonly IDepotRepository _depotRepository;

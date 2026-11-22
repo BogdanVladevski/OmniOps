@@ -10,7 +10,7 @@ import { useTheme } from '../contexts/ThemeContext';
 import { elevation, radius, spacing, typography } from '../theme/tokens';
 import { alertSummary, groupAlerts } from '../utils/alerts';
 import { telemetryApi } from '../utils/api';
-import { getVehicleStatus, resolveShipmentIdForVehicle } from '../utils/fleetConfig';
+import { formatTemp, getVehicleStatus, hasReading, resolveShipmentIdForVehicle } from '../utils/fleetConfig';
 import { useLayout } from '../utils/layout';
 import IncidentReplay from './IncidentReplay';
 import { BarChart, Button, Divider, TempRangeBar, timeAgo } from './ui/kit';
@@ -30,7 +30,8 @@ function parsePolygon(json) {
 function shipmentStatus(t) {
   if (!t) return 'offline';
   const s = t.shipment;
-  if (s && (t.engineTemperature > s.maxSafeTempCelsius || t.engineTemperature < s.minSafeTempCelsius)) return 'out';
+  const temp = t.engineTemperature;
+  if (s && hasReading(temp) && (temp > s.maxSafeTempCelsius || temp < s.minSafeTempCelsius)) return 'out';
   return getVehicleStatus(t) === 'warning' ? 'attention' : 'ok';
 }
 
@@ -50,7 +51,7 @@ function ShipmentRow({ id, t, selected, onPress }) {
     <Pressable
       onPress={onPress}
       accessibilityRole="button"
-      accessibilityLabel={`${s?.productName ?? id}, ${t ? `${t.engineTemperature} degrees` : 'no signal'}`}
+      accessibilityLabel={`${s?.productName ?? id}, ${!t ? 'no signal' : hasReading(t.engineTemperature) ? `${t.engineTemperature} degrees` : 'no temperature reading'}`}
       style={({ hovered, pressed }) => [styles.row, (selected || hovered || pressed) && { backgroundColor: colors.sunken }]}
     >
       <View style={styles.flex}>
@@ -61,7 +62,7 @@ function ShipmentRow({ id, t, selected, onPress }) {
       </View>
       <View style={styles.rowRight}>
         <Text style={[typography.number, { color: red ? colors.critical : colors.text }]}>
-          {t ? `${t.engineTemperature}°` : '—'}
+          {t ? formatTemp(t.engineTemperature, '°') : '—'}
         </Text>
         <Text style={[typography.caption, { color: red ? colors.critical : status === 'attention' ? colors.warning : colors.muted }]} numberOfLines={1}>
           {statusText(status, t)}
@@ -164,13 +165,15 @@ function ShipmentDetail({ id, t, alerts, onBack, onReplay, onOpenAlerts }) {
 
       <View style={styles.reading}>
         <Text style={[typography.reading, { color: red ? colors.critical : colors.text }]}>
-          {t ? `${t.engineTemperature} °C` : '—'}
+          {t ? formatTemp(t.engineTemperature) : '—'}
         </Text>
         <Text style={[typography.body, { color: red ? colors.critical : colors.textSecondary }]}>
-          {red ? 'Cargo is outside its safe range' : s ? 'Cargo is within its safe range' : statusText(status, t)}
+          {red ? 'Cargo is outside its safe range'
+            : s && t && !hasReading(t.engineTemperature) ? 'No temperature reading from this truck'
+            : s ? 'Cargo is within its safe range' : statusText(status, t)}
         </Text>
       </View>
-      {s ? <View style={styles.pad}><TempRangeBar value={t.engineTemperature} min={s.minSafeTempCelsius} max={s.maxSafeTempCelsius} /></View> : null}
+      {s && t && hasReading(t.engineTemperature) ? <View style={styles.pad}><TempRangeBar value={t.engineTemperature} min={s.minSafeTempCelsius} max={s.maxSafeTempCelsius} /></View> : null}
 
       <View style={styles.pad}>
         <Text style={[typography.label, { color: colors.textSecondary, marginBottom: spacing.sm }]}>Last hour</Text>
@@ -281,7 +284,7 @@ export default function LiveView({ navigation }) {
             key={id}
             coordinate={{ latitude: t.latitude, longitude: t.longitude }}
             title={t.shipment?.productName ?? id}
-            description={`${id} · ${t.engineTemperature} °C`}
+            description={hasReading(t.engineTemperature) ? `${id} · ${t.engineTemperature} °C` : id}
             pinColor={pinColor(id)}
             onPress={() => select(id)}
             opacity={detailId && id !== detailId ? 0.7 : 1}

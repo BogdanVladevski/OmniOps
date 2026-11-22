@@ -85,7 +85,7 @@ public class ProcessTelemetryCommandHandler : IRequestHandler<ProcessTelemetryCo
             request.Telemetry.AddDomainEvent(breach);
         }
 
-        var tenant = await ResolveTenantAsync(request.Telemetry.VehicleId, cancellationToken);
+        var tenant = request.KnownTenant ?? await ResolveTenantAsync(request.Telemetry.VehicleId, cancellationToken);
         var detection = await _incidentDetectionService.DetectAsync(request.Telemetry, tenant, cancellationToken);
         var detectedIncidents = detection.Incidents.ToList();
         foreach (var breach in geofenceBreaches)

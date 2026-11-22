@@ -17,18 +17,39 @@ export function resolveShipmentIdForVehicle(vehicleId, vehicles = {}) {
   return vehicles[vehicleId]?.shipment?.shipmentId ?? SEED_SHIPMENT_IDS[vehicleId] ?? null;
 }
 
+/**
+ * True when a sensor actually reported a value. Phone GPS packets carry no temperature or fuel (null);
+ * in JavaScript `null < 2` is true, so every comparison must check this first.
+ */
+export function hasReading(value) {
+  return typeof value === 'number' && Number.isFinite(value);
+}
+
+/** "4.2 °C", or a dash when no cargo sensor reported. */
+export function formatTemp(value, unit = ' °C') {
+  return hasReading(value) ? `${value}${unit}` : '—';
+}
+
+function averageOf(values) {
+  const known = values.filter(hasReading);
+  return known.length ? known.reduce((sum, v) => sum + v, 0) / known.length : null;
+}
+
 export function getVehicleStatus(telemetry) {
   if (!telemetry) return 'offline';
   if (telemetry.shipment) {
     const temp = telemetry.engineTemperature;
-    const outOfRange =
-      temp > telemetry.shipment.maxSafeTempCelsius ||
-      temp < telemetry.shipment.minSafeTempCelsius;
-    if (outOfRange || telemetry.fuelLevel < 30) return 'warning';
+    const outOfRange = hasReading(temp)
+      && (temp > telemetry.shipment.maxSafeTempCelsius || temp < telemetry.shipment.minSafeTempCelsius);
+    if (outOfRange || lowFuel(telemetry)) return 'warning';
     return 'ok';
   }
-  if (telemetry.fuelLevel < 30 || telemetry.engineTemperature > 100) return 'warning';
+  if (lowFuel(telemetry) || (hasReading(telemetry.engineTemperature) && telemetry.engineTemperature > 100)) return 'warning';
   return 'ok';
+}
+
+function lowFuel(telemetry) {
+  return hasReading(telemetry.fuelLevel) && telemetry.fuelLevel < 30;
 }
 
 export function statusColor(status) {
@@ -53,8 +74,8 @@ export function computeFleetSummary(vehicles, vehicleIds) {
   }
 
   const warningCount = active.filter((t) => getVehicleStatus(t) === 'warning').length;
-  const averageFuel = active.reduce((sum, t) => sum + t.fuelLevel, 0) / active.length;
-  const averageTemp = active.reduce((sum, t) => sum + t.engineTemperature, 0) / active.length;
+  const averageFuel = averageOf(active.map((t) => t.fuelLevel));
+  const averageTemp = averageOf(active.map((t) => t.engineTemperature));
 
   return {
     configuredCount: vehicleIds.length,

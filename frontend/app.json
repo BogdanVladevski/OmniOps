@@ -24,6 +24,21 @@
     },
     "web": {
       "favicon": "./assets/favicon.png"
-    }
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationWhenInUsePermission": "OmniOps shares your truck's position with your office and the customer while a delivery job is running."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "cameraPermission": "OmniOps uses the camera to photograph delivery documents and proof of delivery.",
+          "photosPermission": "OmniOps attaches delivery photos you choose to the job."
+        }
+      ]
+    ]
   }
 }
