@@ -4,6 +4,7 @@ import { Image, Linking, Platform, Pressable, Share, StyleSheet, Text, View } fr
 import { useTheme } from '../contexts/ThemeContext';
 import { radius, spacing, typography } from '../theme/tokens';
 import { apiUrl, authHeaders, geocode, jobsApi } from '../utils/api';
+import { notifyJobsChanged } from '../utils/events';
 import { isPositionStale, jobStatusMeta, jobTitle } from '../utils/jobs';
 import { Button, Card, EmptyNote, Field, Page, Pill, Segmented, Sheet, timeAgo } from './ui/kit';
 
@@ -31,7 +32,8 @@ function progressText(job) {
   }
 }
 
-async function shareTrackingLink(job) {
+/** Shares (phone) or copies (web) a job's customer tracking link. Returns a notice to show, if any. */
+export async function shareTrackingLink(job) {
   const url = apiUrl(job.trackingPath);
   const message = `Track your delivery${job.reference ? ` (order ${job.reference})` : ''}: ${url}`;
   if (Platform.OS === 'web') {
@@ -99,6 +101,7 @@ function NewJobSheet({ visible, onClose, onCreated }) {
         destinationLongitude: place?.longitude ?? null,
       });
       setForm({ vehicleId: null, driverId: null, customerName: '', reference: '', origin: '', destination: '' });
+      notifyJobsChanged();
       onCreated(job, !place);
     } catch (e) {
       setError(e.message);
@@ -209,7 +212,7 @@ function JobSheet({ jobId, onClose, onNotice }) {
   );
 }
 
-export default function JobsBoard() {
+export default function JobsBoard({ route, navigation }) {
   const { colors } = useTheme();
   const [scope, setScope] = useState('active');
   const [jobs, setJobs] = useState([]);
@@ -236,6 +239,16 @@ export default function JobsBoard() {
     const timer = setInterval(load, 30000);
     return () => clearInterval(timer);
   }, [load]);
+
+  // Other screens (the live map) can ask to open a job or the new-job form.
+  const openJobParam = route?.params?.openJobId;
+  const createParam = route?.params?.create;
+  useEffect(() => {
+    if (!openJobParam && !createParam) return;
+    if (openJobParam) setOpenId(openJobParam);
+    if (createParam) setCreating(true);
+    navigation?.setParams({ openJobId: undefined, create: undefined });
+  }, [openJobParam, createParam, navigation]);
 
   useEffect(() => {
     if (!notice) return undefined;

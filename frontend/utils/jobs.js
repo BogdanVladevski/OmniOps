@@ -63,3 +63,41 @@ export function removeSent(queue, sentIds) {
   const sent = new Set(sentIds);
   return (queue ?? []).filter((p) => !sent.has(p.id));
 }
+
+const clock = (iso) => new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+
+/**
+ * Today's jobs for the live map: trucks on the way (silent ones first, then soonest arrival),
+ * jobs not started yet, and deliveries already made.
+ */
+export function groupJobsForToday(jobs, now = Date.now()) {
+  const onTheWay = (jobs ?? []).filter((j) => j.status === 'InProgress');
+  const eta = (j) => (j.etaUtc ? new Date(j.etaUtc).getTime() : Number.MAX_SAFE_INTEGER);
+  onTheWay.sort((a, b) => Number(isPositionStale(b, now)) - Number(isPositionStale(a, now)) || eta(a) - eta(b));
+  return {
+    onTheWay,
+    planned: (jobs ?? []).filter((j) => j.status === 'Planned'),
+    delivered: (jobs ?? [])
+      .filter((j) => j.status === 'Completed')
+      .sort((a, b) => new Date(b.deliveredAtUtc) - new Date(a.deliveredAtUtc)),
+  };
+}
+
+/** Short right-hand status for a job row: { primary, secondary, tone }. */
+export function jobProgress(job, now = Date.now()) {
+  switch (job?.status) {
+    case 'InProgress': {
+      if (!job.lastPositionAtUtc) return { primary: 'Started', secondary: 'Waiting for location', tone: 'neutral' };
+      if (isPositionStale(job, now)) return { primary: 'No signal', secondary: `Last seen ${clock(job.lastPositionAtUtc)}`, tone: 'warning' };
+      if (job.remainingKm === 0) return { primary: 'Arriving', secondary: 'At the destination', tone: 'accent' };
+      if (job.etaUtc) return { primary: clock(job.etaUtc), secondary: `about ${Math.round(job.remainingKm)} km`, tone: 'accent' };
+      return { primary: 'On the way', secondary: '', tone: 'accent' };
+    }
+    case 'Planned':
+      return { primary: 'Not started', secondary: job.plannedDeliveryUtc ? `Due ${clock(job.plannedDeliveryUtc)}` : '', tone: 'neutral' };
+    case 'Completed':
+      return { primary: 'Delivered', secondary: job.deliveredAtUtc ? clock(job.deliveredAtUtc) : '', tone: 'ok' };
+    default:
+      return { primary: jobStatusMeta(job?.status).label, secondary: '', tone: 'neutral' };
+  }
+}

@@ -1,3 +1,4 @@
+using OmniOps.Core.Domain;
 using OmniOps.Core.Entities;
 using OmniOps.Core.Enums;
 
@@ -28,9 +29,14 @@ public record JobDto(
     double? LastSpeedKmh,
     DateTime? LastPositionAtUtc,
     int PhotoCount,
-    string? TrackingPath)
+    string? TrackingPath,
+    double? RemainingKm,
+    DateTime? EtaUtc)
 {
-    public static JobDto FromEntity(Trip trip) => new(
+    public static JobDto FromEntity(Trip trip)
+    {
+        var (remainingKm, eta) = Estimate(trip);
+        return new(
         trip.Id,
         trip.Status.ToString(),
         trip.VehicleId,
@@ -55,7 +61,24 @@ public record JobDto(
         trip.LastSpeedKmh,
         trip.LastPositionAtUtc,
         trip.Documents.Count(d => d.Kind == TripDocumentKind.DeliveryPhoto),
-        trip.TrackingToken is null ? null : $"/t/{trip.TrackingToken}");
+        trip.TrackingToken is null ? null : $"/t/{trip.TrackingToken}",
+        remainingKm,
+        eta);
+    }
+
+    /// <summary>Arrival estimate while on the way and both positions are known; otherwise nothing.</summary>
+    private static (double?, DateTime?) Estimate(Trip trip)
+    {
+        if (trip.Status != TripStatus.InProgress
+            || trip.LastLatitude is not { } lat || trip.LastLongitude is not { } lon || trip.LastPositionAtUtc is not { } at
+            || trip.DestinationLatitude is not { } dLat || trip.DestinationLongitude is not { } dLon)
+        {
+            return (null, null);
+        }
+
+        var (km, eta) = DeliveryEta.Estimate(lat, lon, dLat, dLon, at);
+        return (km, eta);
+    }
 }
 
 public record JobDocumentDto(Guid Id, string Kind, string ContentType, long SizeBytes, DateTime CapturedAtUtc, double? Latitude, double? Longitude)

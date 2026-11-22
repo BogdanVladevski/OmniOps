@@ -1,4 +1,4 @@
-import { appendPending, isPositionStale, jobStatusMeta, jobTitle, removeSent, toLocationPoint } from '../utils/jobs';
+import { appendPending, groupJobsForToday, isPositionStale, jobProgress, jobStatusMeta, jobTitle, removeSent, toLocationPoint } from '../utils/jobs';
 
 describe('toLocationPoint', () => {
   const reading = (coords, timestamp = Date.UTC(2026, 10, 22, 9, 30)) => ({ coords, timestamp });
@@ -54,5 +54,36 @@ describe('job display', () => {
     expect(isPositionStale(job(2), now)).toBe(false);
     expect(isPositionStale(job(25), now)).toBe(true);
     expect(isPositionStale({ ...job(25), status: 'Completed' }, now)).toBe(false);
+  });
+});
+
+describe('live map grouping', () => {
+  const now = Date.UTC(2026, 11, 1, 12, 0);
+  const iso = (minutes) => new Date(now + minutes * 60000).toISOString();
+  const jobs = [
+    { id: 'late', status: 'InProgress', lastPositionAtUtc: iso(-1), etaUtc: iso(90), remainingKm: 80 },
+    { id: 'soon', status: 'InProgress', lastPositionAtUtc: iso(-1), etaUtc: iso(20), remainingKm: 15 },
+    { id: 'silent', status: 'InProgress', lastPositionAtUtc: iso(-45), etaUtc: iso(-10), remainingKm: 30 },
+    { id: 'plan', status: 'Planned' },
+    { id: 'done-early', status: 'Completed', deliveredAtUtc: iso(-120) },
+    { id: 'done-late', status: 'Completed', deliveredAtUtc: iso(-30) },
+  ];
+
+  it('puts silent trucks first, then the soonest arrival', () => {
+    expect(groupJobsForToday(jobs, now).onTheWay.map((j) => j.id)).toEqual(['silent', 'soon', 'late']);
+  });
+
+  it('lists the latest delivery first', () => {
+    expect(groupJobsForToday(jobs, now).delivered.map((j) => j.id)).toEqual(['done-late', 'done-early']);
+  });
+
+  it('never shows an arrival time for a truck that stopped reporting', () => {
+    const p = jobProgress(jobs[2], now);
+    expect(p.primary).toBe('No signal');
+    expect(p.tone).toBe('warning');
+  });
+
+  it('shows distance left for a reporting truck', () => {
+    expect(jobProgress(jobs[1], now).secondary).toBe('about 15 km');
   });
 });
