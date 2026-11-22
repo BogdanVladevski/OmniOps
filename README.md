@@ -79,7 +79,7 @@ Detector state, deduplication locks and the latest-telemetry cache are held in p
 | `POST` | `/api/v1/driver/jobs/{id}/start` | Driver starts the trip |
 | `POST` | `/api/v1/driver/jobs/{id}/locations` | Phone GPS points (batch; resending is safe) |
 | `POST` | `/api/v1/driver/jobs/{id}/photos` | Upload a delivery photo (multipart, ≤ 10 MB) |
-| `POST` | `/api/v1/driver/jobs/{id}/documents?kind=` | Loading note (`PickupDocument`), delivery photo, or fridge-display photo (`TemperaturePhoto` + `temperatureCelsius`) |
+| `POST` | `/api/v1/driver/jobs/{id}/documents?kind=` | Loading note (`PickupDocument`), delivery photo, fridge-display photo (`TemperaturePhoto` + `temperatureCelsius`), receiver `Signature` or problem report (`Exception`) with form field `note`; `clientId` makes a resend safe, `capturedAt` is when it was taken |
 | `POST` | `/api/v1/driver/jobs/{id}/deliver` | Confirm delivery — needs a photo, the recipient's name, and for refrigerated jobs a reading from the last 30 min |
 | `POST` | `/api/v1/account/sign-up` / `sign-in` / `refresh` / `sign-out` | Company accounts and sessions |
 | `POST` | `/api/v1/account/driver-codes` · `/api/v1/account/pair` | Office creates a one-time code; a driver's phone exchanges it for a driver sign-in |
