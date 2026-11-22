@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Local development: dotnet run (in this folder) starts Postgres, the API and the app. -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsAspireHost>true</IsAspireHost>
+    <UserSecretsId>omniops-apphost</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Aspire.Hosting.AppHost" />
+    <PackageReference Include="Aspire.Hosting.Dotnet" />
+    <PackageReference Include="Aspire.Hosting.PostgreSQL" />
+    <PackageReference Include="Aspire.Hosting.JavaScript" />
+  </ItemGroup>
+</Project>

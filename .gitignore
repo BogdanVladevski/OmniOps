@@ -570,3 +570,9 @@ mvnw.cmd
 Thumbs.db
 Desktop.ini
 .DS_Store
+# Test output
+TestResults/
+*.trx
+
+# Local deployment settings
+deploy/.env

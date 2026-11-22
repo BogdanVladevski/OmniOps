@@ -1,0 +1,48 @@
+# Runs OmniOps on one server: PostgreSQL and the API. Configure through deploy/.env (see .env.example).
+# For development, use the Aspire AppHost instead (dotnet run --project src/OmniOps.AppHost).
+name: omniops
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: omniops
+      POSTGRES_USER: omniops
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in deploy/.env}
+    volumes:
+      - postgres:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U omniops -d omniops"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  api:
+    build:
+      context: ..
+      dockerfile: deploy/api.Dockerfile
+    image: omniops-api
+    restart: unless-stopped
+    ports:
+      - "${API_PORT:-5031}:8080"
+    environment:
+      ConnectionStrings__omniops: Host=postgres;Database=omniops;Username=omniops;Password=${POSTGRES_PASSWORD}
+      Jwt__SigningKey: ${JWT_SIGNING_KEY:?Set JWT_SIGNING_KEY in deploy/.env (at least 32 characters)}
+      PublicUrls__ApiUrl: ${PUBLIC_API_URL:-http://localhost:5031}
+      PublicUrls__AppUrl: ${PUBLIC_APP_URL:-http://localhost:8081}
+      Cors__Origins__0: ${PUBLIC_APP_URL:-http://localhost:8081}
+      Email__SmtpHost: ${SMTP_HOST:-}
+      Email__SmtpPort: ${SMTP_PORT:-587}
+      Email__Username: ${SMTP_USERNAME:-}
+      Email__Password: ${SMTP_PASSWORD:-}
+      Email__From: ${EMAIL_FROM:-}
+    volumes:
+      - uploads:/app/data/uploads
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres:
+  uploads:
