@@ -196,7 +196,25 @@ public class JobHandlerTests
         await LocationsHandler().Handle(
             new RecordJobLocationsCommand(job.Id, [Point(DateTime.UtcNow.AddSeconds(-30), lat: 41.4), newest]), CancellationToken.None);
         Assert.Equal(41.5, job.LastLatitude);
-        Assert.Equal(newest.RecordedAtUtc, job.LastPositionAtUtc);
+        Assert.Equal(newest.RecordedAtUtc.UtcDateTime, job.LastPositionAtUtc);
+    }
+
+    [Fact]
+    public async Task Locations_SentWithALocalTimeOffset_AreStoredAsTheSameInstantInUtc()
+    {
+        // Regression: "+02:00" timestamps became DateTime Kind=Local, which PostgreSQL rejects (HTTP 500).
+        var job = Job();
+        Returns(job);
+        var local = new DateTimeOffset(2026, 11, 22, 12, 0, 0, TimeSpan.FromHours(2));
+        var point = new JobLocationPoint(Guid.NewGuid(), 41.9, 21.4, 60, null, null, local);
+
+        await LocationsHandler().Handle(new RecordJobLocationsCommand(job.Id, [point]), CancellationToken.None);
+
+        var expected = new DateTime(2026, 11, 22, 10, 0, 0, DateTimeKind.Utc);
+        Assert.Equal(expected, job.LastPositionAtUtc);
+        Assert.Equal(DateTimeKind.Utc, job.LastPositionAtUtc!.Value.Kind);
+        await _mediator.Received(1).Send(Arg.Is<ProcessTelemetryCommand>(c =>
+            c.Telemetry.Timestamp == expected && c.Telemetry.Timestamp.Kind == DateTimeKind.Utc), Arg.Any<CancellationToken>());
     }
 
     [Fact]

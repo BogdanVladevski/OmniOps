@@ -126,6 +126,22 @@ public class DeliveryJobIntegrationTests(OmniOpsApiFixture fixture)
     }
 
     [Fact]
+    public async Task Locations_WithTimeZoneOffset_AreAccepted()
+    {
+        // Regression: phones that send local time with an offset got HTTP 500.
+        var job = await CreateJobAsync();
+        var jobId = job.GetProperty("id").GetGuid();
+        (await Client.PostAsync($"/api/v1/driver/jobs/{jobId}/start", null)).EnsureSuccessStatusCode();
+        var local = DateTimeOffset.UtcNow.ToOffset(TimeSpan.FromHours(2)).ToString("yyyy-MM-ddTHH:mm:ss.fffzzz");
+
+        var response = await Client.PostAsync($"/api/v1/driver/jobs/{jobId}/locations", new StringContent(
+            $$"""{"points":[{"id":"{{Guid.NewGuid()}}","latitude":41.9,"longitude":21.4,"recordedAtUtc":"{{local}}"}]}""",
+            System.Text.Encoding.UTF8, "application/json"));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+    }
+
+    [Fact]
     public async Task InvalidRequests_AreRejectedWithReasons()
     {
         var noDestination = await Client.PostAsJsonAsync("/api/v1/jobs", new { vehicleId = Guid.NewGuid(), customerName = "X" });

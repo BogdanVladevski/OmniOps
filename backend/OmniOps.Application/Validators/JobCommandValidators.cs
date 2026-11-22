@@ -39,7 +39,7 @@ public class RecordJobLocationsCommandValidator : AbstractValidator<RecordJobLoc
             point.RuleFor(p => p.Heading).InclusiveBetween(0, 360).When(p => p.Heading.HasValue);
             point.RuleFor(p => p.AccuracyMeters).GreaterThanOrEqualTo(0).When(p => p.AccuracyMeters.HasValue);
             point.RuleFor(p => p.RecordedAtUtc)
-                .Must(t => t > DateTime.UtcNow.AddDays(-7) && t < DateTime.UtcNow.AddMinutes(5))
+                .Must(t => t > DateTimeOffset.UtcNow.AddDays(-7) && t < DateTimeOffset.UtcNow.AddMinutes(5))
                 .WithMessage("Point time must be within the last 7 days and not in the future.");
         });
     }

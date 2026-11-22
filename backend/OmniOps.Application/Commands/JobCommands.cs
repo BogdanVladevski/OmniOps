@@ -14,7 +14,7 @@ public record CreateJobCommand(
     string Destination,
     double? DestinationLatitude,
     double? DestinationLongitude,
-    DateTime? PlannedDeliveryUtc) : IRequest<JobDto>, IAuthorizedRequest
+    DateTimeOffset? PlannedDeliveryUtc) : IRequest<JobDto>, IAuthorizedRequest
 {
     public string RequiredPolicy => AuthorizationPolicies.VehicleRead;
 }
@@ -32,7 +32,9 @@ public record JobLocationPoint(
     double? SpeedKmh,
     double? Heading,
     double? AccuracyMeters,
-    DateTime RecordedAtUtc);
+    // Offset-aware: phones may send local time with an offset ("+02:00"); a DateTime would come out as
+    // Kind=Local, which PostgreSQL rejects and which shifts by the server's time zone.
+    DateTimeOffset RecordedAtUtc);
 
 /// <summary>
 /// GPS points from the driver's phone. Processed synchronously so the phone keeps (and resends) anything

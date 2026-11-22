@@ -57,7 +57,7 @@ public class CreateJobCommandHandler : IRequestHandler<CreateJobCommand, JobDto>
             Destination = request.Destination.Trim(),
             DestinationLatitude = request.DestinationLatitude,
             DestinationLongitude = request.DestinationLongitude,
-            PlannedDeliveryUtc = request.PlannedDeliveryUtc,
+            PlannedDeliveryUtc = request.PlannedDeliveryUtc?.UtcDateTime,
             TrackingToken = TrackingToken.Create(),
             Vehicle = vehicle,
             Driver = driver,
@@ -149,7 +149,7 @@ public class RecordJobLocationsCommandHandler : IRequestHandler<RecordJobLocatio
         var points = request.Points.OrderBy(p => p.RecordedAtUtc).ToList();
         if (job.Status == TripStatus.Completed && job.CompletedAtUtc is { } deliveredAt)
         {
-            points = points.Where(p => p.RecordedAtUtc <= deliveredAt + LateArrivalAllowance).ToList();
+            points = points.Where(p => p.RecordedAtUtc.UtcDateTime <= deliveredAt + LateArrivalAllowance).ToList();
         }
 
         var existing = await _telemetry.GetExistingIdsAsync(points.Select(p => p.Id).ToList(), cancellationToken);
@@ -165,12 +165,12 @@ public class RecordJobLocationsCommandHandler : IRequestHandler<RecordJobLocatio
         }
 
         var latest = fresh.LastOrDefault();
-        if (latest is not null && (job.LastPositionAtUtc is null || latest.RecordedAtUtc > job.LastPositionAtUtc))
+        if (latest is not null && (job.LastPositionAtUtc is null || latest.RecordedAtUtc.UtcDateTime > job.LastPositionAtUtc))
         {
             job.LastLatitude = latest.Latitude;
             job.LastLongitude = latest.Longitude;
             job.LastSpeedKmh = latest.SpeedKmh;
-            job.LastPositionAtUtc = latest.RecordedAtUtc;
+            job.LastPositionAtUtc = latest.RecordedAtUtc.UtcDateTime;
             await _jobs.SaveChangesAsync(cancellationToken);
         }
 
@@ -193,7 +193,7 @@ public class RecordJobLocationsCommandHandler : IRequestHandler<RecordJobLocatio
         FuelLevel = null,
         EngineTemperature = null,
         SensorReadingsJson = JsonSerializer.Serialize(new { source = "phone", accuracyMeters = point.AccuracyMeters }),
-        Timestamp = DateTime.SpecifyKind(point.RecordedAtUtc, DateTimeKind.Utc),
+        Timestamp = point.RecordedAtUtc.UtcDateTime,
     };
 }
 

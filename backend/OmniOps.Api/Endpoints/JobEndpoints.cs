@@ -114,7 +114,7 @@ public static class JobEndpoints
         string? Destination,
         double? DestinationLatitude,
         double? DestinationLongitude,
-        DateTime? PlannedDeliveryUtc);
+        DateTimeOffset? PlannedDeliveryUtc);
 
     private record LocationsBody(IReadOnlyList<JobLocationPoint>? Points);
 
