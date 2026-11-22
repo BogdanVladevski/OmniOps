@@ -2,7 +2,7 @@ using OmniOps.Core.Enums;
 
 namespace OmniOps.Core.Entities;
 
-/// <summary>A file attached to a delivery job (delivery photo today; CMR, invoice later).</summary>
+/// <summary>A file attached to a delivery job: photos, loading note (CMR), temperature photos, signature, problem reports.</summary>
 public class TripDocument
 {
     public Guid Id { get; set; }
@@ -21,5 +21,16 @@ public class TripDocument
 
     /// <summary>For temperature photos: the reading in °C the driver entered from the display.</summary>
     public double? TemperatureCelsius { get; set; }
+
+    /// <summary>Signature: the signer's name. Exception: what is wrong (e.g. "2 cartons crushed").</summary>
+    public string? Note { get; set; }
+
+    /// <summary>
+    /// Id the phone gave this upload. Phones resend after a lost connection; the same id is stored once.
+    /// </summary>
+    public Guid? ClientId { get; set; }
+
+    /// <summary>When the server received it (CapturedAtUtc is when it was taken, possibly offline).</summary>
+    public DateTime? ReceivedAtUtc { get; set; }
     public Trip Trip { get; set; } = null!;
 }

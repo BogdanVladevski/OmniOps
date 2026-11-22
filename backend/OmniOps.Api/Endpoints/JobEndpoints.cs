@@ -54,29 +54,35 @@ public static class JobEndpoints
         driver.MapGet("/jobs", async (Guid? driverId, IMediator m) =>
             Results.Ok(await m.Send(new GetJobsQuery(JobScope.Active, driverId))));
 
-        driver.MapPost("/jobs/{jobId:guid}/start", async (Guid jobId, IMediator m) =>
-            Results.Ok(await m.Send(new StartJobCommand(jobId))));
+        // Optional body { startedAt }: when Start was tapped on the phone (it may have been offline).
+        driver.MapPost("/jobs/{jobId:guid}/start", async (Guid jobId, HttpRequest http, IMediator m) =>
+        {
+            var body = http.HasJsonContentType() ? await http.ReadFromJsonAsync<StartBody>() : null;
+            return Results.Ok(await m.Send(new StartJobCommand(jobId, body?.StartedAt)));
+        });
 
         driver.MapPost("/jobs/{jobId:guid}/locations", async (Guid jobId, LocationsBody body, IMediator m) =>
             Results.Ok(await m.Send(new RecordJobLocationsCommand(jobId, body.Points ?? []))));
 
         // Delivery photos (kept for older app versions) and any job document: ?kind=DeliveryPhoto|PickupDocument|TemperaturePhoto.
         driver.MapPost("/jobs/{jobId:guid}/photos", (Guid jobId, IFormFile file, double? latitude, double? longitude, IMediator m) =>
-                UploadAsync(m, jobId, TripDocumentKind.DeliveryPhoto, file, latitude, longitude, null))
+                UploadAsync(m, jobId, TripDocumentKind.DeliveryPhoto, file, latitude, longitude, null, null, null, null))
             .DisableAntiforgery()
             .WithMetadata(new RequestSizeLimitAttribute(AddJobDocumentCommand.MaxBytes + 64 * 1024));
 
+        // clientId: the phone's id for this upload (resends are stored once); capturedAt: when it was taken.
         driver.MapPost("/jobs/{jobId:guid}/documents",
-                (Guid jobId, string kind, IFormFile file, double? latitude, double? longitude, double? temperatureCelsius, IMediator m) =>
+                (Guid jobId, string kind, IFormFile file, double? latitude, double? longitude, double? temperatureCelsius,
+                    [FromForm] string? note, Guid? clientId, DateTimeOffset? capturedAt, IMediator m) =>
                     Enum.TryParse<TripDocumentKind>(kind, ignoreCase: true, out var parsed) && Enum.IsDefined(parsed)
-                        ? UploadAsync(m, jobId, parsed, file, latitude, longitude, temperatureCelsius)
+                        ? UploadAsync(m, jobId, parsed, file, latitude, longitude, temperatureCelsius, note, clientId, capturedAt)
                         : Task.FromResult(Results.BadRequest(new { title = "Unknown document kind." })))
             .DisableAntiforgery()
             .WithMetadata(new RequestSizeLimitAttribute(AddJobDocumentCommand.MaxBytes + 64 * 1024));
 
         driver.MapPost("/jobs/{jobId:guid}/deliver", async (Guid jobId, DeliverBody body, IMediator m) =>
             Results.Ok(await m.Send(new DeliverJobCommand(
-                jobId, body.RecipientName ?? string.Empty, body.Note, body.Latitude, body.Longitude))));
+                jobId, body.RecipientName ?? string.Empty, body.Note, body.Latitude, body.Longitude, body.DeliveredAt))));
 
         // Public: the token is the credential. Unknown/expired links all look the same (404).
         app.MapGet("/api/public/track/{token}", async (string token, IMediator m) =>
@@ -105,11 +111,13 @@ public static class JobEndpoints
     }
 
     private static async Task<IResult> UploadAsync(
-        IMediator m, Guid jobId, TripDocumentKind kind, IFormFile file, double? latitude, double? longitude, double? temperatureCelsius)
+        IMediator m, Guid jobId, TripDocumentKind kind, IFormFile file, double? latitude, double? longitude, double? temperatureCelsius,
+        string? note, Guid? clientId, DateTimeOffset? capturedAt)
     {
         await using var content = file.OpenReadStream();
         return Results.Ok(await m.Send(new AddJobDocumentCommand(
-            jobId, kind, content, NormalizeContentType(file.ContentType), file.Length, latitude, longitude, temperatureCelsius)));
+            jobId, kind, content, NormalizeContentType(file.ContentType), file.Length, latitude, longitude, temperatureCelsius,
+            note, clientId, capturedAt)));
     }
 
     private static JobScope ParseScope(string? scope) =>
@@ -138,5 +146,7 @@ public static class JobEndpoints
 
     private record LocationsBody(IReadOnlyList<JobLocationPoint>? Points);
 
-    private record DeliverBody(string? RecipientName, string? Note, double? Latitude, double? Longitude);
+    private record DeliverBody(string? RecipientName, string? Note, double? Latitude, double? Longitude, DateTimeOffset? DeliveredAt);
+
+    private record StartBody(DateTimeOffset? StartedAt);
 }

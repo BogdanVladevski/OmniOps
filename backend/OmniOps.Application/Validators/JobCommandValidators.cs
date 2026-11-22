@@ -73,6 +73,11 @@ public class AddJobDocumentCommandValidator : AbstractValidator<AddJobDocumentCo
             .InclusiveBetween(JobTemperaturePolicy.MinPlausibleCelsius, JobTemperaturePolicy.MaxPlausibleCelsius)
             .WithMessage("That temperature looks wrong. Check the display and try again.")
             .When(x => x.Kind == TripDocumentKind.TemperaturePhoto);
+        RuleFor(x => x.Note).NotEmpty().WithMessage("Say briefly what is wrong (e.g. 2 cartons crushed).")
+            .When(x => x.Kind == TripDocumentKind.Exception);
+        RuleFor(x => x.Note).NotEmpty().WithMessage("Enter the name of the person who signed.")
+            .When(x => x.Kind == TripDocumentKind.Signature);
+        RuleFor(x => x.Note).MaximumLength(AddJobDocumentCommand.MaxNoteLength);
     }
 }
 

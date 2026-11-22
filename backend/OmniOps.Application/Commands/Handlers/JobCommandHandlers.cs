@@ -23,6 +23,7 @@ internal static class JobAccess
 public static class JobAlerts
 {
     public const string Delivered = "JobDelivered";
+    public const string ProblemReported = "JobProblemReported";
 }
 
 public class CreateJobCommandHandler : IRequestHandler<CreateJobCommand, JobDto>
@@ -111,7 +112,7 @@ public class StartJobCommandHandler : IRequestHandler<StartJobCommand, JobDto>
         }
 
         job.Status = TripStatus.InProgress;
-        job.StartedAtUtc = DateTime.UtcNow;
+        job.StartedAtUtc = PhoneClock.Resolve(request.StartedAt, job.CreatedAtUtc, DateTime.UtcNow);
         await _audit.LogAsync("Start", "Job", job.Id.ToString(), _tenant.UserId, null, cancellationToken);
         return JobDto.FromEntity(job);
     }
@@ -235,8 +236,15 @@ public class AddJobDocumentCommandHandler : IRequestHandler<AddJobDocumentComman
         var job = JobAccess.Visible(
             await _jobs.GetAsync(request.JobId, _tenant.OrganizationId, cancellationToken), request.JobId, _tenant);
 
+        // A resend of an upload the server already has: same answer, nothing stored twice.
+        if (request.ClientId is { } clientId && job.Documents.FirstOrDefault(d => d.ClientId == clientId) is { } existing)
+        {
+            return JobDocumentDto.FromEntity(existing);
+        }
+
         EnsureAllowed(job, request);
 
+        var now = DateTime.UtcNow;
         var extension = AddJobDocumentCommand.AllowedTypes[request.ContentType];
         var document = new TripDocument
         {
@@ -246,10 +254,15 @@ public class AddJobDocumentCommandHandler : IRequestHandler<AddJobDocumentComman
             Kind = request.Kind,
             ContentType = request.ContentType,
             SizeBytes = request.SizeBytes,
-            CapturedAtUtc = DateTime.UtcNow,
+            CapturedAtUtc = PhoneClock.Resolve(request.CapturedAt, job.CreatedAtUtc, now),
+            ReceivedAtUtc = now,
+            ClientId = request.ClientId,
             Latitude = request.Latitude,
             Longitude = request.Longitude,
             TemperatureCelsius = request.Kind == TripDocumentKind.TemperaturePhoto ? request.TemperatureCelsius : null,
+            Note = request.Kind is TripDocumentKind.Signature or TripDocumentKind.Exception && !string.IsNullOrWhiteSpace(request.Note)
+                ? request.Note.Trim()
+                : null,
         };
         document.StorageKey = $"{job.OrganizationId:N}/{job.Id:N}/{document.Id:N}.{extension}";
 
@@ -262,6 +275,11 @@ public class AddJobDocumentCommandHandler : IRequestHandler<AddJobDocumentComman
         if (document.TemperatureCelsius is { } celsius && JobTemperaturePolicy.IsOutOfRange(job, celsius))
         {
             await AlertOutOfRangeAsync(job, celsius, cancellationToken);
+        }
+
+        if (document.Kind == TripDocumentKind.Exception)
+        {
+            await AlertProblemAsync(job, document.Note, cancellationToken);
         }
 
         return JobDocumentDto.FromEntity(document);
@@ -292,6 +310,28 @@ public class AddJobDocumentCommandHandler : IRequestHandler<AddJobDocumentComman
                 }
 
                 return;
+            case TripDocumentKind.Exception:
+                // Damage at loading is as important as damage at delivery.
+                if (job.Status is not (TripStatus.Planned or TripStatus.InProgress))
+                {
+                    throw new BusinessRuleException("This job is closed; problems can no longer be reported on it.");
+                }
+
+                break;
+            case TripDocumentKind.Signature:
+                if (job.Status != TripStatus.InProgress)
+                {
+                    throw new BusinessRuleException(job.Status == TripStatus.Planned
+                        ? "Start the job before taking the receiver's signature."
+                        : "This job is closed; a signature can no longer be added.");
+                }
+
+                if (count >= AddJobDocumentCommand.MaxSignatures)
+                {
+                    throw new BusinessRuleException($"A job can have at most {AddJobDocumentCommand.MaxSignatures} signatures.");
+                }
+
+                return;
             default:
                 if (job.Status != TripStatus.InProgress)
                 {
@@ -306,6 +346,24 @@ public class AddJobDocumentCommandHandler : IRequestHandler<AddJobDocumentComman
         if (count >= AddJobDocumentCommand.MaxPhotosPerKind)
         {
             throw new BusinessRuleException($"A job can have at most {AddJobDocumentCommand.MaxPhotosPerKind} photos of this kind.");
+        }
+    }
+
+    private async Task AlertProblemAsync(Trip job, string? note, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _broadcast.BroadcastAlertAsync(
+                job.OrganizationId,
+                job.Vehicle.ExternalId,
+                JobAlerts.ProblemReported,
+                $"Problem reported — {job.Vehicle.ExternalId}",
+                $"{job.CustomerName ?? job.Destination}: {note}",
+                cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Problem report broadcast failed for job {JobId}", job.Id);
         }
     }
 
@@ -367,18 +425,19 @@ public class DeliverJobCommandHandler : IRequestHandler<DeliverJobCommand, JobDt
                 throw new BusinessRuleException("This job was cancelled.");
         }
 
-        if (!job.Documents.Any(d => d.Kind == TripDocumentKind.DeliveryPhoto))
+        if (!job.Documents.Any(d => d.Kind is TripDocumentKind.DeliveryPhoto or TripDocumentKind.Signature))
         {
-            throw new BusinessRuleException("Add at least one delivery photo before confirming delivery.");
+            throw new BusinessRuleException("Add a delivery photo or the receiver's signature before confirming delivery.");
         }
 
-        if (JobTemperaturePolicy.IsRefrigerated(job) && !JobTemperaturePolicy.HasRecentReading(job, DateTime.UtcNow))
+        var deliveredAt = PhoneClock.Resolve(request.DeliveredAt, job.StartedAtUtc ?? job.CreatedAtUtc, DateTime.UtcNow);
+        if (JobTemperaturePolicy.IsRefrigerated(job) && !JobTemperaturePolicy.HasRecentReading(job, deliveredAt))
         {
             throw new BusinessRuleException("Log the load temperature (photo of the display) before confirming delivery.");
         }
 
         job.Status = TripStatus.Completed;
-        job.CompletedAtUtc = DateTime.UtcNow;
+        job.CompletedAtUtc = deliveredAt;
         job.RecipientName = request.RecipientName.Trim();
         job.DeliveryNote = string.IsNullOrWhiteSpace(request.Note) ? null : request.Note.Trim();
         job.DeliveredLatitude = request.Latitude;

@@ -175,13 +175,99 @@ public class DeliveryJobIntegrationTests(OmniOpsApiFixture fixture)
         Assert.Equal(HttpStatusCode.BadRequest, (await Upload(jobId, "Invoice")).StatusCode);
     }
 
-    private async Task<HttpResponseMessage> Upload(Guid jobId, string kind, string extra = "")
+    private async Task<HttpResponseMessage> Upload(Guid jobId, string kind, string extra = "", string? note = null)
     {
         using var form = new MultipartFormDataContent();
         var image = new ByteArrayContent([0xFF, 0xD8, 0xFF, 0xE0, 9]);
         image.Headers.ContentType = new MediaTypeHeaderValue("image/jpeg");
         form.Add(image, "file", "photo.jpg");
+        if (note is not null)
+        {
+            form.Add(new StringContent(note), "note");
+        }
+
         return await Client.PostAsync($"/api/v1/driver/jobs/{jobId}/documents?kind={kind}{extra}", form);
+    }
+
+    private static string At(DateTime utc) => Uri.EscapeDataString(new DateTimeOffset(utc).ToString("O"));
+
+    [Fact]
+    public async Task ADeliveryMadeWithoutSignal_IsRecordedOnce_WithTheTimesFromThePhone()
+    {
+        var created = await CreateJobAsync();
+        var jobId = created.GetProperty("id").GetGuid();
+        var createdAt = created.GetProperty("createdAtUtc").GetDateTime();
+        await Task.Delay(1500); // the phone was offline: everything below happened before it reached the server
+        var startedAt = createdAt.AddMilliseconds(300);
+        var photoAt = createdAt.AddMilliseconds(800);
+        var deliveredAt = createdAt.AddMilliseconds(1000);
+
+        // The phone sends its queue when signal returns — and, after a dropped reply, sends it again.
+        for (var attempt = 0; attempt < 2; attempt++)
+        {
+            (await Client.PostAsJsonAsync($"/api/v1/driver/jobs/{jobId}/start", new { startedAt })).EnsureSuccessStatusCode();
+        }
+
+        var photoId = Guid.NewGuid();
+        var first = await (await Upload(jobId, "DeliveryPhoto", $"&clientId={photoId}&capturedAt={At(photoAt)}")).Content.ReadFromJsonAsync<JsonElement>();
+        var again = await (await Upload(jobId, "DeliveryPhoto", $"&clientId={photoId}&capturedAt={At(photoAt)}")).Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(first.GetProperty("id").GetGuid(), again.GetProperty("id").GetGuid());
+
+        for (var attempt = 0; attempt < 2; attempt++)
+        {
+            (await Client.PostAsJsonAsync($"/api/v1/driver/jobs/{jobId}/deliver",
+                new { recipientName = "Vesna", deliveredAt })).EnsureSuccessStatusCode();
+        }
+
+        var detail = await Client.GetFromJsonAsync<JsonElement>($"/api/v1/jobs/{jobId}");
+        var job = detail.GetProperty("job");
+        Assert.Equal(1, job.GetProperty("photoCount").GetInt32());
+        Assert.Equal(startedAt, job.GetProperty("startedAtUtc").GetDateTime(), TimeSpan.FromMilliseconds(5));
+        Assert.Equal(deliveredAt, job.GetProperty("deliveredAtUtc").GetDateTime(), TimeSpan.FromMilliseconds(5));
+        var photo = Assert.Single(detail.GetProperty("documents").EnumerateArray());
+        Assert.Equal(photoAt, photo.GetProperty("capturedAtUtc").GetDateTime(), TimeSpan.FromMilliseconds(5));
+    }
+
+    [Fact]
+    public async Task APhoneClockThatIsWrong_CannotPutAStartBeforeTheJobExisted()
+    {
+        var created = await CreateJobAsync();
+        var jobId = created.GetProperty("id").GetGuid();
+        (await Client.PostAsJsonAsync($"/api/v1/driver/jobs/{jobId}/start", new { startedAt = DateTime.UtcNow.AddYears(-1) })).EnsureSuccessStatusCode();
+        var job = (await Client.GetFromJsonAsync<JsonElement>($"/api/v1/jobs/{jobId}")).GetProperty("job");
+        Assert.Equal(created.GetProperty("createdAtUtc").GetDateTime(), job.GetProperty("startedAtUtc").GetDateTime(), TimeSpan.FromMilliseconds(5));
+    }
+
+    [Fact]
+    public async Task ReceiverSignature_IsProofOfDelivery_AndProblemsAreRecorded()
+    {
+        var jobId = (await CreateJobAsync()).GetProperty("id").GetGuid();
+        Assert.Equal(HttpStatusCode.Conflict, (await Upload(jobId, "Signature", note: "Vesna")).StatusCode); // not started
+
+        // Damage found at loading.
+        Assert.Equal(HttpStatusCode.BadRequest, (await Upload(jobId, "Exception")).StatusCode);
+        (await Upload(jobId, "Exception", note: "2 cartons crushed")).EnsureSuccessStatusCode();
+
+        (await Client.PostAsync($"/api/v1/driver/jobs/{jobId}/start", null)).EnsureSuccessStatusCode();
+        Assert.Equal(HttpStatusCode.BadRequest, (await Upload(jobId, "Signature")).StatusCode); // who signed?
+        (await Upload(jobId, "Signature", note: "Vesna Trajkova")).EnsureSuccessStatusCode();
+        (await Client.PostAsJsonAsync($"/api/v1/driver/jobs/{jobId}/deliver", new { recipientName = "Vesna Trajkova" })).EnsureSuccessStatusCode();
+
+        var detail = await Client.GetFromJsonAsync<JsonElement>($"/api/v1/jobs/{jobId}");
+        Assert.Equal(1, detail.GetProperty("job").GetProperty("signatureCount").GetInt32());
+        Assert.Equal(1, detail.GetProperty("job").GetProperty("exceptionCount").GetInt32());
+        Assert.Contains(detail.GetProperty("documents").EnumerateArray(),
+            d => d.GetProperty("kind").GetString() == "Exception" && d.GetProperty("note").GetString() == "2 cartons crushed");
+    }
+
+    [Fact]
+    public async Task Delivery_NeedsAPhotoOrASignature()
+    {
+        var jobId = (await CreateJobAsync()).GetProperty("id").GetGuid();
+        (await Client.PostAsync($"/api/v1/driver/jobs/{jobId}/start", null)).EnsureSuccessStatusCode();
+        var refused = await Client.PostAsJsonAsync($"/api/v1/driver/jobs/{jobId}/deliver", new { recipientName = "Vesna" });
+        Assert.Equal(HttpStatusCode.Conflict, refused.StatusCode);
+        Assert.Contains("signature", await refused.Content.ReadAsStringAsync());
     }
 
     [Fact]

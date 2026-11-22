@@ -307,6 +307,9 @@ public class AppDbContext : DbContext
         {
             entity.HasKey(e => e.Id);
             entity.HasIndex(e => new { e.OrganizationId, e.TripId });
+            // A phone resending the same upload must not create a second record.
+            entity.HasIndex(e => new { e.TripId, e.ClientId }).IsUnique();
+            entity.Property(e => e.Note).HasMaxLength(500);
             entity.Property(e => e.StorageKey).HasMaxLength(300);
             entity.Property(e => e.ContentType).HasMaxLength(100);
             entity.HasOne(e => e.Trip).WithMany(t => t.Documents).HasForeignKey(e => e.TripId)

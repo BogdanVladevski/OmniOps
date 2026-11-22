@@ -40,7 +40,9 @@ public record JobDto(
     int TemperatureOutOfRangeCount,
     DateTime? TemperatureCheckDueUtc,
     int PickupDocumentCount,
-    Guid? InvoiceId)
+    Guid? InvoiceId,
+    int SignatureCount,
+    int ExceptionCount)
 {
     public static JobDto FromEntity(Trip trip)
     {
@@ -83,7 +85,9 @@ public record JobDto(
         readings.Count(r => JobTemperaturePolicy.IsOutOfRange(trip, r.TemperatureCelsius!.Value)),
         JobTemperaturePolicy.NextCheckDueUtc(trip),
         trip.Documents.Count(d => d.Kind == TripDocumentKind.PickupDocument),
-        trip.InvoiceId);
+        trip.InvoiceId,
+        trip.Documents.Count(d => d.Kind == TripDocumentKind.Signature),
+        trip.Documents.Count(d => d.Kind == TripDocumentKind.Exception));
     }
 
     /// <summary>Arrival estimate while on the way and both positions are known; otherwise nothing.</summary>
@@ -103,10 +107,11 @@ public record JobDto(
 
 public record JobDocumentDto(
     Guid Id, string Kind, string ContentType, long SizeBytes, DateTime CapturedAtUtc,
-    double? Latitude, double? Longitude, double? TemperatureCelsius)
+    double? Latitude, double? Longitude, double? TemperatureCelsius, string? Note = null, Guid? ClientId = null)
 {
     public static JobDocumentDto FromEntity(TripDocument d) =>
-        new(d.Id, d.Kind.ToString(), d.ContentType, d.SizeBytes, d.CapturedAtUtc, d.Latitude, d.Longitude, d.TemperatureCelsius);
+        new(d.Id, d.Kind.ToString(), d.ContentType, d.SizeBytes, d.CapturedAtUtc, d.Latitude, d.Longitude, d.TemperatureCelsius,
+            d.Note, d.ClientId);
 }
 
 public record JobDetailDto(JobDto Job, IReadOnlyList<JobDocumentDto> Documents);

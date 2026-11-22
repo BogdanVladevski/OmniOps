@@ -1385,6 +1385,9 @@ namespace OmniOps.Infrastructure.Migrations
                     b.Property<DateTime>("CapturedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<Guid?>("ClientId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("ContentType")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -1399,8 +1402,15 @@ namespace OmniOps.Infrastructure.Migrations
                     b.Property<double?>("Longitude")
                         .HasColumnType("double precision");
 
+                    b.Property<string>("Note")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
                     b.Property<Guid>("OrganizationId")
                         .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("ReceivedAtUtc")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<long>("SizeBytes")
                         .HasColumnType("bigint");
@@ -1418,9 +1428,10 @@ namespace OmniOps.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("TripId");
-
                     b.HasIndex("OrganizationId", "TripId");
+
+                    b.HasIndex("TripId", "ClientId")
+                        .IsUnique();
 
                     b.ToTable("TripDocuments");
                 });
