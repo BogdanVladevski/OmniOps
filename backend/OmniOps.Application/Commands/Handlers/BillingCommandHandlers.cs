@@ -95,6 +95,12 @@ public class SaveBillingProfileCommandHandler : IRequestHandler<SaveBillingProfi
         profile.DefaultVatRatePercent = request.DefaultVatRatePercent;
         profile.DefaultPaymentTermsDays = request.DefaultPaymentTermsDays;
         profile.InvoicePrefix = request.InvoicePrefix.Trim().ToUpperInvariant();
+        profile.FreeWaitingMinutes = request.FreeWaitingMinutes;
+        profile.WaitingRatePerHour = request.WaitingRatePerHour is > 0 ? request.WaitingRatePerHour : null;
+        if (!string.IsNullOrWhiteSpace(request.TimeZone) && Services.WaitingTerms.ZoneOf(request.TimeZone) != TimeZoneInfo.Utc)
+        {
+            profile.TimeZone = request.TimeZone.Trim();
+        }
         profile.UpdatedAtUtc = _clock.GetUtcNow().UtcDateTime;
 
         await _audit.LogAsync("Update", "BillingProfile", profile.OrganizationId.ToString(), _tenant.UserId, null, cancellationToken);

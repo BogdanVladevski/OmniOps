@@ -21,12 +21,6 @@ public record CreateTeamCommand(Guid OrganizationId, string Name) : IRequest<Tea
     public string RequiredPolicy => AuthorizationPolicies.FleetAdmin;
 }
 
-public record InviteMemberCommand(Guid OrganizationId, string Email, string Role)
-    : IRequest<InvitationDto>, IAuthorizedRequest, ITransactionalRequest
-{
-    public string RequiredPolicy => AuthorizationPolicies.FleetAdmin;
-}
-
 public record UpdateTenantSettingsCommand(
     Guid OrganizationId,
     string TimeZone,

@@ -6,7 +6,7 @@ import { spacing, toneColors, typography } from '../theme/tokens';
 import { apiUrl, billingApi } from '../utils/api';
 import { onJobsChanged } from '../utils/events';
 import { shareLink } from '../utils/share';
-import { invoiceStatusMeta, lineTotals, money, parseAmount, reminderText } from '../utils/invoices';
+import { invoiceStatusMeta, lineTotals, money, parseAmount, reminderText, round2 } from '../utils/invoices';
 import { jobTitle } from '../utils/jobs';
 import { Button, Card, EmptyNote, Field, Grid, Page, Pill, Segmented, Sheet, StatTile } from './ui/kit';
 
@@ -49,6 +49,8 @@ function SettingsSheet({ visible, profile, onClose, onSaved }) {
       vat: String(profile.defaultVatRatePercent ?? 0),
       terms: String(profile.defaultPaymentTermsDays ?? 30),
       prefix: profile.invoicePrefix ?? 'INV',
+      freeWait: String(profile.freeWaitingMinutes ?? 120),
+      waitRate: profile.waitingRatePerHour != null ? String(profile.waitingRatePerHour) : '',
     });
   }, [visible, profile]);
 
@@ -62,6 +64,10 @@ function SettingsSheet({ visible, profile, onClose, onSaved }) {
         bankName: form.bankName || null, email: form.email || null, phone: form.phone || null,
         currency: form.currency.trim().toUpperCase(), defaultVatRatePercent: Number(form.vat.replace(',', '.')) || 0,
         defaultPaymentTermsDays: parseInt(form.terms, 10) || 0, invoicePrefix: form.prefix.trim(),
+        freeWaitingMinutes: parseInt(form.freeWait, 10) || 0,
+        waitingRatePerHour: parseAmount(form.waitRate),
+        // Times on invoices (e.g. when a truck arrived) are written in the company's time zone.
+        timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone ?? null,
       });
       onSaved(saved);
     } catch (e) {
@@ -90,6 +96,16 @@ function SettingsSheet({ visible, profile, onClose, onSaved }) {
         <View style={styles.flex}><Field label="VAT %" value={form.vat} onChangeText={set('vat')} keyboardType="decimal-pad" /></View>
         <View style={styles.flex}><Field label="Pay within (days)" value={form.terms} onChangeText={set('terms')} keyboardType="number-pad" /></View>
         <View style={styles.flex}><Field label="Number prefix" value={form.prefix} onChangeText={set('prefix')} autoCapitalize="characters" /></View>
+      </View>
+      <Text style={[typography.bodyStrong, { color: colors.text }]}>Waiting time</Text>
+      <Text style={[typography.caption, { color: colors.muted }]}>
+        The driver's phone records when the truck arrives at a pickup or delivery and when it is released. Waiting longer than
+        the free time is added to the invoice, per started 15 minutes, with the times as evidence. Leave the rate empty to
+        record waiting without charging for it.
+      </Text>
+      <View style={styles.formRow}>
+        <View style={styles.flex}><Field label="Free waiting (minutes)" value={form.freeWait} onChangeText={set('freeWait')} keyboardType="number-pad" /></View>
+        <View style={styles.flex}><Field label={`Rate per hour (${form.currency || 'EUR'})`} value={form.waitRate} onChangeText={set('waitRate')} placeholder="e.g. 30" keyboardType="decimal-pad" /></View>
       </View>
       {!profile.emailSendingEnabled ? (
         <Text style={[typography.caption, { color: colors.muted }]}>
@@ -125,12 +141,22 @@ function CreateSheet({ item, profile, onClose, onCreated }) {
       vat: String(profile?.defaultVatRatePercent ?? 0),
       terms: String(item.customerPaymentTermsDays ?? profile?.defaultPaymentTermsDays ?? 30),
       notes: '',
+      // Waiting time and other priced extras, on by default; the office can untick any of them.
+      extras: (item.suggestedLines ?? []).map((l) => ({ ...l, include: true })),
     });
   }, [item, profile]);
 
   const price = parseAmount(form?.price);
   const vat = Number(String(form?.vat ?? '0').replace(',', '.'));
-  const totals = useMemo(() => lineTotals([{ quantity: 1, unitPrice: price ?? 0, vatRatePercent: vat || 0 }]), [price, vat]);
+  const extras = (form?.extras ?? []).filter((x) => x.include);
+  const totals = useMemo(
+    () => lineTotals([
+      { quantity: 1, unitPrice: price ?? 0, vatRatePercent: vat || 0 },
+      ...extras.map((x) => ({ quantity: x.quantity, unitPrice: x.unitPrice, vatRatePercent: vat || 0 })),
+    ]),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [price, vat, JSON.stringify(extras)],
+  );
   if (!item || !form) return null;
 
   const currency = profile?.currency ?? 'EUR';
@@ -148,7 +174,10 @@ function CreateSheet({ item, profile, onClose, onCreated }) {
         customerAddress: form.customerAddress.trim() || null,
         customerTaxId: form.customerTaxId.trim() || null,
         paymentTermsDays: parseInt(form.terms, 10) || 0,
-        lines: [{ description: form.description.trim(), quantity: 1, unitPrice: price, vatRatePercent: vat }],
+        lines: [
+          { description: form.description.trim(), quantity: 1, unitPrice: price, vatRatePercent: vat },
+          ...extras.map((x) => ({ description: x.description, quantity: x.quantity, unitPrice: x.unitPrice, vatRatePercent: vat })),
+        ],
         notes: form.notes.trim() || null,
         send,
       });
@@ -183,6 +212,23 @@ function CreateSheet({ item, profile, onClose, onCreated }) {
         <View style={styles.flex}><Field label="Pay within (days)" value={form.terms} onChangeText={set('terms')} keyboardType="number-pad" /></View>
       </View>
       {form.price && price == null ? <Text style={[typography.caption, { color: colors.critical }]}>Enter the price as a number, e.g. 250 or 1.250,50.</Text> : null}
+      {form.extras.map((x, i) => (
+        <Pressable
+          key={x.description}
+          onPress={() => setForm((f) => ({ ...f, extras: f.extras.map((e, j) => (j === i ? { ...e, include: !e.include } : e)) }))}
+          accessibilityRole="checkbox"
+          accessibilityState={{ checked: x.include }}
+          style={[styles.extra, { borderColor: x.include ? colors.accent : colors.border }]}
+        >
+          <Text style={[typography.label, { color: x.include ? colors.accent : colors.muted }]}>{x.include ? '✓' : '○'}</Text>
+          <View style={styles.flex}>
+            <Text style={[typography.label, { color: x.include ? colors.text : colors.muted }]}>{x.description}</Text>
+            <Text style={[typography.caption, { color: colors.muted }]}>
+              {x.quantity} h × {money(x.unitPrice, currency)} = {money(round2(x.quantity * x.unitPrice), currency)} before VAT
+            </Text>
+          </View>
+        </Pressable>
+      ))}
       <View style={[styles.totals, { borderColor: colors.border }]}>
         <Text style={[typography.label, { color: colors.textSecondary }]}>Subtotal {money(totals.subtotal, currency)} · VAT {money(totals.vat, currency)}</Text>
         <Text style={[typography.title, { color: colors.text }]}>Total {money(totals.total, currency)}</Text>
@@ -484,6 +530,7 @@ const styles = StyleSheet.create({
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.lg, paddingVertical: spacing.md },
   right: { alignItems: 'flex-end', gap: 2 },
   formRow: { flexDirection: 'row', gap: spacing.sm, flexWrap: 'wrap' },
+  extra: { flexDirection: 'row', gap: spacing.md, alignItems: 'flex-start', borderWidth: 1, borderRadius: 10, padding: spacing.md },
   gapSm: { gap: spacing.xs },
   totals: { borderTopWidth: StyleSheet.hairlineWidth, paddingTop: spacing.md, gap: 2, alignItems: 'flex-end' },
   detailRow: { flexDirection: 'row', justifyContent: 'space-between', gap: spacing.lg, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm },

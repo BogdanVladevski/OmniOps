@@ -16,14 +16,19 @@ public class AuditService : IAuditService
         _tenant = tenant;
     }
 
-    public async Task LogAsync(
+    public Task LogAsync(
         string action, string entityType, string? entityId, string? userId, string? details,
+        CancellationToken cancellationToken = default) =>
+        LogForAsync(_tenant.OrganizationId, action, entityType, entityId, userId, details, cancellationToken);
+
+    public async Task LogForAsync(
+        Guid organizationId, string action, string entityType, string? entityId, string? userId, string? details,
         CancellationToken cancellationToken = default)
     {
         await _context.AuditLogs.AddAsync(new AuditLog
         {
             Id = Guid.NewGuid(),
-            OrganizationId = _tenant.OrganizationId,
+            OrganizationId = organizationId,
             Action = action,
             EntityType = entityType,
             EntityId = entityId,

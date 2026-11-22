@@ -39,11 +39,13 @@ public class GetJobsQueryHandler : IRequestHandler<GetJobsQuery, IReadOnlyList<J
 public class GetJobQueryHandler : IRequestHandler<GetJobQuery, JobDetailDto>
 {
     private readonly IJobRepository _jobs;
+    private readonly IInvoiceRepository _billing;
     private readonly ITenantContext _tenant;
 
-    public GetJobQueryHandler(IJobRepository jobs, ITenantContext tenant)
+    public GetJobQueryHandler(IJobRepository jobs, IInvoiceRepository billing, ITenantContext tenant)
     {
         _jobs = jobs;
+        _billing = billing;
         _tenant = tenant;
     }
 
@@ -51,9 +53,11 @@ public class GetJobQueryHandler : IRequestHandler<GetJobQuery, JobDetailDto>
     {
         var job = await _jobs.GetAsync(request.JobId, _tenant.OrganizationId, cancellationToken)
             ?? throw new KeyNotFoundException($"Job {request.JobId} not found.");
+        var terms = Services.WaitingTerms.From(await _billing.GetProfileAsync(_tenant.OrganizationId, cancellationToken));
         return new JobDetailDto(
             JobDto.FromEntity(job),
-            job.Documents.OrderBy(d => d.CapturedAtUtc).Select(JobDocumentDto.FromEntity).ToList());
+            job.Documents.OrderBy(d => d.CapturedAtUtc).Select(JobDocumentDto.FromEntity).ToList(),
+            terms.Waits(job, DateTime.UtcNow));
     }
 }
 
@@ -110,11 +114,13 @@ public class GetPublicTrackingQueryHandler : IRequestHandler<GetPublicTrackingQu
 
     private readonly IJobRepository _jobs;
     private readonly ITenantRepository _tenants;
+    private readonly IInvoiceRepository _billing;
 
-    public GetPublicTrackingQueryHandler(IJobRepository jobs, ITenantRepository tenants)
+    public GetPublicTrackingQueryHandler(IJobRepository jobs, ITenantRepository tenants, IInvoiceRepository billing)
     {
         _jobs = jobs;
         _tenants = tenants;
+        _billing = billing;
     }
 
     public async Task<PublicTrackingDto?> Handle(GetPublicTrackingQuery request, CancellationToken cancellationToken)
@@ -136,6 +142,17 @@ public class GetPublicTrackingQueryHandler : IRequestHandler<GetPublicTrackingQu
         }
 
         var organization = await _tenants.GetOrganizationAsync(job.OrganizationId, cancellationToken);
+
+        // The receiver sees when the truck arrived, and — if the carrier charges for waiting — from when it is charged.
+        DateTime? arrivedAt = job.DeliveryArrivedAtUtc;
+        DateTime? chargedFrom = null;
+        if (arrivedAt is not null)
+        {
+            var terms = Services.WaitingTerms.From(await _billing.GetProfileAsync(job.OrganizationId, cancellationToken));
+            var wait = WaitingTimePolicy.Waits(job, terms.FreeMinutes, terms.RatePerHour, DateTime.UtcNow)
+                .FirstOrDefault(w => w.Stop == WaitingTimePolicy.Delivery && w.Verified);
+            chargedFrom = terms.RatePerHour is not null && wait is not null ? wait.ChargedFromUtc : null;
+        }
 
         // Live position only while the truck is on its way to this customer — never before or after.
         var onTheWay = job.Status == TripStatus.InProgress;
@@ -174,6 +191,8 @@ public class GetPublicTrackingQueryHandler : IRequestHandler<GetPublicTrackingQu
             remainingKm,
             eta,
             job.CompletedAtUtc,
-            job.Status == TripStatus.Completed ? job.RecipientName : null);
+            job.Status == TripStatus.Completed ? job.RecipientName : null,
+            arrivedAt,
+            chargedFrom);
     }
 }

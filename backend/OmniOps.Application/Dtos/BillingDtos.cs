@@ -17,7 +17,9 @@ public record BillingProfileDto(
     int DefaultPaymentTermsDays,
     string InvoicePrefix,
     bool IsComplete,
-    bool EmailSendingEnabled)
+    bool EmailSendingEnabled,
+    int FreeWaitingMinutes = 120,
+    decimal? WaitingRatePerHour = null)
 {
     /// <summary>Name, address and a bank account are the minimum for an invoice a customer can pay.</summary>
     public static bool Complete(BillingProfile? p) =>
@@ -27,7 +29,8 @@ public record BillingProfileDto(
     public static BillingProfileDto From(BillingProfile? p, bool emailEnabled) => p is null
         ? new(string.Empty, string.Empty, null, null, null, null, null, "EUR", 0, 30, "INV", false, emailEnabled)
         : new(p.LegalName, p.Address, p.TaxId, p.Iban, p.BankName, p.Email, p.Phone, p.Currency,
-            p.DefaultVatRatePercent, p.DefaultPaymentTermsDays, p.InvoicePrefix, Complete(p), emailEnabled);
+            p.DefaultVatRatePercent, p.DefaultPaymentTermsDays, p.InvoicePrefix, Complete(p), emailEnabled,
+            p.FreeWaitingMinutes, p.WaitingRatePerHour);
 }
 
 public record InvoiceSummaryDto(
@@ -90,7 +93,12 @@ public record UninvoicedJobDto(
     string? CustomerEmail,
     string? CustomerAddress,
     string? CustomerTaxId,
-    int? CustomerPaymentTermsDays);
+    int? CustomerPaymentTermsDays,
+    IReadOnlyList<WaitDto>? Waits = null,
+    IReadOnlyList<SuggestedLineDto>? SuggestedLines = null);
+
+/// <summary>An extra invoice line the office can add with one tap (e.g. waiting time), already priced.</summary>
+public record SuggestedLineDto(string Description, decimal Quantity, decimal UnitPrice);
 
 public record InvoiceOverviewDto(
     string Currency,
@@ -101,7 +109,10 @@ public record InvoiceOverviewDto(
     IReadOnlyList<InvoiceSummaryDto> Invoices,
     IReadOnlyList<UninvoicedJobDto> ToInvoice);
 
-public record PublicInvoiceDocumentDto(Guid Id, string Kind, DateTime CapturedAtUtc, double? TemperatureCelsius);
+/// <summary>When the truck arrived at and was released from a stop, as recorded by the driver's phone.</summary>
+public record PublicStopTimeDto(string Stop, DateTime ArrivedAtUtc, DateTime? ReleasedAtUtc, string Source, bool Verified, int WaitedMinutes);
+
+public record PublicInvoiceDocumentDto(Guid Id, string Kind, DateTime CapturedAtUtc, double? TemperatureCelsius, string? Note = null);
 
 /// <summary>The customer's invoice page: the invoice plus the delivery's proof. Nothing internal.</summary>
 public record PublicInvoiceDto(
@@ -132,7 +143,8 @@ public record PublicInvoiceDto(
     string? ReceivedBy,
     double? MinTempCelsius,
     double? MaxTempCelsius,
-    IReadOnlyList<PublicInvoiceDocumentDto> Documents)
+    IReadOnlyList<PublicInvoiceDocumentDto> Documents,
+    IReadOnlyList<PublicStopTimeDto>? StopTimes = null)
 {
     public static PublicInvoiceDto From(Invoice i, DateTime nowUtc)
     {
@@ -147,7 +159,10 @@ public record PublicInvoiceDto(
             job?.Reference, job?.Origin, job?.Destination, job?.CompletedAtUtc, job?.RecipientName,
             job?.MinTempCelsius, job?.MaxTempCelsius,
             (job?.Documents ?? []).OrderBy(d => d.CapturedAtUtc)
-                .Select(d => new PublicInvoiceDocumentDto(d.Id, d.Kind.ToString(), d.CapturedAtUtc, d.TemperatureCelsius)).ToList());
+                .Select(d => new PublicInvoiceDocumentDto(d.Id, d.Kind.ToString(), d.CapturedAtUtc, d.TemperatureCelsius, d.Note)).ToList(),
+            job is null ? [] : WaitingTimePolicy.Waits(job, 0, null, nowUtc)
+                .Select(w => new PublicStopTimeDto(w.Stop, w.ArrivedAtUtc, w.ReleasedAtUtc, w.Source.ToString(), w.Verified, w.WaitedMinutes))
+                .ToList());
     }
 }
 

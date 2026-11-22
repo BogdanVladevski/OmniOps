@@ -20,7 +20,8 @@ RUN dotnet publish backend/OmniOps.Api/OmniOps.Api.csproj \
 FROM mcr.microsoft.com/dotnet/aspnet:9.0-alpine AS final
 WORKDIR /app
 
-RUN apk add --no-cache curl
+# tzdata: invoices write times (e.g. a truck's arrival) in the company's time zone.
+RUN apk add --no-cache curl tzdata
 
 RUN addgroup -S omniops && adduser -S omniops -G omniops
 # Uploaded files (delivery photos); mount a volume here so they survive container rebuilds.

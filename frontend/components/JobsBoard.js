@@ -1,15 +1,18 @@
 // The office's job board: create delivery jobs, see where each one is, read the proof, send the customer a link.
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { Image, Linking, Platform, Pressable, StyleSheet, Text, View } from 'react-native';
+import { Linking, Pressable, StyleSheet, Text, View } from 'react-native';
 import { useTheme } from '../contexts/ThemeContext';
 import { radius, spacing, toneColors, typography } from '../theme/tokens';
-import { apiUrl, authHeaders, geocode, jobsApi } from '../utils/api';
+import { apiUrl, geocode, jobsApi } from '../utils/api';
+import { evidence, formatDuration, stopName } from '../utils/waiting';
+import { money } from '../utils/invoices';
 import { notifyJobsChanged } from '../utils/events';
 import { shareLink } from '../utils/share';
 import {
   TEMPERATURE_PRESETS, formatCelsius, formatRange, isOutOfRange, isPositionStale, isRefrigerated, jobStatusMeta, jobTitle,
   parseTemperatureInput, temperatureStatus,
 } from '../utils/jobs';
+import AuthImage from './ui/AuthImage';
 import { Button, Card, EmptyNote, Field, Page, Pill, Segmented, Sheet, timeAgo } from './ui/kit';
 
 const SCOPES = [
@@ -95,6 +98,8 @@ function NewJobSheet({ visible, onClose, onCreated }) {
     try {
       // Coordinates let the customer page show a map pin and an arrival estimate; the job works without them.
       const place = await geocode(form.destination).catch(() => null);
+      // The pickup's location lets a driver's "I've arrived" there count as evidence for waiting time.
+      const pickup = form.origin.trim() ? await geocode(form.origin).catch(() => null) : null;
       const job = await jobsApi.create({
         vehicleId: form.vehicleId,
         driverId: form.driverId,
@@ -104,6 +109,8 @@ function NewJobSheet({ visible, onClose, onCreated }) {
         destination: form.destination.trim(),
         destinationLatitude: place?.latitude ?? null,
         destinationLongitude: place?.longitude ?? null,
+        originLatitude: pickup?.latitude ?? null,
+        originLongitude: pickup?.longitude ?? null,
         minTempCelsius: range?.[0] ?? null,
         maxTempCelsius: range?.[1] ?? null,
       });
@@ -165,16 +172,17 @@ function NewJobSheet({ visible, onClose, onCreated }) {
   );
 }
 
-function DocumentThumb({ job, document, size = 120 }) {
+function DocumentThumb({ job, document, size = 120, wide = false }) {
   const { colors } = useTheme();
   return (
-    <Pressable onPress={() => Platform.OS === 'web' && Linking.openURL(jobsApi.documentUrl(job.id, document.id))}>
-      <Image
-        source={{ uri: jobsApi.documentUrl(job.id, document.id), headers: authHeaders() }}
-        style={[styles.photo, { width: size, height: size, borderColor: colors.border, backgroundColor: colors.sunken }]}
-        accessibilityLabel={`Photo taken ${new Date(document.capturedAtUtc).toLocaleString()}`}
-      />
-    </Pressable>
+    <AuthImage
+      url={jobsApi.documentUrl(job.id, document.id)}
+      resizeMode={wide ? 'contain' : 'cover'}
+      style={[styles.photo, wide
+        ? { width: size, height: size * 0.4, borderColor: colors.border, backgroundColor: '#FFFFFF' }
+        : { width: size, height: size, borderColor: colors.border, backgroundColor: colors.sunken }]}
+      accessibilityLabel={`Photo taken ${new Date(document.capturedAtUtc).toLocaleString()}`}
+    />
   );
 }
 
@@ -190,6 +198,41 @@ function DocumentGroup({ title, empty, job, documents }) {
           {documents.map((d) => <DocumentThumb key={d.id} job={job} document={d} />)}
         </View>
       )}
+    </View>
+  );
+}
+
+function WaitingSection({ waits }) {
+  const { colors } = useTheme();
+  if (!waits.length) return null;
+  const clock = (iso) => new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+  return (
+    <View style={styles.gapSm}>
+      <Text style={[typography.title, { color: colors.text }]}>Waiting time</Text>
+      <Card padded={false}>
+        {waits.map((w, i) => {
+          const over = w.chargedMinutes > 0;
+          return (
+            <View key={w.stop} style={[styles.waitRow, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border }]}>
+              <View style={styles.row}>
+                <Text style={[typography.bodyStrong, styles.flex, { color: colors.text }]}>{stopName(w.stop)}</Text>
+                <Text style={[typography.number, { color: over ? colors.warning : colors.text }]}>{formatDuration(w.waitedMinutes)}</Text>
+              </View>
+              <Text style={[typography.caption, { color: colors.textSecondary }]}>
+                Arrived {clock(w.arrivedAtUtc)}
+                {w.releasedAtUtc ? ` · released ${clock(w.releasedAtUtc)}` : ' · still waiting'}
+                {` · ${formatDuration(w.freeMinutes)} free`}
+                {over ? ` · ${formatDuration(w.chargedMinutes)} chargeable` : ''}
+                {w.amount != null ? ` · ${money(w.amount, w.currency)}` : ''}
+              </Text>
+              <Text style={[typography.caption, { color: w.verified ? colors.muted : colors.warning }]}>{evidence(w)}</Text>
+              {over && w.ratePerHour == null ? (
+                <Text style={[typography.caption, { color: colors.muted }]}>Set a waiting rate in Invoices → Invoice settings to charge for it.</Text>
+              ) : null}
+            </View>
+          );
+        })}
+      </Card>
     </View>
   );
 }
@@ -244,6 +287,7 @@ function JobSheet({ jobId, onClose, onNotice, onInvoice }) {
           {temp ? (
             <Text style={[typography.label, { color: toneColors(colors, temp.tone).fg }]}>{temp.label}</Text>
           ) : null}
+          <WaitingSection waits={detail?.waits ?? []} />
           <DocumentGroup title="Loading note" empty="No loading note photographed." job={job} documents={docs('PickupDocument')} />
           {isRefrigerated(job) ? (
             <View style={styles.gapSm}>
@@ -267,6 +311,35 @@ function JobSheet({ jobId, onClose, onNotice, onInvoice }) {
             </View>
           ) : null}
           <DocumentGroup title="Proof of delivery" empty="No photos yet." job={job} documents={docs('DeliveryPhoto')} />
+          {docs('Signature').length ? (
+            <View style={styles.gapSm}>
+              <Text style={[typography.title, { color: colors.text }]}>Receiver's signature</Text>
+              {docs('Signature').map((d) => (
+                <View key={d.id} style={styles.gapSm}>
+                  <DocumentThumb job={job} document={d} size={260} wide />
+                  <Text style={[typography.caption, { color: colors.muted }]}>
+                    {[d.note, new Date(d.capturedAtUtc).toLocaleString()].filter(Boolean).join(' · ')}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          ) : null}
+          {docs('Exception').length ? (
+            <View style={styles.gapSm}>
+              <Text style={[typography.title, { color: colors.warning }]}>Problems reported by the driver</Text>
+              <Card padded={false}>
+                {docs('Exception').map((d, i) => (
+                  <View key={d.id} style={[styles.readingRow, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border }]}>
+                    <DocumentThumb job={job} document={d} size={44} />
+                    <View style={styles.flex}>
+                      <Text style={[typography.label, { color: colors.text }]}>{d.note}</Text>
+                      <Text style={[typography.caption, { color: colors.muted }]}>{new Date(d.capturedAtUtc).toLocaleString()}</Text>
+                    </View>
+                  </View>
+                ))}
+              </Card>
+            </View>
+          ) : null}
           <View style={styles.formRow}>
             <Button label="Close" variant="secondary" onPress={onClose} style={styles.flex} />
             {job.trackingPath ? (
@@ -425,11 +498,13 @@ const styles = StyleSheet.create({
   jobRight: { alignItems: 'flex-end', gap: 2, maxWidth: '45%' },
   formRow: { flexDirection: 'row', gap: spacing.sm, flexWrap: 'wrap' },
   gapSm: { gap: spacing.xs },
+  row: { flexDirection: 'row', alignItems: 'center', gap: spacing.sm },
   choices: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   choice: { borderWidth: 1, borderRadius: radius.md, paddingHorizontal: spacing.md, paddingVertical: spacing.sm, minWidth: 110 },
   detailRow: { flexDirection: 'row', justifyContent: 'space-between', gap: spacing.lg, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm },
   detailValue: { flex: 1, textAlign: 'right' },
   photos: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  waitRow: { paddingHorizontal: spacing.lg, paddingVertical: spacing.md, gap: 2 },
   photo: { width: 120, height: 120, borderRadius: radius.md, borderWidth: StyleSheet.hairlineWidth },
   readingRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
 });

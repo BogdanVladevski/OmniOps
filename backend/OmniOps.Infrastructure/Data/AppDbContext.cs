@@ -22,6 +22,7 @@ public class AppDbContext : DbContext
     public DbSet<BillingProfile> BillingProfiles => Set<BillingProfile>();
     public DbSet<UserAccount> UserAccounts => Set<UserAccount>();
     public DbSet<DriverPairingCode> DriverPairingCodes => Set<DriverPairingCode>();
+    public DbSet<AccountLink> AccountLinks => Set<AccountLink>();
     public DbSet<Customer> Customers => Set<Customer>();
     public DbSet<Invoice> Invoices => Set<Invoice>();
     public DbSet<InvoiceLine> InvoiceLines => Set<InvoiceLine>();
@@ -220,6 +221,15 @@ public class AppDbContext : DbContext
             entity.Property(e => e.CodeHash).HasMaxLength(64);
         });
 
+        modelBuilder.Entity<AccountLink>(entity =>
+        {
+            entity.HasKey(e => e.Id);
+            entity.HasIndex(e => e.TokenHash).IsUnique();
+            entity.HasIndex(e => new { e.OrganizationId, e.Purpose });
+            entity.Property(e => e.TokenHash).HasMaxLength(64);
+            entity.Property(e => e.Email).HasMaxLength(200);
+        });
+
         modelBuilder.Entity<BillingProfile>(entity =>
         {
             entity.HasKey(e => e.OrganizationId);
@@ -297,6 +307,9 @@ public class AppDbContext : DbContext
         {
             entity.HasKey(e => e.Id);
             entity.HasIndex(e => new { e.OrganizationId, e.TripId });
+            // A phone resending the same upload must not create a second record.
+            entity.HasIndex(e => new { e.TripId, e.ClientId }).IsUnique();
+            entity.Property(e => e.Note).HasMaxLength(500);
             entity.Property(e => e.StorageKey).HasMaxLength(300);
             entity.Property(e => e.ContentType).HasMaxLength(100);
             entity.HasOne(e => e.Trip).WithMany(t => t.Documents).HasForeignKey(e => e.TripId)

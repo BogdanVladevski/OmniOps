@@ -23,6 +23,9 @@ public class PublicUrlOptions
 
     /// <summary>Base URL customers use to reach this API's public pages (tracking, invoices).</summary>
     public string BaseUrl { get; set; } = "http://localhost:5031";
+
+    /// <summary>Where the app runs, for links that open it (invitations, password resets).</summary>
+    public string AppUrl { get; set; } = "http://localhost:19006";
 }
 
 public class InvoiceReminderOptions

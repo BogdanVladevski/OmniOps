@@ -40,6 +40,10 @@ public static class JobTemperaturePolicy
         return last is { } at ? at + CheckInterval : job.StartedAtUtc ?? job.CreatedAtUtc;
     }
 
-    public static bool HasRecentReading(Trip job, DateTime nowUtc) =>
-        Readings(job).Any(d => nowUtc - d.CapturedAtUtc <= DeliveryReadingMaxAge);
+    /// <summary>
+    /// A reading taken within <see cref="DeliveryReadingMaxAge"/> before <paramref name="atUtc"/> (the hand-over).
+    /// Readings taken after it don't count — except a few minutes for the driver confirming just before photographing.
+    /// </summary>
+    public static bool HasRecentReading(Trip job, DateTime atUtc) =>
+        Readings(job).Any(d => atUtc - d.CapturedAtUtc <= DeliveryReadingMaxAge && d.CapturedAtUtc - atUtc <= PhoneClock.AllowedAhead);
 }

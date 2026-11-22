@@ -6,7 +6,9 @@ import { radius, spacing, typography } from '../theme/tokens';
 import { adminApi, demoApi } from '../utils/api';
 import { notifyJobsChanged } from '../utils/events';
 import { useLayout } from '../utils/layout';
-import { AccountCard, DriverCodeCard } from './AccountCards';
+import { AccountCard, CompanyCard, DriverCodeCard, TeamCard } from './AccountCards';
+import { useSession } from '../contexts/SessionContext';
+import { isOwner } from '../utils/session';
 import RetryPanel from './ui/RetryPanel';
 import { SkeletonCard } from './ui/SkeletonLoader';
 import { Button, Card, EmptyNote, Field, Page, Pill, SectionTitle, Segmented, timeAgo } from './ui/kit';
@@ -54,6 +56,9 @@ function DemoDayCard() {
 export default function AdminPanel() {
   const { colors, themeMode, setThemeMode } = useTheme();
   const { isWide } = useLayout();
+  const { session } = useSession();
+  // API keys and the audit trail are owner-only on the server; dispatchers see their own settings.
+  const owner = isOwner(session);
   const [auditLogs, setAuditLogs] = useState([]);
   const [apiKeys, setApiKeys] = useState([]);
   const [error, setError] = useState(null);
@@ -63,6 +68,10 @@ export default function AdminPanel() {
   const [createdKey, setCreatedKey] = useState(null);
 
   const load = useCallback(async () => {
+    if (!owner) {
+      setLoading(false);
+      return;
+    }
     try {
       setLoading(true);
       setError(null);
@@ -74,7 +83,7 @@ export default function AdminPanel() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [owner]);
 
   useEffect(() => {
     load();
@@ -98,8 +107,55 @@ export default function AdminPanel() {
     }
   };
 
-  const access = (
+  const people = (
     <View>
+      <SectionTitle title="Your account" />
+      <AccountCard />
+
+      {owner ? (
+        <>
+          <SectionTitle title="Company" />
+          <CompanyCard />
+
+          <SectionTitle title="Team" />
+          <TeamCard />
+        </>
+      ) : null}
+
+      <SectionTitle title="Connect a driver's phone" />
+      <DriverCodeCard />
+
+      <DemoDayCard />
+
+      <SectionTitle title="Appearance" />
+      <Card>
+        <Segmented options={THEME_OPTIONS} value={themeMode} onChange={setThemeMode} />
+      </Card>
+    </View>
+  );
+
+  const audit = !owner ? null : (
+    <View>
+      <SectionTitle title="Audit trail" subtitle="Who changed what, and when" />
+      {loading ? (
+        <SkeletonCard lines={3} />
+      ) : auditLogs.length === 0 ? (
+        <EmptyNote icon="document-text-outline" title="No audit entries yet" body="Actions such as resolving incidents or assigning drivers are recorded here." />
+      ) : (
+        <Card padded={false}>
+          {auditLogs.map((log, i) => (
+            <View key={log.id} style={[styles.row, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border }]}>
+              <View style={[styles.dot, { backgroundColor: colors.accent }]} />
+              <View style={styles.flex}>
+                <Text style={[typography.bodyStrong, { color: colors.text }]}>{log.action} · {log.entityType}</Text>
+                <Text style={[typography.caption, { color: colors.textSecondary }]} numberOfLines={2}>{log.details ?? log.entityId}</Text>
+              </View>
+              <Text style={[typography.caption, { color: colors.muted }]}>{timeAgo(log.occurredAtUtc)}</Text>
+            </View>
+          ))}
+        </Card>
+      )}
+
       <SectionTitle title="API keys" subtitle="Let other systems and devices connect to OmniOps" />
       <Card style={styles.gap}>
         <Field label="New key name" value={newKeyName} onChangeText={setNewKeyName} placeholder="e.g. Warehouse integration" />
@@ -130,43 +186,6 @@ export default function AdminPanel() {
           ))}
         </Card>
       )}
-
-      <DemoDayCard />
-
-      <SectionTitle title="Your account" />
-      <AccountCard />
-
-      <SectionTitle title="Connect a driver's phone" />
-      <DriverCodeCard />
-
-      <SectionTitle title="Appearance" />
-      <Card>
-        <Segmented options={THEME_OPTIONS} value={themeMode} onChange={setThemeMode} />
-      </Card>
-    </View>
-  );
-
-  const audit = (
-    <View>
-      <SectionTitle title="Audit trail" subtitle="Who changed what, and when" />
-      {loading ? (
-        <SkeletonCard lines={3} />
-      ) : auditLogs.length === 0 ? (
-        <EmptyNote icon="document-text-outline" title="No audit entries yet" body="Actions such as resolving incidents or assigning drivers are recorded here." />
-      ) : (
-        <Card padded={false}>
-          {auditLogs.map((log, i) => (
-            <View key={log.id} style={[styles.row, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border }]}>
-              <View style={[styles.dot, { backgroundColor: colors.accent }]} />
-              <View style={styles.flex}>
-                <Text style={[typography.bodyStrong, { color: colors.text }]}>{log.action} · {log.entityType}</Text>
-                <Text style={[typography.caption, { color: colors.textSecondary }]} numberOfLines={2}>{log.details ?? log.entityId}</Text>
-              </View>
-              <Text style={[typography.caption, { color: colors.muted }]}>{timeAgo(log.occurredAtUtc)}</Text>
-            </View>
-          ))}
-        </Card>
-      )}
     </View>
   );
 
@@ -174,17 +193,17 @@ export default function AdminPanel() {
     <Page
       title="Admin"
 
-      actions={<Button label="Refresh" icon="refresh" variant="secondary" onPress={load} />}
+      actions={owner ? <Button label="Refresh" icon="refresh" variant="secondary" onPress={load} /> : null}
     >
       {error ? <RetryPanel message={error} onRetry={load} /> : null}
       {isWide ? (
         <View style={styles.columns}>
-          <View style={styles.flex}>{access}</View>
+          <View style={styles.flex}>{people}</View>
           <View style={styles.flex}>{audit}</View>
         </View>
       ) : (
         <>
-          {access}
+          {people}
           {audit}
         </>
       )}

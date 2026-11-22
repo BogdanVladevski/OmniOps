@@ -72,8 +72,12 @@ public static class AccountEndpoints
             pairing.RequireAuthorization(AuthorizationPolicies.VehicleRead);
         }
 
+        MapTeam(account, requireAuth);
+        MapPasswords(account, requireAuth);
+
         // What the sign-in screen may offer. The demo is for local development only.
-        account.MapGet("/options", (IWebHostEnvironment env) => Results.Ok(new { demo = env.IsDevelopment() })).AllowAnonymous();
+        account.MapGet("/options", (IWebHostEnvironment env, IEmailSender email) =>
+            Results.Ok(new { demo = env.IsDevelopment(), passwordResetByEmail = email.IsConfigured })).AllowAnonymous();
 
         account.MapPost("/demo", async (IWebHostEnvironment env, IAccountRepository accounts, IMediator m, AccountTokenIssuer issuer) =>
             {
@@ -90,6 +94,92 @@ public static class AccountEndpoints
                     [AuthorizationPolicies.VehicleSimulateScope, AuthorizationPolicies.PlatformAdminScope]));
             })
             .AllowAnonymous();
+    }
+
+    private static RouteHandlerBuilder Secure(this RouteHandlerBuilder route, bool requireAuth, string policy) =>
+        requireAuth ? route.RequireAuthorization(policy) : route;
+
+    private static RouteHandlerBuilder Anonymous(this RouteHandlerBuilder route) =>
+        route.RequireRateLimiting(ServiceRegistration.AccountPolicy).AllowAnonymous();
+
+    /// <summary>Owners manage who in the office can sign in; invited people accept from a link.</summary>
+    private static void MapTeam(RouteGroupBuilder account, bool requireAuth)
+    {
+        const string admin = AuthorizationPolicies.FleetAdmin;
+
+        account.MapGet("/team", async (IMediator m) => Results.Ok(await m.Send(new GetTeamQuery()))).Secure(requireAuth, admin);
+
+        account.MapPost("/team/invitations", async (InviteBody body, IMediator m) =>
+                Results.Ok(await m.Send(new InviteTeammateCommand(body.Email ?? string.Empty, body.Role ?? string.Empty))))
+            .Secure(requireAuth, admin);
+
+        account.MapDelete("/team/invitations/{id:guid}", async (Guid id, IMediator m) =>
+            {
+                await m.Send(new RevokeInvitationCommand(id));
+                return Results.NoContent();
+            })
+            .Secure(requireAuth, admin);
+
+        account.MapPut("/team/{userId:guid}/role", async (Guid userId, RoleBody body, IMediator m) =>
+                Results.Ok(await m.Send(new ChangeTeammateRoleCommand(userId, body.Role ?? string.Empty))))
+            .Secure(requireAuth, admin);
+
+        account.MapDelete("/team/{userId:guid}", async (Guid userId, IMediator m) =>
+            {
+                await m.Send(new RemoveTeammateCommand(userId));
+                return Results.NoContent();
+            })
+            .Secure(requireAuth, admin);
+
+        account.MapPost("/team/{userId:guid}/reset-link", async (Guid userId, IMediator m) =>
+                Results.Ok(await m.Send(new CreatePasswordResetLinkCommand(userId))))
+            .Secure(requireAuth, admin);
+
+        account.MapPut("/company", async (CompanyBody body, IMediator m) =>
+                Results.Ok(await m.Send(new UpdateCompanyCommand(body.Name ?? string.Empty))))
+            .Secure(requireAuth, admin);
+
+        account.MapGet("/invitations/{token}", async (string token, IMediator m) =>
+                Results.Ok(await m.Send(new GetInvitationQuery(token))))
+            .Anonymous();
+
+        account.MapPost("/invitations/{token}/accept", async (string token, AcceptBody body, IMediator m, AccountTokenIssuer issuer) =>
+                Results.Ok(await issuer.IssueAsync(await m.Send(new AcceptInvitationCommand(
+                    token, body.Name ?? string.Empty, body.Password ?? string.Empty)))))
+            .Anonymous();
+    }
+
+    private static void MapPasswords(RouteGroupBuilder account, bool requireAuth)
+    {
+        // Same answer whether or not the email has an account.
+        account.MapPost("/forgot-password", async (ForgotBody body, IMediator m) =>
+            {
+                await m.Send(new RequestPasswordResetCommand(body.Email ?? string.Empty));
+                return Results.Accepted();
+            })
+            .Anonymous();
+
+        account.MapPost("/reset-password", async (ResetBody body, IMediator m, AccountTokenIssuer issuer) =>
+                Results.Ok(await issuer.IssueAsync(await m.Send(new ResetPasswordCommand(
+                    body.Token ?? string.Empty, body.Password ?? string.Empty)))))
+            .Anonymous();
+
+        // Other devices are signed out; this one gets a fresh session.
+        account.MapPost("/password", async (ChangePasswordBody body, IMediator m, AccountTokenIssuer issuer) =>
+                Results.Ok(await issuer.IssueAsync(await m.Send(new ChangePasswordCommand(
+                    body.CurrentPassword ?? string.Empty, body.NewPassword ?? string.Empty)))))
+            .Secure(requireAuth, AuthorizationPolicies.VehicleRead);
+
+        account.MapPut("/me", async (ProfileBody body, IMediator m) =>
+                Results.Ok(await m.Send(new UpdateProfileCommand(body.DisplayName ?? string.Empty))))
+            .Secure(requireAuth, AuthorizationPolicies.VehicleRead);
+
+        account.MapPost("/sign-out-everywhere", async (IMediator m) =>
+            {
+                await m.Send(new SignOutEverywhereCommand());
+                return Results.NoContent();
+            })
+            .Secure(requireAuth, AuthorizationPolicies.JobWork);
     }
 
     /// <summary>Owner of the seeded demo organization (development only). Has no password: it cannot be signed into otherwise.</summary>
@@ -125,4 +215,20 @@ public static class AccountEndpoints
     private record RefreshBody(string? RefreshToken);
 
     private record PairingBody(Guid DriverId);
+
+    private record InviteBody(string? Email, string? Role);
+
+    private record RoleBody(string? Role);
+
+    private record CompanyBody(string? Name);
+
+    private record AcceptBody(string? Name, string? Password);
+
+    private record ForgotBody(string? Email);
+
+    private record ResetBody(string? Token, string? Password);
+
+    private record ChangePasswordBody(string? CurrentPassword, string? NewPassword);
+
+    private record ProfileBody(string? DisplayName);
 }

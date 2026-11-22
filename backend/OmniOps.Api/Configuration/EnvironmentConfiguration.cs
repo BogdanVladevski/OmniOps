@@ -52,6 +52,7 @@ public static class EnvironmentConfiguration
         MapEnv(envVars, "Database:Password", "POSTGRES_PASSWORD");
         MapEnv(envVars, "Storage:RootPath", "STORAGE_ROOT_PATH");
         MapEnv(envVars, "PublicUrls:BaseUrl", "PUBLIC_BASE_URL");
+        MapEnv(envVars, "PublicUrls:AppUrl", "APP_BASE_URL");
         MapEnv(envVars, "Email:SmtpHost", "SMTP_HOST");
         MapEnv(envVars, "Email:SmtpPort", "SMTP_PORT");
         MapEnv(envVars, "Email:Username", "SMTP_USERNAME");

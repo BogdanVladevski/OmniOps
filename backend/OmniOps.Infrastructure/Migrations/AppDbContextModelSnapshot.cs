@@ -22,6 +22,59 @@ namespace OmniOps.Infrastructure.Migrations
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("OmniOps.Core.Entities.AccountLink", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("CreatedByUserId")
+                        .HasColumnType("text");
+
+                    b.Property<string>("Email")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("character varying(200)");
+
+                    b.Property<DateTime>("ExpiresAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid>("OrganizationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("Purpose")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("RevokedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("Role")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("TokenHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
+                    b.Property<DateTime?>("UsedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("UserId")
+                        .HasColumnType("uuid");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("TokenHash")
+                        .IsUnique();
+
+                    b.HasIndex("OrganizationId", "Purpose");
+
+                    b.ToTable("AccountLinks");
+                });
+
             modelBuilder.Entity("OmniOps.Core.Entities.AlertRule", b =>
                 {
                     b.Property<Guid>("Id")
@@ -174,6 +227,9 @@ namespace OmniOps.Infrastructure.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
+                    b.Property<int>("FreeWaitingMinutes")
+                        .HasColumnType("integer");
+
                     b.Property<string>("Iban")
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
@@ -199,8 +255,14 @@ namespace OmniOps.Infrastructure.Migrations
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
 
+                    b.Property<string>("TimeZone")
+                        .HasColumnType("text");
+
                     b.Property<DateTime>("UpdatedAtUtc")
                         .HasColumnType("timestamp with time zone");
+
+                    b.Property<decimal?>("WaitingRatePerHour")
+                        .HasColumnType("numeric");
 
                     b.HasKey("OrganizationId");
 
@@ -1237,9 +1299,24 @@ namespace OmniOps.Infrastructure.Migrations
                     b.Property<double?>("DeliveredLongitude")
                         .HasColumnType("double precision");
 
+                    b.Property<double?>("DeliveryArrivalLatitude")
+                        .HasColumnType("double precision");
+
+                    b.Property<double?>("DeliveryArrivalLongitude")
+                        .HasColumnType("double precision");
+
+                    b.Property<int?>("DeliveryArrivalSource")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("DeliveryArrivedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
                     b.Property<string>("DeliveryNote")
                         .HasMaxLength(1000)
                         .HasColumnType("character varying(1000)");
+
+                    b.Property<DateTime?>("DeliveryWaitAlertedAtUtc")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<string>("Destination")
                         .HasColumnType("text");
@@ -1282,6 +1359,27 @@ namespace OmniOps.Infrastructure.Migrations
 
                     b.Property<string>("Origin")
                         .HasColumnType("text");
+
+                    b.Property<double?>("OriginLatitude")
+                        .HasColumnType("double precision");
+
+                    b.Property<double?>("OriginLongitude")
+                        .HasColumnType("double precision");
+
+                    b.Property<double?>("PickupArrivalLatitude")
+                        .HasColumnType("double precision");
+
+                    b.Property<double?>("PickupArrivalLongitude")
+                        .HasColumnType("double precision");
+
+                    b.Property<int?>("PickupArrivalSource")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTime?>("PickupArrivedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("PickupWaitAlertedAtUtc")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<DateTime?>("PlannedDeliveryUtc")
                         .HasColumnType("timestamp with time zone");
@@ -1332,6 +1430,9 @@ namespace OmniOps.Infrastructure.Migrations
                     b.Property<DateTime>("CapturedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<Guid?>("ClientId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("ContentType")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -1346,8 +1447,15 @@ namespace OmniOps.Infrastructure.Migrations
                     b.Property<double?>("Longitude")
                         .HasColumnType("double precision");
 
+                    b.Property<string>("Note")
+                        .HasMaxLength(500)
+                        .HasColumnType("character varying(500)");
+
                     b.Property<Guid>("OrganizationId")
                         .HasColumnType("uuid");
+
+                    b.Property<DateTime?>("ReceivedAtUtc")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<long>("SizeBytes")
                         .HasColumnType("bigint");
@@ -1365,9 +1473,10 @@ namespace OmniOps.Infrastructure.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("TripId");
-
                     b.HasIndex("OrganizationId", "TripId");
+
+                    b.HasIndex("TripId", "ClientId")
+                        .IsUnique();
 
                     b.ToTable("TripDocuments");
                 });
@@ -1414,6 +1523,9 @@ namespace OmniOps.Infrastructure.Migrations
 
                     b.Property<int>("Role")
                         .HasColumnType("integer");
+
+                    b.Property<DateTime?>("SessionsValidFromUtc")
+                        .HasColumnType("timestamp with time zone");
 
                     b.HasKey("Id");
 

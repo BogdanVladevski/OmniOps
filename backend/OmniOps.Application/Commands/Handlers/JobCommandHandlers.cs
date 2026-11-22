@@ -23,6 +23,8 @@ internal static class JobAccess
 public static class JobAlerts
 {
     public const string Delivered = "JobDelivered";
+    public const string ProblemReported = "JobProblemReported";
+    public const string WaitingCharged = "JobWaitingCharged";
 }
 
 public class CreateJobCommandHandler : IRequestHandler<CreateJobCommand, JobDto>
@@ -64,6 +66,8 @@ public class CreateJobCommandHandler : IRequestHandler<CreateJobCommand, JobDto>
             Reference = request.Reference?.Trim(),
             Origin = request.Origin?.Trim(),
             Destination = request.Destination.Trim(),
+            OriginLatitude = request.OriginLatitude,
+            OriginLongitude = request.OriginLongitude,
             DestinationLatitude = request.DestinationLatitude,
             DestinationLongitude = request.DestinationLongitude,
             PlannedDeliveryUtc = request.PlannedDeliveryUtc?.UtcDateTime,
@@ -111,7 +115,7 @@ public class StartJobCommandHandler : IRequestHandler<StartJobCommand, JobDto>
         }
 
         job.Status = TripStatus.InProgress;
-        job.StartedAtUtc = DateTime.UtcNow;
+        job.StartedAtUtc = PhoneClock.Resolve(request.StartedAt, job.CreatedAtUtc, DateTime.UtcNow);
         await _audit.LogAsync("Start", "Job", job.Id.ToString(), _tenant.UserId, null, cancellationToken);
         return JobDto.FromEntity(job);
     }
@@ -175,6 +179,7 @@ public class RecordJobLocationsCommandHandler : IRequestHandler<RecordJobLocatio
             await _mediator.Send(new ProcessTelemetryCommand(ToTelemetry(point, job.Vehicle.ExternalId), tenant), cancellationToken);
         }
 
+        var changed = TrackDeliveryArrival(job, fresh);
         var latest = fresh.LastOrDefault();
         if (latest is not null && (job.LastPositionAtUtc is null || latest.RecordedAtUtc.UtcDateTime > job.LastPositionAtUtc))
         {
@@ -182,6 +187,11 @@ public class RecordJobLocationsCommandHandler : IRequestHandler<RecordJobLocatio
             job.LastLongitude = latest.Longitude;
             job.LastSpeedKmh = latest.SpeedKmh;
             job.LastPositionAtUtc = latest.RecordedAtUtc.UtcDateTime;
+            changed = true;
+        }
+
+        if (changed)
+        {
             await _jobs.SaveChangesAsync(cancellationToken);
         }
 
@@ -190,6 +200,45 @@ public class RecordJobLocationsCommandHandler : IRequestHandler<RecordJobLocatio
             job.Id, fresh.Count, request.Points.Count - fresh.Count);
 
         return new JobLocationsResultDto(fresh.Count, request.Points.Count - fresh.Count);
+    }
+
+    /// <summary>
+    /// The waiting clock at the delivery starts when GPS shows the truck at the address. A driver's tap near the
+    /// address stands; GPS replaces a tap that was far away, and clears its own arrival if the truck drives off.
+    /// </summary>
+    private static bool TrackDeliveryArrival(Trip job, IReadOnlyList<JobLocationPoint> points)
+    {
+        if (points.Count == 0 || job.DestinationLatitude is not { } lat || job.DestinationLongitude is not { } lon)
+        {
+            return false;
+        }
+
+        var trustedTap = job.DeliveryArrivalSource == ArrivalSource.Driver
+            && WaitingTimePolicy.Waits(job, 0, null, DateTime.UtcNow).Any(w => w.Stop == WaitingTimePolicy.Delivery && w.Verified);
+        if (trustedTap)
+        {
+            return false;
+        }
+
+        var current = job.DeliveryArrivalSource == ArrivalSource.Gps ? job.DeliveryArrivedAtUtc : null;
+        var arrival = WaitingTimePolicy.TrackArrival(
+            current, points.Select(p => (p.RecordedAtUtc.UtcDateTime, p.Latitude, p.Longitude)), lat, lon);
+        if (arrival == current || (arrival is null && job.DeliveryArrivalSource == ArrivalSource.Driver))
+        {
+            return false;
+        }
+
+        var at = arrival is { } t ? points.FirstOrDefault(p => p.RecordedAtUtc.UtcDateTime == t) : null;
+        job.DeliveryArrivedAtUtc = arrival;
+        job.DeliveryArrivalSource = arrival is null ? null : ArrivalSource.Gps;
+        job.DeliveryArrivalLatitude = at?.Latitude ?? (arrival is null ? null : job.DeliveryArrivalLatitude);
+        job.DeliveryArrivalLongitude = at?.Longitude ?? (arrival is null ? null : job.DeliveryArrivalLongitude);
+        if (arrival is null)
+        {
+            job.DeliveryWaitAlertedAtUtc = null;
+        }
+
+        return true;
     }
 
     private static VehicleTelemetry ToTelemetry(JobLocationPoint point, string vehicleExternalId) => new()
@@ -235,8 +284,15 @@ public class AddJobDocumentCommandHandler : IRequestHandler<AddJobDocumentComman
         var job = JobAccess.Visible(
             await _jobs.GetAsync(request.JobId, _tenant.OrganizationId, cancellationToken), request.JobId, _tenant);
 
+        // A resend of an upload the server already has: same answer, nothing stored twice.
+        if (request.ClientId is { } clientId && job.Documents.FirstOrDefault(d => d.ClientId == clientId) is { } existing)
+        {
+            return JobDocumentDto.FromEntity(existing);
+        }
+
         EnsureAllowed(job, request);
 
+        var now = DateTime.UtcNow;
         var extension = AddJobDocumentCommand.AllowedTypes[request.ContentType];
         var document = new TripDocument
         {
@@ -246,10 +302,15 @@ public class AddJobDocumentCommandHandler : IRequestHandler<AddJobDocumentComman
             Kind = request.Kind,
             ContentType = request.ContentType,
             SizeBytes = request.SizeBytes,
-            CapturedAtUtc = DateTime.UtcNow,
+            CapturedAtUtc = PhoneClock.Resolve(request.CapturedAt, job.CreatedAtUtc, now),
+            ReceivedAtUtc = now,
+            ClientId = request.ClientId,
             Latitude = request.Latitude,
             Longitude = request.Longitude,
             TemperatureCelsius = request.Kind == TripDocumentKind.TemperaturePhoto ? request.TemperatureCelsius : null,
+            Note = request.Kind is TripDocumentKind.Signature or TripDocumentKind.Exception && !string.IsNullOrWhiteSpace(request.Note)
+                ? request.Note.Trim()
+                : null,
         };
         document.StorageKey = $"{job.OrganizationId:N}/{job.Id:N}/{document.Id:N}.{extension}";
 
@@ -262,6 +323,11 @@ public class AddJobDocumentCommandHandler : IRequestHandler<AddJobDocumentComman
         if (document.TemperatureCelsius is { } celsius && JobTemperaturePolicy.IsOutOfRange(job, celsius))
         {
             await AlertOutOfRangeAsync(job, celsius, cancellationToken);
+        }
+
+        if (document.Kind == TripDocumentKind.Exception)
+        {
+            await AlertProblemAsync(job, document.Note, cancellationToken);
         }
 
         return JobDocumentDto.FromEntity(document);
@@ -292,6 +358,28 @@ public class AddJobDocumentCommandHandler : IRequestHandler<AddJobDocumentComman
                 }
 
                 return;
+            case TripDocumentKind.Exception:
+                // Damage at loading is as important as damage at delivery.
+                if (job.Status is not (TripStatus.Planned or TripStatus.InProgress))
+                {
+                    throw new BusinessRuleException("This job is closed; problems can no longer be reported on it.");
+                }
+
+                break;
+            case TripDocumentKind.Signature:
+                if (job.Status != TripStatus.InProgress)
+                {
+                    throw new BusinessRuleException(job.Status == TripStatus.Planned
+                        ? "Start the job before taking the receiver's signature."
+                        : "This job is closed; a signature can no longer be added.");
+                }
+
+                if (count >= AddJobDocumentCommand.MaxSignatures)
+                {
+                    throw new BusinessRuleException($"A job can have at most {AddJobDocumentCommand.MaxSignatures} signatures.");
+                }
+
+                return;
             default:
                 if (job.Status != TripStatus.InProgress)
                 {
@@ -306,6 +394,24 @@ public class AddJobDocumentCommandHandler : IRequestHandler<AddJobDocumentComman
         if (count >= AddJobDocumentCommand.MaxPhotosPerKind)
         {
             throw new BusinessRuleException($"A job can have at most {AddJobDocumentCommand.MaxPhotosPerKind} photos of this kind.");
+        }
+    }
+
+    private async Task AlertProblemAsync(Trip job, string? note, CancellationToken cancellationToken)
+    {
+        try
+        {
+            await _broadcast.BroadcastAlertAsync(
+                job.OrganizationId,
+                job.Vehicle.ExternalId,
+                JobAlerts.ProblemReported,
+                $"Problem reported — {job.Vehicle.ExternalId}",
+                $"{job.CustomerName ?? job.Destination}: {note}",
+                cancellationToken);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "Problem report broadcast failed for job {JobId}", job.Id);
         }
     }
 
@@ -367,18 +473,19 @@ public class DeliverJobCommandHandler : IRequestHandler<DeliverJobCommand, JobDt
                 throw new BusinessRuleException("This job was cancelled.");
         }
 
-        if (!job.Documents.Any(d => d.Kind == TripDocumentKind.DeliveryPhoto))
+        if (!job.Documents.Any(d => d.Kind is TripDocumentKind.DeliveryPhoto or TripDocumentKind.Signature))
         {
-            throw new BusinessRuleException("Add at least one delivery photo before confirming delivery.");
+            throw new BusinessRuleException("Add a delivery photo or the receiver's signature before confirming delivery.");
         }
 
-        if (JobTemperaturePolicy.IsRefrigerated(job) && !JobTemperaturePolicy.HasRecentReading(job, DateTime.UtcNow))
+        var deliveredAt = PhoneClock.Resolve(request.DeliveredAt, job.StartedAtUtc ?? job.CreatedAtUtc, DateTime.UtcNow);
+        if (JobTemperaturePolicy.IsRefrigerated(job) && !JobTemperaturePolicy.HasRecentReading(job, deliveredAt))
         {
             throw new BusinessRuleException("Log the load temperature (photo of the display) before confirming delivery.");
         }
 
         job.Status = TripStatus.Completed;
-        job.CompletedAtUtc = DateTime.UtcNow;
+        job.CompletedAtUtc = deliveredAt;
         job.RecipientName = request.RecipientName.Trim();
         job.DeliveryNote = string.IsNullOrWhiteSpace(request.Note) ? null : request.Note.Trim();
         job.DeliveredLatitude = request.Latitude;
@@ -406,5 +513,150 @@ public class DeliverJobCommandHandler : IRequestHandler<DeliverJobCommand, JobDt
         }
 
         return JobDto.FromEntity(job);
+    }
+}
+
+public class MarkArrivedCommandHandler : IRequestHandler<MarkArrivedCommand, JobDto>
+{
+    private readonly IJobRepository _jobs;
+    private readonly ITenantContext _tenant;
+    private readonly IAuditService _audit;
+
+    public MarkArrivedCommandHandler(IJobRepository jobs, ITenantContext tenant, IAuditService audit)
+    {
+        _jobs = jobs;
+        _tenant = tenant;
+        _audit = audit;
+    }
+
+    public async Task<JobDto> Handle(MarkArrivedCommand request, CancellationToken cancellationToken)
+    {
+        var job = JobAccess.Visible(
+            await _jobs.GetAsync(request.JobId, _tenant.OrganizationId, cancellationToken), request.JobId, _tenant);
+        var now = DateTime.UtcNow;
+
+        if (request.Stop == WaitingTimePolicy.Pickup)
+        {
+            // Waiting at pickup ends when the trip starts, so it can only begin before that.
+            if (job.Status != TripStatus.Planned)
+            {
+                if (job.PickupArrivedAtUtc is not null || job.Status == TripStatus.InProgress)
+                {
+                    return JobDto.FromEntity(job);
+                }
+
+                throw new BusinessRuleException("This job is closed.");
+            }
+
+            var at = PhoneClock.Resolve(request.ArrivedAt, job.CreatedAtUtc, now);
+            if (job.PickupArrivedAtUtc is { } existing && existing <= at)
+            {
+                return JobDto.FromEntity(job);
+            }
+
+            job.PickupArrivedAtUtc = at;
+            job.PickupArrivalSource = ArrivalSource.Driver;
+            job.PickupArrivalLatitude = request.Latitude;
+            job.PickupArrivalLongitude = request.Longitude;
+        }
+        else
+        {
+            if (job.Status == TripStatus.Completed && job.DeliveryArrivedAtUtc is not null)
+            {
+                return JobDto.FromEntity(job);
+            }
+
+            if (job.Status != TripStatus.InProgress)
+            {
+                throw new BusinessRuleException(job.Status == TripStatus.Planned
+                    ? "Start the trip first."
+                    : "This job is closed.");
+            }
+
+            var at = PhoneClock.Resolve(request.ArrivedAt, job.StartedAtUtc ?? job.CreatedAtUtc, now);
+            // GPS may already have it; the earlier, better-evidenced arrival stays.
+            if (job.DeliveryArrivedAtUtc is { } existing && existing <= at)
+            {
+                return JobDto.FromEntity(job);
+            }
+
+            job.DeliveryArrivedAtUtc = at;
+            job.DeliveryArrivalSource = ArrivalSource.Driver;
+            job.DeliveryArrivalLatitude = request.Latitude;
+            job.DeliveryArrivalLongitude = request.Longitude;
+        }
+
+        await _audit.LogAsync("Arrived", "Job", job.Id.ToString(), _tenant.UserId, request.Stop, cancellationToken);
+        return JobDto.FromEntity(job);
+    }
+}
+
+public class ProcessWaitingAlertsCommandHandler : IRequestHandler<ProcessWaitingAlertsCommand, int>
+{
+    private readonly IJobRepository _jobs;
+    private readonly IInvoiceRepository _billing;
+    private readonly ITelemetryBroadcastService _broadcast;
+    private readonly TimeProvider _clock;
+    private readonly ILogger<ProcessWaitingAlertsCommandHandler> _logger;
+
+    public ProcessWaitingAlertsCommandHandler(
+        IJobRepository jobs, IInvoiceRepository billing, ITelemetryBroadcastService broadcast, TimeProvider clock,
+        ILogger<ProcessWaitingAlertsCommandHandler> logger)
+    {
+        _jobs = jobs;
+        _billing = billing;
+        _broadcast = broadcast;
+        _clock = clock;
+        _logger = logger;
+    }
+
+    public async Task<int> Handle(ProcessWaitingAlertsCommand request, CancellationToken cancellationToken)
+    {
+        var now = _clock.GetUtcNow().UtcDateTime;
+        var sent = 0;
+        var terms = new Dictionary<Guid, Services.WaitingTerms>();
+        foreach (var job in await _jobs.ListWaitingAsync(cancellationToken))
+        {
+            if (!terms.TryGetValue(job.OrganizationId, out var t))
+            {
+                t = Services.WaitingTerms.From(await _billing.GetProfileAsync(job.OrganizationId, cancellationToken));
+                terms[job.OrganizationId] = t;
+            }
+
+            foreach (var wait in WaitingTimePolicy.Waits(job, t.FreeMinutes, t.RatePerHour, now))
+            {
+                var pickup = wait.Stop == WaitingTimePolicy.Pickup;
+                var alerted = pickup ? job.PickupWaitAlertedAtUtc : job.DeliveryWaitAlertedAtUtc;
+                if (!wait.Running || alerted is not null || now < wait.ChargedFromUtc)
+                {
+                    continue;
+                }
+
+                if (pickup) job.PickupWaitAlertedAtUtc = now;
+                else job.DeliveryWaitAlertedAtUtc = now;
+
+                // Saved first: the alert must not repeat if the broadcast or a later job fails.
+                await _jobs.SaveChangesAsync(cancellationToken);
+                sent++;
+                try
+                {
+                    var where = pickup ? job.Origin ?? "pickup" : job.Destination ?? "delivery";
+                    await _broadcast.BroadcastAlertAsync(
+                        job.OrganizationId,
+                        job.Vehicle.ExternalId,
+                        JobAlerts.WaitingCharged,
+                        $"Free waiting time is over — {job.Vehicle.ExternalId} at {where}",
+                        $"{job.CustomerName ?? where}: waiting since {wait.ArrivedAtUtc:HH:mm} UTC ({Services.WaitingTerms.Duration(wait.WaitedMinutes)})."
+                        + (t.RatePerHour is { } rate ? $" Waiting is now charged at {rate:0.##} {t.Currency}/h." : string.Empty),
+                        cancellationToken);
+                }
+                catch (Exception ex)
+                {
+                    _logger.LogWarning(ex, "Waiting alert broadcast failed for job {JobId}", job.Id);
+                }
+            }
+        }
+
+        return sent;
     }
 }

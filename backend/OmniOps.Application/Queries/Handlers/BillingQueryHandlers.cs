@@ -45,6 +45,7 @@ public class GetInvoiceOverviewQueryHandler : IRequestHandler<GetInvoiceOverview
         var org = _tenant.OrganizationId;
         var now = _clock.GetUtcNow().UtcDateTime;
         var profile = await _invoices.GetProfileAsync(org, cancellationToken);
+        var terms = Services.WaitingTerms.From(profile);
         var invoices = await _invoices.ListAsync(org, 500, cancellationToken);
 
         var delivered = await _jobs.ListAsync(org, [TripStatus.Completed], null, now - UninvoicedWindow, 200, cancellationToken);
@@ -66,7 +67,8 @@ public class GetInvoiceOverviewQueryHandler : IRequestHandler<GetInvoiceOverview
             toInvoice.Select(j =>
             {
                 customers.TryGetValue(BillingText.NormalizeName(j.CustomerName ?? string.Empty), out var c);
-                return new UninvoicedJobDto(JobDto.FromEntity(j), Describe(j), c?.Email, c?.Address, c?.TaxId, c?.PaymentTermsDays);
+                return new UninvoicedJobDto(JobDto.FromEntity(j), Describe(j), c?.Email, c?.Address, c?.TaxId, c?.PaymentTermsDays,
+                    terms.Waits(j, now), terms.SuggestedLines(j, now));
             }).ToList());
     }
 

@@ -97,55 +97,6 @@ public class CreateTeamCommandHandler : IRequestHandler<CreateTeamCommand, TeamD
     }
 }
 
-public class InviteMemberCommandHandler : IRequestHandler<InviteMemberCommand, InvitationDto>
-{
-    private readonly ITenantRepository _tenantRepository;
-    private readonly INotificationDispatcher _notifications;
-    private readonly ITenantContext _tenant;
-
-    public InviteMemberCommandHandler(
-        ITenantRepository tenantRepository,
-        INotificationDispatcher notifications,
-        ITenantContext tenant)
-    {
-        _tenantRepository = tenantRepository;
-        _notifications = notifications;
-        _tenant = tenant;
-    }
-
-    public async Task<InvitationDto> Handle(InviteMemberCommand request, CancellationToken cancellationToken)
-    {
-        if (request.OrganizationId != _tenant.OrganizationId)
-            throw new UnauthorizedAccessException("Cross-tenant invitation is not allowed.");
-
-        var token = Convert.ToBase64String(RandomNumberGenerator.GetBytes(32));
-        var hash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(token)));
-        var invitation = new Invitation
-        {
-            Id = Guid.NewGuid(),
-            OrganizationId = request.OrganizationId,
-            Email = request.Email.Trim().ToLowerInvariant(),
-            Role = request.Role,
-            TokenHash = hash,
-            ExpiresAtUtc = DateTime.UtcNow.AddDays(7),
-            CreatedAtUtc = DateTime.UtcNow
-        };
-        await _tenantRepository.AddInvitationAsync(invitation, cancellationToken);
-        await _tenantRepository.SaveChangesAsync(cancellationToken);
-
-        await _notifications.EnqueueIncidentAlertAsync(
-            request.OrganizationId,
-            request.Email,
-            "Invitation",
-            "OmniOps workspace invitation",
-            $"You have been invited. Token: {token}",
-            invitation.Id.ToString(),
-            cancellationToken);
-
-        return new InvitationDto(invitation.Id, invitation.Email, invitation.Role, invitation.ExpiresAtUtc, false);
-    }
-}
-
 public class UpdateTenantSettingsCommandHandler : IRequestHandler<UpdateTenantSettingsCommand, TenantSettingsDto>
 {
     private readonly ITenantRepository _tenantRepository;

@@ -38,7 +38,8 @@
           "cameraPermission": "OmniOps uses the camera to photograph delivery documents and proof of delivery.",
           "photosPermission": "OmniOps attaches delivery photos you choose to the job."
         }
-      ]
+      ],
+      "expo-localization"
     ]
   }
 }

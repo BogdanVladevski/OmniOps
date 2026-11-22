@@ -16,6 +16,11 @@ public class CreateJobCommandValidator : AbstractValidator<CreateJobCommand>
         RuleFor(x => x.Origin).MaximumLength(300);
         RuleFor(x => x.Destination).NotEmpty().MaximumLength(300);
         RuleFor(x => x.DestinationLatitude).InclusiveBetween(-90, 90);
+        RuleFor(x => x.OriginLatitude).InclusiveBetween(-90, 90);
+        RuleFor(x => x.OriginLongitude).InclusiveBetween(-180, 180);
+        RuleFor(x => x)
+            .Must(x => x.OriginLatitude.HasValue == x.OriginLongitude.HasValue)
+            .WithMessage("Pickup latitude and longitude must be given together.");
         RuleFor(x => x.DestinationLongitude).InclusiveBetween(-180, 180);
         RuleFor(x => x)
             .Must(x => x.DestinationLatitude.HasValue == x.DestinationLongitude.HasValue)
@@ -73,6 +78,22 @@ public class AddJobDocumentCommandValidator : AbstractValidator<AddJobDocumentCo
             .InclusiveBetween(JobTemperaturePolicy.MinPlausibleCelsius, JobTemperaturePolicy.MaxPlausibleCelsius)
             .WithMessage("That temperature looks wrong. Check the display and try again.")
             .When(x => x.Kind == TripDocumentKind.TemperaturePhoto);
+        RuleFor(x => x.Note).NotEmpty().WithMessage("Say briefly what is wrong (e.g. 2 cartons crushed).")
+            .When(x => x.Kind == TripDocumentKind.Exception);
+        RuleFor(x => x.Note).NotEmpty().WithMessage("Enter the name of the person who signed.")
+            .When(x => x.Kind == TripDocumentKind.Signature);
+        RuleFor(x => x.Note).MaximumLength(AddJobDocumentCommand.MaxNoteLength);
+    }
+}
+
+public class MarkArrivedCommandValidator : AbstractValidator<MarkArrivedCommand>
+{
+    public MarkArrivedCommandValidator()
+    {
+        RuleFor(x => x.JobId).NotEmpty();
+        RuleFor(x => x.Stop).Must(s => s is "pickup" or "delivery").WithMessage("Stop must be pickup or delivery.");
+        RuleFor(x => x.Latitude).InclusiveBetween(-90, 90);
+        RuleFor(x => x.Longitude).InclusiveBetween(-180, 180);
     }
 }
 

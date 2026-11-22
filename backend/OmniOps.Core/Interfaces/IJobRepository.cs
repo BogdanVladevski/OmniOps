@@ -28,6 +28,9 @@ public interface IJobRepository
     Task<IReadOnlyList<Vehicle>> ListVehiclesAsync(Guid organizationId, CancellationToken cancellationToken = default);
     Task<IReadOnlyList<Driver>> ListDriversAsync(Guid organizationId, CancellationToken cancellationToken = default);
 
+    /// <summary>All organizations: jobs where a truck may be waiting now (arrived, not yet released). For the alert worker.</summary>
+    Task<IReadOnlyList<Trip>> ListWaitingAsync(CancellationToken cancellationToken = default);
+
     Task AddAsync(Trip job, CancellationToken cancellationToken = default);
     Task AddDocumentAsync(TripDocument document, CancellationToken cancellationToken = default);
     Task SaveChangesAsync(CancellationToken cancellationToken = default);

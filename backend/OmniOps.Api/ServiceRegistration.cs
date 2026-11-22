@@ -55,6 +55,8 @@ public static partial class ServiceRegistration
         builder.Services.AddTransient<IJobRepository, JobRepository>();
         builder.Services.AddScoped<ITenantScope, TenantScope>();
         builder.Services.AddTransient<IAccountRepository, AccountRepository>();
+        builder.Services.AddMemoryCache();
+        builder.Services.AddScoped<IAccountSessions, AccountSessions>();
         builder.Services.AddSingleton<IPasswordHasher>(_ => new Pbkdf2PasswordHasher());
         builder.Services.AddTransient<AccountTokenIssuer>();
         builder.Services.AddSingleton<IFileStore>(sp =>
@@ -119,6 +121,7 @@ public static partial class ServiceRegistration
         builder.Services.AddHostedService<OutboxPublisherWorker>();
         builder.Services.AddHostedService<NotificationDeliveryWorker>();
         builder.Services.AddHostedService<InvoiceReminderWorker>();
+        builder.Services.AddHostedService<WaitingAlertWorker>();
         builder.Services.AddSignalR()
             .AddJsonProtocol(options =>
             {

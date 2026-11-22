@@ -16,6 +16,15 @@ public class BillingProfile
     public string Currency { get; set; } = "EUR";
     public decimal DefaultVatRatePercent { get; set; }
     public int DefaultPaymentTermsDays { get; set; } = 30;
+
+    /// <summary>Waiting at a pickup or delivery that is included in the price.</summary>
+    public int FreeWaitingMinutes { get; set; } = 120;
+
+    /// <summary>Charged per started 15 minutes beyond the free time. Null: waiting is recorded but not charged.</summary>
+    public decimal? WaitingRatePerHour { get; set; }
+
+    /// <summary>IANA time zone of the company (e.g. "Europe/Skopje"), for times written on invoices.</summary>
+    public string? TimeZone { get; set; }
     public string InvoicePrefix { get; set; } = "INV";
 
     /// <summary>

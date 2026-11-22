@@ -76,13 +76,17 @@ Detector state, deduplication locks and the latest-telemetry cache are held in p
 | `GET` | `/api/v1/jobs/{id}` | Job with its proof-of-delivery documents |
 | `GET` | `/api/v1/jobs/{id}/documents/{documentId}` | Download a delivery photo |
 | `GET` | `/api/v1/driver/jobs?driverId=` | A driver's current jobs |
+| `POST` | `/api/v1/driver/jobs/{id}/arrived` | Driver arrived at the pickup or the delivery (starts the waiting clock) |
 | `POST` | `/api/v1/driver/jobs/{id}/start` | Driver starts the trip |
 | `POST` | `/api/v1/driver/jobs/{id}/locations` | Phone GPS points (batch; resending is safe) |
 | `POST` | `/api/v1/driver/jobs/{id}/photos` | Upload a delivery photo (multipart, ≤ 10 MB) |
-| `POST` | `/api/v1/driver/jobs/{id}/documents?kind=` | Loading note (`PickupDocument`), delivery photo, or fridge-display photo (`TemperaturePhoto` + `temperatureCelsius`) |
+| `POST` | `/api/v1/driver/jobs/{id}/documents?kind=` | Loading note (`PickupDocument`), delivery photo, fridge-display photo (`TemperaturePhoto` + `temperatureCelsius`), receiver `Signature` or problem report (`Exception`) with form field `note`; `clientId` makes a resend safe, `capturedAt` is when it was taken |
 | `POST` | `/api/v1/driver/jobs/{id}/deliver` | Confirm delivery — needs a photo, the recipient's name, and for refrigerated jobs a reading from the last 30 min |
 | `POST` | `/api/v1/account/sign-up` / `sign-in` / `refresh` / `sign-out` | Company accounts and sessions |
 | `POST` | `/api/v1/account/driver-codes` · `/api/v1/account/pair` | Office creates a one-time code; a driver's phone exchanges it for a driver sign-in |
+| `GET`/`POST`/`PUT`/`DELETE` | `/api/v1/account/team…` · `PUT /api/v1/account/company` | Owners: team list, invitations, roles, removing people, reset links, company name |
+| `GET`/`POST` | `/api/v1/account/invitations/{token}` · `…/accept` | Open and accept an invitation (no sign-in) |
+| `POST` | `/api/v1/account/forgot-password` · `reset-password` · `password` · `sign-out-everywhere`; `PUT /api/v1/account/me` | Password reset and change, signing out everywhere, own name |
 | `GET`/`PUT` | `/api/v1/billing/profile` | Invoice settings: company details, bank account, VAT, terms, numbering |
 | `GET` | `/api/v1/invoices` | Overview: waiting for payment, overdue, paid, delivered jobs to invoice |
 | `POST` | `/api/v1/invoices` | Invoice a delivered job (`send`: `"email"`, `"manual"` or omitted) |
