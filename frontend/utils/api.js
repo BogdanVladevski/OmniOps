@@ -125,6 +125,7 @@ export const fleetApi = {
       `/api/fleets/${fleetId}/heatmap?fromUtc=${encodeURIComponent(fromUtc)}&toUtc=${encodeURIComponent(toUtc)}&gridSize=${gridSize}`,
     ),
   createDriver: (body) => apiFetch('/api/drivers', { method: 'POST', body: JSON.stringify(body) }),
+  updateDriver: (driverId, body) => apiFetch(`/api/drivers/${driverId}`, { method: 'PUT', body: JSON.stringify(body) }),
   createVehicle: (body) => apiFetch('/api/vehicles', { method: 'POST', body: JSON.stringify(body) }),
   assignDriver: (vehicleId, driverId) =>
     apiFetch(`/api/vehicles/${vehicleId}/assign-driver`, {

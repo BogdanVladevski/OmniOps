@@ -146,6 +146,26 @@ public class WaitingTimeIntegrationTests(OmniOpsApiFixture fixture)
     }
 
     [Fact]
+    public async Task GpsReadingsFromBeforeTheTripStarted_AreNotAnArrival()
+    {
+        var (owner, jobId) = await CompanyWithJobAsync(rate: 40m);
+        var now = DateTime.UtcNow;
+        (await owner.PostAsJsonAsync($"/api/v1/driver/jobs/{jobId}/start", new { startedAt = now.AddHours(-1) })).EnsureSuccessStatusCode();
+        (await owner.PostAsJsonAsync($"/api/v1/driver/jobs/{jobId}/locations", new
+        {
+            points = new[] { Point(now.AddHours(-3), North(DropLat, 50), DropLon), Point(now.AddMinutes(-90), North(DropLat, 60), DropLon) },
+        })).EnsureSuccessStatusCode();
+        Assert.Empty((await owner.GetFromJsonAsync<JsonElement>($"/api/v1/jobs/{jobId}")).GetProperty("waits").EnumerateArray());
+
+        (await owner.PostAsJsonAsync($"/api/v1/driver/jobs/{jobId}/locations", new
+        {
+            points = new[] { Point(now.AddMinutes(-20), North(DropLat, 50), DropLon) },
+        })).EnsureSuccessStatusCode();
+        var wait = (await owner.GetFromJsonAsync<JsonElement>($"/api/v1/jobs/{jobId}")).GetProperty("waits")[0];
+        Assert.Equal(now.AddMinutes(-20), wait.GetProperty("arrivedAtUtc").GetDateTime(), TimeSpan.FromSeconds(1));
+    }
+
+    [Fact]
     public async Task WithoutARate_WaitingIsRecordedButNothingIsCharged()
     {
         var (owner, jobId) = await CompanyWithJobAsync(rate: null);

@@ -37,10 +37,10 @@ public record VehicleDto(
             vehicle.AssignedDriverId);
 }
 
-public record DriverDto(Guid Id, Guid FleetId, string FullName, string? LicenseNumber, double SafetyScore)
+public record DriverDto(Guid Id, Guid FleetId, string FullName, string? LicenseNumber, double SafetyScore, string? Phone = null)
 {
     public static DriverDto FromEntity(Core.Entities.Driver driver) =>
-        new(driver.Id, driver.FleetId, driver.FullName, driver.LicenseNumber, driver.SafetyScore);
+        new(driver.Id, driver.FleetId, driver.FullName, driver.LicenseNumber, driver.SafetyScore, driver.Phone);
 }
 
 public record DepotDto(Guid Id, Guid FleetId, string Name, double Latitude, double Longitude, int Capacity)

@@ -1,7 +1,7 @@
-// Home screen: where every delivery is right now and when it arrives.
+// Home screen ("Today"): the map of every delivery, and next to it what needs someone now.
 // Laptop: floating panel on the left. Phone: bottom sheet that expands on tap.
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Animated, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
+import { Animated, Linking, Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import MapView, { Circle, Marker, Polygon, Polyline, PROVIDER_DEFAULT } from 'react-native-maps';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
@@ -11,8 +11,10 @@ import { elevation, radius, spacing, toneColors, typography } from '../theme/tok
 import { jobsApi } from '../utils/api';
 import { formatCelsius, groupJobsForToday, isPositionStale, jobProgress, jobTitle, temperatureStatus } from '../utils/jobs';
 import { onJobsChanged } from '../utils/events';
+import { formatDuration, minutesSince } from '../utils/waiting';
 import { useLayout } from '../utils/layout';
 import { shareTrackingLink } from './JobsBoard';
+import TodayPanel from './TodayPanel';
 import { Button, Divider, Pill, timeAgo } from './ui/kit';
 
 const INITIAL_REGION = { latitude: 41.75, longitude: 21.45, latitudeDelta: 1.6, longitudeDelta: 1.6 };
@@ -29,93 +31,6 @@ function parsePolygon(json) {
 
 const hasPosition = (job) => job?.lastLatitude != null && job?.lastLongitude != null;
 const hasDestination = (job) => job?.destinationLatitude != null && job?.destinationLongitude != null;
-
-function JobRow({ job, selected, onPress }) {
-  const { colors } = useTheme();
-  const progress = jobProgress(job);
-  const temp = temperatureStatus(job);
-  const tone = progress.tone === 'warning' ? colors.warning : progress.tone === 'ok' ? colors.ok : colors.text;
-  return (
-    <Pressable
-      onPress={onPress}
-      accessibilityRole="button"
-      accessibilityLabel={`${jobTitle(job)}, ${progress.primary} ${progress.secondary}`}
-      style={({ hovered, pressed }) => [styles.row, (selected || hovered || pressed) && { backgroundColor: colors.sunken }]}
-    >
-      <View style={styles.flex}>
-        <Text style={[typography.bodyStrong, { color: colors.text }]} numberOfLines={1}>{jobTitle(job)}</Text>
-        <Text style={[typography.caption, { color: colors.muted }]} numberOfLines={1}>
-          {[job.vehicleLabel, job.destination].filter(Boolean).join(' · ')}
-        </Text>
-        {temp && temp.tone !== 'neutral' && temp.tone !== 'ok' ? (
-          <Text style={[typography.caption, { color: toneColors(colors, temp.tone).fg }]} numberOfLines={1}>{temp.label}</Text>
-        ) : null}
-      </View>
-      <View style={styles.rowRight}>
-        <Text style={[typography.number, { color: tone }]} numberOfLines={1}>{progress.primary}</Text>
-        {progress.secondary ? (
-          <Text style={[typography.caption, { color: progress.tone === 'warning' ? colors.warning : colors.muted }]} numberOfLines={1}>
-            {progress.secondary}
-          </Text>
-        ) : null}
-      </View>
-    </Pressable>
-  );
-}
-
-function Section({ title, jobs, selectedId, onSelect }) {
-  const { colors } = useTheme();
-  if (!jobs.length) return null;
-  return (
-    <View>
-      <Text style={[typography.label, styles.sectionTitle, { color: colors.textSecondary }]}>{title}</Text>
-      {jobs.map((job, i) => (
-        <View key={job.id}>
-          {i > 0 ? <Divider inset={spacing.lg} /> : null}
-          <JobRow job={job} selected={job.id === selectedId} onPress={() => onSelect(job)} />
-        </View>
-      ))}
-    </View>
-  );
-}
-
-function JobList({ groups, loading, error, selectedId, onSelect, onCreate }) {
-  const { colors } = useTheme();
-  const silent = groups.onTheWay.filter((j) => isPositionStale(j)).length;
-  const total = groups.onTheWay.length + groups.planned.length + groups.delivered.length;
-  return (
-    <View>
-      <View style={styles.panelHeader}>
-        <Text style={[typography.title, { color: colors.text }]}>Today</Text>
-        <Text style={[typography.body, { color: colors.textSecondary }]}>
-          {groups.onTheWay.length} on the way · {groups.planned.length} not started · {groups.delivered.length} delivered
-        </Text>
-        {silent > 0 ? (
-          <Text style={[typography.caption, { color: colors.warning }]}>
-            {silent} truck{silent === 1 ? ' has' : 's have'} not reported for a while
-          </Text>
-        ) : null}
-        {error ? <Text style={[typography.caption, { color: colors.critical }]}>{error}</Text> : null}
-      </View>
-      <Divider />
-      {!loading && total === 0 ? (
-        <View style={styles.empty}>
-          <Text style={[typography.bodyStrong, { color: colors.text }]}>No deliveries today</Text>
-          <Text style={[typography.body, { color: colors.textSecondary }]}>
-            Create a job for each delivery. Its truck appears here once the driver starts the trip.
-          </Text>
-          <Button label="Create a job" onPress={onCreate} />
-        </View>
-      ) : (
-        <>
-          <Section title="On the way" jobs={groups.onTheWay} selectedId={selectedId} onSelect={onSelect} />
-          <Section title="Not started" jobs={groups.planned} selectedId={selectedId} onSelect={onSelect} />
-          <Section title="Delivered" jobs={groups.delivered} selectedId={selectedId} onSelect={onSelect} />
-        </>
-      )}
-    </View>
-  );
-}
 
 function Fact({ label, value }) {
   const { colors } = useTheme();
@@ -189,6 +104,11 @@ function JobDetail({ job, onBack, onOpenJob }) {
           />
         ) : null}
       </View>
+      {job.status === 'InProgress' && job.deliveryArrivedAtUtc ? (
+        <Text style={[typography.label, styles.notice, { color: colors.textSecondary }]}>
+          At the customer since {clock(job.deliveryArrivedAtUtc)} · waiting {formatDuration(minutesSince(job.deliveryArrivedAtUtc))}
+        </Text>
+      ) : null}
       {temperatureStatus(job) && temperatureStatus(job).tone !== 'ok' && temperatureStatus(job).tone !== 'neutral' ? (
         <Text style={[typography.label, styles.notice, { color: toneColors(colors, temperatureStatus(job).tone).fg }]}>
           {temperatureStatus(job).label}
@@ -202,6 +122,14 @@ function JobDetail({ job, onBack, onOpenJob }) {
             label="Send customer link"
             variant="secondary"
             onPress={async () => setNotice(await shareTrackingLink(job))}
+            style={styles.flex}
+          />
+        ) : null}
+        {job.driverPhone && job.status !== 'Completed' ? (
+          <Button
+            label={`Call ${job.driverName?.split(' ')[0] ?? 'driver'}`}
+            variant="secondary"
+            onPress={() => Linking.openURL(`tel:${job.driverPhone.replace(/[^+\d]/g, '')}`)}
             style={styles.flex}
           />
         ) : null}
@@ -369,13 +297,14 @@ export default function LiveView({ navigation }) {
       onOpenJob={() => navigation.navigate('Jobs', { openJobId: selected.id })}
     />
   ) : (
-    <JobList
+    <TodayPanel
+      jobs={jobs}
       groups={groups}
       loading={loading}
       error={error}
       selectedId={selectedId}
       onSelect={select}
-      onCreate={() => navigation.navigate('Jobs', { create: true })}
+      navigation={navigation}
     />
   );
 

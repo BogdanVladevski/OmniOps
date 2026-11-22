@@ -109,3 +109,28 @@ public class DeliverJobCommandValidator : AbstractValidator<DeliverJobCommand>
         RuleFor(x => x.Longitude).InclusiveBetween(-180, 180);
     }
 }
+
+internal static class PhoneRule
+{
+    public static IRuleBuilderOptions<T, string?> PhoneNumber<T>(this IRuleBuilder<T, string?> rule) =>
+        rule.Matches(@"^\+?[0-9 ()/-]{5,30}$").WithMessage("Enter a phone number like +389 70 123 456.");
+}
+
+public class CreateDriverCommandValidator : AbstractValidator<CreateDriverCommand>
+{
+    public CreateDriverCommandValidator()
+    {
+        RuleFor(x => x.FullName).NotEmpty().WithMessage("Enter the driver's name.").MaximumLength(200);
+        RuleFor(x => x.Phone).PhoneNumber().When(x => !string.IsNullOrWhiteSpace(x.Phone));
+    }
+}
+
+public class UpdateDriverCommandValidator : AbstractValidator<UpdateDriverCommand>
+{
+    public UpdateDriverCommandValidator()
+    {
+        RuleFor(x => x.DriverId).NotEmpty();
+        RuleFor(x => x.FullName).NotEmpty().WithMessage("Enter the driver's name.").MaximumLength(200);
+        RuleFor(x => x.Phone).PhoneNumber().When(x => !string.IsNullOrWhiteSpace(x.Phone));
+    }
+}

@@ -22,7 +22,13 @@ public record CreateVehicleCommand(
 public record CreateDriverCommand(
     Guid FleetId,
     string FullName,
-    string? LicenseNumber) : IRequest<DriverDto>, IAuthorizedRequest, ITransactionalRequest
+    string? LicenseNumber,
+    string? Phone = null) : IRequest<DriverDto>, IAuthorizedRequest, ITransactionalRequest
+{
+    public string RequiredPolicy => AuthorizationPolicies.VehicleRead;
+}
+
+public record UpdateDriverCommand(Guid DriverId, string FullName, string? Phone) : IRequest<DriverDto>, IAuthorizedRequest, ITransactionalRequest
 {
     public string RequiredPolicy => AuthorizationPolicies.VehicleRead;
 }

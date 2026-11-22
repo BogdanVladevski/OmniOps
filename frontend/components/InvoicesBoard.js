@@ -386,6 +386,13 @@ export default function InvoicesBoard({ route, navigation }) {
   // The Jobs board can send a delivered job straight here.
   const invoiceJobParam = route?.params?.invoiceJobId;
   const openInvoiceParam = route?.params?.openInvoiceId;
+  const tabParam = route?.params?.tab;
+  useEffect(() => {
+    if (tabParam) {
+      setTab(tabParam);
+      navigation?.setParams({ tab: undefined });
+    }
+  }, [tabParam, navigation]);
   useEffect(() => {
     if (openInvoiceParam) {
       setOpenId(openInvoiceParam);

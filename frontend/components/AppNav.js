@@ -9,7 +9,7 @@ import { spacing, typography } from '../theme/tokens';
 import { useLayout } from '../utils/layout';
 
 export const TAB_META = {
-  Live: { icon: 'navigate', label: 'Live' },
+  Live: { icon: 'today-outline', label: 'Today' },
   Jobs: { icon: 'clipboard', label: 'Jobs' },
   Alerts: { icon: 'notifications', label: 'Alerts' },
   Invoices: { icon: 'receipt', label: 'Invoices' },

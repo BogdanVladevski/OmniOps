@@ -76,6 +76,7 @@ Detector state, deduplication locks and the latest-telemetry cache are held in p
 | `GET` | `/api/v1/jobs/{id}` | Job with its proof-of-delivery documents |
 | `GET` | `/api/v1/jobs/{id}/documents/{documentId}` | Download a delivery photo |
 | `GET` | `/api/v1/driver/jobs?driverId=` | A driver's current jobs |
+| `PUT` | `/api/drivers/{id}` | Change a driver's name or phone number |
 | `POST` | `/api/v1/driver/jobs/{id}/arrived` | Driver arrived at the pickup or the delivery (starts the waiting clock) |
 | `POST` | `/api/v1/driver/jobs/{id}/start` | Driver starts the trip |
 | `POST` | `/api/v1/driver/jobs/{id}/locations` | Phone GPS points (batch; resending is safe) |

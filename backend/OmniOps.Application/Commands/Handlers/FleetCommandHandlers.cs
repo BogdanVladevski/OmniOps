@@ -83,11 +83,35 @@ public class CreateDriverCommandHandler : IRequestHandler<CreateDriverCommand, D
         {
             Id = Guid.NewGuid(),
             FleetId = request.FleetId,
-            FullName = request.FullName,
-            LicenseNumber = request.LicenseNumber
+            FullName = request.FullName.Trim(),
+            LicenseNumber = request.LicenseNumber,
+            Phone = string.IsNullOrWhiteSpace(request.Phone) ? null : request.Phone.Trim(),
         };
         await _driverRepository.AddAsync(driver, cancellationToken);
         await _driverRepository.SaveChangesAsync(cancellationToken);
+        return DriverDto.FromEntity(driver);
+    }
+}
+
+public class UpdateDriverCommandHandler : IRequestHandler<UpdateDriverCommand, DriverDto>
+{
+    private readonly IDriverRepository _drivers;
+    private readonly ITenantScope _scope;
+
+    public UpdateDriverCommandHandler(IDriverRepository drivers, ITenantScope scope)
+    {
+        _drivers = drivers;
+        _scope = scope;
+    }
+
+    public async Task<DriverDto> Handle(UpdateDriverCommand request, CancellationToken cancellationToken)
+    {
+        await _scope.EnsureDriverAsync(request.DriverId, cancellationToken);
+        var driver = await _drivers.GetByIdAsync(request.DriverId, cancellationToken)
+            ?? throw new KeyNotFoundException($"Driver {request.DriverId} not found.");
+        driver.FullName = request.FullName.Trim();
+        driver.Phone = string.IsNullOrWhiteSpace(request.Phone) ? null : request.Phone.Trim();
+        await _drivers.SaveChangesAsync(cancellationToken);
         return DriverDto.FromEntity(driver);
     }
 }

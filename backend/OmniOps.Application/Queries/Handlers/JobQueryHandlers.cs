@@ -103,7 +103,7 @@ public class GetJobAssignablesQueryHandler : IRequestHandler<GetJobAssignablesQu
         var drivers = await _jobs.ListDriversAsync(_tenant.OrganizationId, cancellationToken);
         return new JobAssignablesDto(
             vehicles.Select(v => new AssignableOptionDto(v.Id, v.ExternalId, v.Registration)).ToList(),
-            drivers.Select(d => new AssignableOptionDto(d.Id, d.FullName, null)).ToList());
+            drivers.Select(d => new AssignableOptionDto(d.Id, d.FullName, d.Phone)).ToList());
     }
 }
 

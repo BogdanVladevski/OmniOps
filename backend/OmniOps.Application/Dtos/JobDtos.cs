@@ -46,7 +46,8 @@ public record JobDto(
     double? OriginLatitude,
     double? OriginLongitude,
     DateTime? PickupArrivedAtUtc,
-    DateTime? DeliveryArrivedAtUtc)
+    DateTime? DeliveryArrivedAtUtc,
+    string? DriverPhone)
 {
     public static JobDto FromEntity(Trip trip)
     {
@@ -95,7 +96,8 @@ public record JobDto(
         trip.OriginLatitude,
         trip.OriginLongitude,
         trip.PickupArrivedAtUtc,
-        trip.DeliveryArrivedAtUtc);
+        trip.DeliveryArrivedAtUtc,
+        trip.Driver?.Phone);
     }
 
     /// <summary>Arrival estimate while on the way and both positions are known; otherwise nothing.</summary>

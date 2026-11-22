@@ -220,9 +220,17 @@ public class RecordJobLocationsCommandHandler : IRequestHandler<RecordJobLocatio
             return false;
         }
 
+        // Readings from before the trip started (left over in a phone's queue) say nothing about this delivery.
+        var since = job.StartedAtUtc ?? job.CreatedAtUtc;
+        var relevant = points.Where(p => p.RecordedAtUtc.UtcDateTime >= since).ToList();
+        if (relevant.Count == 0)
+        {
+            return false;
+        }
+
         var current = job.DeliveryArrivalSource == ArrivalSource.Gps ? job.DeliveryArrivedAtUtc : null;
         var arrival = WaitingTimePolicy.TrackArrival(
-            current, points.Select(p => (p.RecordedAtUtc.UtcDateTime, p.Latitude, p.Longitude)), lat, lon);
+            current, relevant.Select(p => (p.RecordedAtUtc.UtcDateTime, p.Latitude, p.Longitude)), lat, lon);
         if (arrival == current || (arrival is null && job.DeliveryArrivalSource == ArrivalSource.Driver))
         {
             return false;

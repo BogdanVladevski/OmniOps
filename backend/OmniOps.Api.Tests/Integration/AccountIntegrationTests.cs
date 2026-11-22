@@ -178,4 +178,34 @@ public class AccountIntegrationTests(OmniOpsApiFixture fixture)
         Assert.Equal(HttpStatusCode.Unauthorized,
             (await anonymous.PostAsJsonAsync("/api/v1/account/refresh", new { refreshToken = next.GetProperty("refreshToken").GetString() })).StatusCode);
     }
+
+    [Fact]
+    public async Task DriverPhone_IsKept_ShownOnJobs_AndOnlyEditableByTheirCompany()
+    {
+        var (company, session) = await SignUpAsync("Phone Co");
+        var fleetId = session.GetProperty("account").GetProperty("defaultFleetId").GetGuid();
+        var bad = await company.PostAsJsonAsync("/api/drivers", new { fleetId, fullName = "Ana", phone = "call me" });
+        Assert.Equal(HttpStatusCode.BadRequest, bad.StatusCode);
+
+        var driver = await (await company.PostAsJsonAsync("/api/drivers", new { fleetId, fullName = "Ana", phone = "+389 70 123 456" }))
+            .Content.ReadFromJsonAsync<JsonElement>();
+        var driverId = driver.GetProperty("id").GetGuid();
+        Assert.Equal("+389 70 123 456", driver.GetProperty("phone").GetString());
+
+        var updated = await (await company.PutAsJsonAsync($"/api/drivers/{driverId}", new { fullName = "Ana Ristova", phone = "+389 71 000 111" }))
+            .Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("+389 71 000 111", updated.GetProperty("phone").GetString());
+
+        var (other, _) = await SignUpAsync("Other Phone Co");
+        Assert.Equal(HttpStatusCode.NotFound, (await other.PutAsJsonAsync($"/api/drivers/{driverId}", new { fullName = "X", phone = "+1 555 0000" })).StatusCode);
+
+        (await company.PostAsJsonAsync("/api/vehicles", new { fleetId, externalId = "PH-1" })).EnsureSuccessStatusCode();
+        var assignable = await company.GetFromJsonAsync<JsonElement>("/api/v1/jobs/assignable");
+        Assert.Equal("+389 71 000 111", assignable.GetProperty("drivers")[0].GetProperty("detail").GetString());
+        var job = await (await company.PostAsJsonAsync("/api/v1/jobs", new
+        {
+            vehicleId = assignable.GetProperty("vehicles")[0].GetProperty("id").GetGuid(), driverId, customerName = "C", destination = "D",
+        })).Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("+389 71 000 111", job.GetProperty("driverPhone").GetString());
+    }
 }
