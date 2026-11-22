@@ -213,19 +213,24 @@ export const driverApi = {
   deliver: (jobId, body) =>
     apiFetch(`/api/v1/driver/jobs/${jobId}/deliver`, { method: 'POST', body: JSON.stringify(body) }),
 
-  /** Uploads one photo. `photo` is an image-picker asset ({ uri, mimeType, fileName }). */
-  async uploadPhoto(jobId, photo, coords) {
+  /**
+   * Uploads one photo for a job. `photo` is an image-picker asset ({ uri, mimeType, fileName }).
+   * kind: 'DeliveryPhoto' | 'PickupDocument' | 'TemperaturePhoto' (needs temperatureCelsius).
+   */
+  async uploadDocument(jobId, kind, photo, coords, temperatureCelsius) {
     const form = new FormData();
     const type = photo.mimeType ?? 'image/jpeg';
-    const name = photo.fileName ?? `delivery-${Date.now()}.jpg`;
+    const name = photo.fileName ?? `${kind}-${Date.now()}.jpg`;
     if (Platform.OS === 'web') {
       const blob = await (await fetch(photo.uri)).blob();
       form.append('file', blob, name);
     } else {
       form.append('file', { uri: photo.uri, name, type });
     }
-    const query = coords ? `?latitude=${coords.latitude}&longitude=${coords.longitude}` : '';
-    const response = await fetch(apiUrl(`/api/v1/driver/jobs/${jobId}/photos${query}`), {
+    const params = new URLSearchParams({ kind });
+    if (coords) { params.set('latitude', coords.latitude); params.set('longitude', coords.longitude); }
+    if (temperatureCelsius != null) params.set('temperatureCelsius', temperatureCelsius);
+    const response = await fetch(apiUrl(`/api/v1/driver/jobs/${jobId}/documents?${params}`), {
       method: 'POST',
       headers: authHeaders(),
       body: form,

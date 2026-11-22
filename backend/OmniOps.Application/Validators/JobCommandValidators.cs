@@ -1,5 +1,7 @@
 using FluentValidation;
 using OmniOps.Application.Commands;
+using OmniOps.Core.Domain;
+using OmniOps.Core.Enums;
 
 namespace OmniOps.Application.Validators;
 
@@ -18,6 +20,14 @@ public class CreateJobCommandValidator : AbstractValidator<CreateJobCommand>
         RuleFor(x => x)
             .Must(x => x.DestinationLatitude.HasValue == x.DestinationLongitude.HasValue)
             .WithMessage("Give both destination coordinates or neither.");
+        RuleFor(x => x)
+            .Must(x => x.MinTempCelsius.HasValue == x.MaxTempCelsius.HasValue)
+            .WithMessage("Give both ends of the temperature range or neither.");
+        RuleFor(x => x)
+            .Must(x => x.MinTempCelsius is null || x.MinTempCelsius < x.MaxTempCelsius)
+            .WithMessage("The lowest temperature must be below the highest.");
+        RuleFor(x => x.MinTempCelsius).InclusiveBetween(JobTemperaturePolicy.MinPlausibleCelsius, JobTemperaturePolicy.MaxPlausibleCelsius);
+        RuleFor(x => x.MaxTempCelsius).InclusiveBetween(JobTemperaturePolicy.MinPlausibleCelsius, JobTemperaturePolicy.MaxPlausibleCelsius);
     }
 }
 
@@ -45,18 +55,24 @@ public class RecordJobLocationsCommandValidator : AbstractValidator<RecordJobLoc
     }
 }
 
-public class AddJobPhotoCommandValidator : AbstractValidator<AddJobPhotoCommand>
+public class AddJobDocumentCommandValidator : AbstractValidator<AddJobDocumentCommand>
 {
-    public AddJobPhotoCommandValidator()
+    public AddJobDocumentCommandValidator()
     {
         RuleFor(x => x.JobId).NotEmpty();
+        RuleFor(x => x.Kind).IsInEnum();
         RuleFor(x => x.Content).NotNull();
-        RuleFor(x => x.ContentType).Must(t => AddJobPhotoCommand.AllowedTypes.ContainsKey(t))
+        RuleFor(x => x.ContentType).Must(t => AddJobDocumentCommand.AllowedTypes.ContainsKey(t))
             .WithMessage("Photo must be JPEG, PNG, WebP or HEIC.");
-        RuleFor(x => x.SizeBytes).InclusiveBetween(1, AddJobPhotoCommand.MaxBytes)
+        RuleFor(x => x.SizeBytes).InclusiveBetween(1, AddJobDocumentCommand.MaxBytes)
             .WithMessage("Photo must be smaller than 10 MB.");
         RuleFor(x => x.Latitude).InclusiveBetween(-90, 90);
         RuleFor(x => x.Longitude).InclusiveBetween(-180, 180);
+        RuleFor(x => x.TemperatureCelsius)
+            .NotNull().WithMessage("Enter the temperature shown on the display.")
+            .InclusiveBetween(JobTemperaturePolicy.MinPlausibleCelsius, JobTemperaturePolicy.MaxPlausibleCelsius)
+            .WithMessage("That temperature looks wrong. Check the display and try again.")
+            .When(x => x.Kind == TripDocumentKind.TemperaturePhoto);
     }
 }
 

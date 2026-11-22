@@ -18,5 +18,8 @@ public class TripDocument
     public DateTime CapturedAtUtc { get; set; }
     public double? Latitude { get; set; }
     public double? Longitude { get; set; }
+
+    /// <summary>For temperature photos: the reading in °C the driver entered from the display.</summary>
+    public double? TemperatureCelsius { get; set; }
     public Trip Trip { get; set; } = null!;
 }

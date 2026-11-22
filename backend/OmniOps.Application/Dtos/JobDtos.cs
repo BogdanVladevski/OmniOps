@@ -31,11 +31,21 @@ public record JobDto(
     int PhotoCount,
     string? TrackingPath,
     double? RemainingKm,
-    DateTime? EtaUtc)
+    DateTime? EtaUtc,
+    double? MinTempCelsius,
+    double? MaxTempCelsius,
+    double? LastTemperatureCelsius,
+    DateTime? LastTemperatureAtUtc,
+    int TemperatureReadingCount,
+    int TemperatureOutOfRangeCount,
+    DateTime? TemperatureCheckDueUtc,
+    int PickupDocumentCount)
 {
     public static JobDto FromEntity(Trip trip)
     {
         var (remainingKm, eta) = Estimate(trip);
+        var readings = JobTemperaturePolicy.Readings(trip).ToList();
+        var last = readings.LastOrDefault();
         return new(
         trip.Id,
         trip.Status.ToString(),
@@ -63,7 +73,15 @@ public record JobDto(
         trip.Documents.Count(d => d.Kind == TripDocumentKind.DeliveryPhoto),
         trip.TrackingToken is null ? null : $"/t/{trip.TrackingToken}",
         remainingKm,
-        eta);
+        eta,
+        trip.MinTempCelsius,
+        trip.MaxTempCelsius,
+        last?.TemperatureCelsius,
+        last?.CapturedAtUtc,
+        readings.Count,
+        readings.Count(r => JobTemperaturePolicy.IsOutOfRange(trip, r.TemperatureCelsius!.Value)),
+        JobTemperaturePolicy.NextCheckDueUtc(trip),
+        trip.Documents.Count(d => d.Kind == TripDocumentKind.PickupDocument));
     }
 
     /// <summary>Arrival estimate while on the way and both positions are known; otherwise nothing.</summary>
@@ -81,10 +99,12 @@ public record JobDto(
     }
 }
 
-public record JobDocumentDto(Guid Id, string Kind, string ContentType, long SizeBytes, DateTime CapturedAtUtc, double? Latitude, double? Longitude)
+public record JobDocumentDto(
+    Guid Id, string Kind, string ContentType, long SizeBytes, DateTime CapturedAtUtc,
+    double? Latitude, double? Longitude, double? TemperatureCelsius)
 {
     public static JobDocumentDto FromEntity(TripDocument d) =>
-        new(d.Id, d.Kind.ToString(), d.ContentType, d.SizeBytes, d.CapturedAtUtc, d.Latitude, d.Longitude);
+        new(d.Id, d.Kind.ToString(), d.ContentType, d.SizeBytes, d.CapturedAtUtc, d.Latitude, d.Longitude, d.TemperatureCelsius);
 }
 
 public record JobDetailDto(JobDto Job, IReadOnlyList<JobDocumentDto> Documents);

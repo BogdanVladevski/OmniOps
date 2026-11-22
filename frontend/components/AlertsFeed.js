@@ -83,7 +83,7 @@ export default function AlertsFeed() {
   return (
     <Page
       title="Alerts"
-      subtitle="Critical means medicine is outside its safe temperature. Repeats are grouped."
+      subtitle="Critical means a load is outside its temperature range. Repeats are grouped."
     >
       <Segmented
         options={FILTERS.map((f) => ({ ...f, count: counts[f.key] }))}

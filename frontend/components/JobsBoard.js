@@ -2,10 +2,13 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Image, Linking, Platform, Pressable, Share, StyleSheet, Text, View } from 'react-native';
 import { useTheme } from '../contexts/ThemeContext';
-import { radius, spacing, typography } from '../theme/tokens';
+import { radius, spacing, toneColors, typography } from '../theme/tokens';
 import { apiUrl, authHeaders, geocode, jobsApi } from '../utils/api';
 import { notifyJobsChanged } from '../utils/events';
-import { isPositionStale, jobStatusMeta, jobTitle } from '../utils/jobs';
+import {
+  TEMPERATURE_PRESETS, formatCelsius, formatRange, isOutOfRange, isPositionStale, isRefrigerated, jobStatusMeta, jobTitle,
+  parseTemperatureInput, temperatureStatus,
+} from '../utils/jobs';
 import { Button, Card, EmptyNote, Field, Page, Pill, Segmented, Sheet, timeAgo } from './ui/kit';
 
 const SCOPES = [
@@ -71,7 +74,7 @@ function Choice({ options, value, onChange, emptyText }) {
 function NewJobSheet({ visible, onClose, onCreated }) {
   const { colors } = useTheme();
   const [options, setOptions] = useState({ vehicles: [], drivers: [] });
-  const [form, setForm] = useState({ vehicleId: null, driverId: null, customerName: '', reference: '', origin: '', destination: '' });
+  const [form, setForm] = useState({ vehicleId: null, driverId: null, customerName: '', reference: '', origin: '', destination: '', temp: 'none', min: '', max: '' });
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState(null);
   const set = (k) => (v) => setForm((f) => ({ ...f, [k]: v }));
@@ -82,7 +85,15 @@ function NewJobSheet({ visible, onClose, onCreated }) {
     jobsApi.assignable().then(setOptions).catch((e) => setError(e.message));
   }, [visible]);
 
-  const valid = form.vehicleId && form.customerName.trim() && form.destination.trim();
+  // Temperature range: a preset, a custom pair, or none.
+  const preset = TEMPERATURE_PRESETS.find((p) => p.key === form.temp);
+  const customMin = parseTemperatureInput(form.min);
+  const customMax = parseTemperatureInput(form.max);
+  const range = form.temp === 'custom'
+    ? (customMin != null && customMax != null && customMin < customMax ? [customMin, customMax] : null)
+    : preset?.range ?? null;
+  const rangeOk = form.temp !== 'custom' || range != null;
+  const valid = form.vehicleId && form.customerName.trim() && form.destination.trim() && rangeOk;
 
   const submit = async () => {
     setBusy(true);
@@ -99,8 +110,10 @@ function NewJobSheet({ visible, onClose, onCreated }) {
         destination: form.destination.trim(),
         destinationLatitude: place?.latitude ?? null,
         destinationLongitude: place?.longitude ?? null,
+        minTempCelsius: range?.[0] ?? null,
+        maxTempCelsius: range?.[1] ?? null,
       });
-      setForm({ vehicleId: null, driverId: null, customerName: '', reference: '', origin: '', destination: '' });
+      setForm({ vehicleId: null, driverId: null, customerName: '', reference: '', origin: '', destination: '', temp: 'none', min: '', max: '' });
       notifyJobsChanged();
       onCreated(job, !place);
     } catch (e) {
@@ -127,12 +140,63 @@ function NewJobSheet({ visible, onClose, onCreated }) {
         <Text style={[typography.label, { color: colors.textSecondary }]}>Driver (optional)</Text>
         <Choice options={options.drivers} value={form.driverId} onChange={set('driverId')} emptyText="No drivers yet — add one under Fleet." />
       </View>
+      <View style={styles.gapSm}>
+        <Text style={[typography.label, { color: colors.textSecondary }]}>Refrigerated load</Text>
+        <Choice
+          options={TEMPERATURE_PRESETS.map((p) => ({ id: p.key, label: p.label }))}
+          value={form.temp}
+          onChange={(v) => set('temp')(v ?? 'none')}
+        />
+        {form.temp === 'custom' ? (
+          <View style={styles.formRow}>
+            <View style={styles.flex}><Field label="Lowest °C" placeholder="e.g. 2" value={form.min} onChangeText={set('min')} keyboardType="numbers-and-punctuation" /></View>
+            <View style={styles.flex}><Field label="Highest °C" placeholder="e.g. 8" value={form.max} onChangeText={set('max')} keyboardType="numbers-and-punctuation" /></View>
+          </View>
+        ) : null}
+        {range ? (
+          <Text style={[typography.caption, { color: colors.muted }]}>
+            The driver logs the temperature with a photo at loading, every 2 hours and at delivery. Readings outside the range alert you.
+          </Text>
+        ) : null}
+        {!rangeOk && (form.min || form.max) ? (
+          <Text style={[typography.caption, { color: colors.critical }]}>Enter two numbers, the lowest first (e.g. 2 and 8).</Text>
+        ) : null}
+      </View>
       {error ? <Text style={[typography.label, { color: colors.critical }]}>{error}</Text> : null}
       <View style={styles.formRow}>
         <Button label="Cancel" variant="secondary" onPress={onClose} style={styles.flex} />
         <Button label={busy ? 'Creating…' : 'Create job'} onPress={submit} disabled={!valid || busy} style={styles.flex} />
       </View>
     </Sheet>
+  );
+}
+
+function DocumentThumb({ job, document, size = 120 }) {
+  const { colors } = useTheme();
+  return (
+    <Pressable onPress={() => Platform.OS === 'web' && Linking.openURL(jobsApi.documentUrl(job.id, document.id))}>
+      <Image
+        source={{ uri: jobsApi.documentUrl(job.id, document.id), headers: authHeaders() }}
+        style={[styles.photo, { width: size, height: size, borderColor: colors.border, backgroundColor: colors.sunken }]}
+        accessibilityLabel={`Photo taken ${new Date(document.capturedAtUtc).toLocaleString()}`}
+      />
+    </Pressable>
+  );
+}
+
+function DocumentGroup({ title, empty, job, documents }) {
+  const { colors } = useTheme();
+  return (
+    <View style={styles.gapSm}>
+      <Text style={[typography.title, { color: colors.text }]}>{title}</Text>
+      {documents.length === 0 ? (
+        <Text style={[typography.body, { color: colors.muted }]}>{empty}</Text>
+      ) : (
+        <View style={styles.photos}>
+          {documents.map((d) => <DocumentThumb key={d.id} job={job} document={d} />)}
+        </View>
+      )}
+    </View>
   );
 }
 
@@ -158,7 +222,11 @@ function JobSheet({ jobId, onClose, onNotice }) {
     ['Delivered', job.deliveredAtUtc && new Date(job.deliveredAtUtc).toLocaleString()],
     ['Received by', job.recipientName],
     ['Note', job.deliveryNote],
+    ['Temperature', formatRange(job)],
   ].filter(([, v]) => v) : [];
+  const docs = (kind) => (detail?.documents ?? []).filter((d) => d.kind === kind);
+  const readings = docs('TemperaturePhoto');
+  const temp = job ? temperatureStatus(job) : null;
 
   return (
     <Sheet visible={!!jobId} onClose={onClose} width={620}>
@@ -179,24 +247,32 @@ function JobSheet({ jobId, onClose, onNotice }) {
               </View>
             ))}
           </Card>
-          <View style={styles.gapSm}>
-            <Text style={[typography.title, { color: colors.text }]}>Proof of delivery</Text>
-            {detail.documents.length === 0 ? (
-              <Text style={[typography.body, { color: colors.muted }]}>No photos yet.</Text>
-            ) : (
-              <View style={styles.photos}>
-                {detail.documents.map((d) => (
-                  <Pressable key={d.id} onPress={() => Platform.OS === 'web' && Linking.openURL(jobsApi.documentUrl(job.id, d.id))}>
-                    <Image
-                      source={{ uri: jobsApi.documentUrl(job.id, d.id), headers: authHeaders() }}
-                      style={[styles.photo, { borderColor: colors.border, backgroundColor: colors.sunken }]}
-                      accessibilityLabel={`Delivery photo taken ${new Date(d.capturedAtUtc).toLocaleString()}`}
-                    />
-                  </Pressable>
-                ))}
-              </View>
-            )}
-          </View>
+          {temp ? (
+            <Text style={[typography.label, { color: toneColors(colors, temp.tone).fg }]}>{temp.label}</Text>
+          ) : null}
+          <DocumentGroup title="Loading note" empty="No loading note photographed." job={job} documents={docs('PickupDocument')} />
+          {isRefrigerated(job) ? (
+            <View style={styles.gapSm}>
+              <Text style={[typography.title, { color: colors.text }]}>Temperature log</Text>
+              {readings.length === 0 ? (
+                <Text style={[typography.body, { color: colors.muted }]}>No readings yet.</Text>
+              ) : (
+                <Card padded={false}>
+                  {readings.map((d, i) => {
+                    const bad = isOutOfRange(job, d.temperatureCelsius);
+                    return (
+                      <View key={d.id} style={[styles.readingRow, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border }]}>
+                        <DocumentThumb job={job} document={d} size={44} />
+                        <Text style={[typography.label, styles.flex, { color: colors.textSecondary }]}>{new Date(d.capturedAtUtc).toLocaleString()}</Text>
+                        <Text style={[typography.number, { color: bad ? colors.critical : colors.text }]}>{formatCelsius(d.temperatureCelsius)}</Text>
+                      </View>
+                    );
+                  })}
+                </Card>
+              )}
+            </View>
+          ) : null}
+          <DocumentGroup title="Proof of delivery" empty="No photos yet." job={job} documents={docs('DeliveryPhoto')} />
           <View style={styles.formRow}>
             <Button label="Close" variant="secondary" onPress={onClose} style={styles.flex} />
             {job.trackingPath ? (
@@ -305,6 +381,11 @@ export default function JobsBoard({ route, navigation }) {
                 </View>
                 <View style={styles.jobRight}>
                   <Pill label={status.label} tone={stale ? 'warning' : status.tone} />
+                  {temperatureStatus(job)?.tone === 'critical' || temperatureStatus(job)?.tone === 'warning' ? (
+                    <Text style={[typography.caption, { color: toneColors(colors, temperatureStatus(job).tone).fg }]} numberOfLines={1}>
+                      {temperatureStatus(job).label}
+                    </Text>
+                  ) : null}
                   <Text style={[typography.caption, { color: stale ? colors.warning : colors.muted }]} numberOfLines={1}>{progressText(job)}</Text>
                 </View>
               </Pressable>
@@ -345,4 +426,5 @@ const styles = StyleSheet.create({
   detailValue: { flex: 1, textAlign: 'right' },
   photos: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
   photo: { width: 120, height: 120, borderRadius: radius.md, borderWidth: StyleSheet.hairlineWidth },
+  readingRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },
 });

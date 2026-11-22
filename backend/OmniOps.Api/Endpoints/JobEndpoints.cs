@@ -4,6 +4,7 @@ using Microsoft.Extensions.Options;
 using OmniOps.Api.Authentication;
 using OmniOps.Application.Commands;
 using OmniOps.Application.Queries;
+using OmniOps.Core.Enums;
 using OmniOps.Infrastructure.Configuration;
 
 namespace OmniOps.Api.Endpoints;
@@ -30,7 +31,8 @@ public static class JobEndpoints
         {
             var job = await m.Send(new CreateJobCommand(
                 body.VehicleId, body.DriverId, body.CustomerName ?? string.Empty, body.Reference, body.Origin,
-                body.Destination ?? string.Empty, body.DestinationLatitude, body.DestinationLongitude, body.PlannedDeliveryUtc));
+                body.Destination ?? string.Empty, body.DestinationLatitude, body.DestinationLongitude, body.PlannedDeliveryUtc,
+                body.MinTempCelsius, body.MaxTempCelsius));
             return Results.Created($"/api/v1/jobs/{job.Id}", job);
         });
 
@@ -54,15 +56,19 @@ public static class JobEndpoints
         driver.MapPost("/jobs/{jobId:guid}/locations", async (Guid jobId, LocationsBody body, IMediator m) =>
             Results.Ok(await m.Send(new RecordJobLocationsCommand(jobId, body.Points ?? []))));
 
-        driver.MapPost("/jobs/{jobId:guid}/photos", async (Guid jobId, IFormFile file, double? latitude, double? longitude, IMediator m) =>
-            {
-                await using var content = file.OpenReadStream();
-                var photo = await m.Send(new AddJobPhotoCommand(
-                    jobId, content, NormalizeContentType(file.ContentType), file.Length, latitude, longitude));
-                return Results.Ok(photo);
-            })
+        // Delivery photos (kept for older app versions) and any job document: ?kind=DeliveryPhoto|PickupDocument|TemperaturePhoto.
+        driver.MapPost("/jobs/{jobId:guid}/photos", (Guid jobId, IFormFile file, double? latitude, double? longitude, IMediator m) =>
+                UploadAsync(m, jobId, TripDocumentKind.DeliveryPhoto, file, latitude, longitude, null))
             .DisableAntiforgery()
-            .WithMetadata(new RequestSizeLimitAttribute(AddJobPhotoCommand.MaxBytes + 64 * 1024));
+            .WithMetadata(new RequestSizeLimitAttribute(AddJobDocumentCommand.MaxBytes + 64 * 1024));
+
+        driver.MapPost("/jobs/{jobId:guid}/documents",
+                (Guid jobId, string kind, IFormFile file, double? latitude, double? longitude, double? temperatureCelsius, IMediator m) =>
+                    Enum.TryParse<TripDocumentKind>(kind, ignoreCase: true, out var parsed) && Enum.IsDefined(parsed)
+                        ? UploadAsync(m, jobId, parsed, file, latitude, longitude, temperatureCelsius)
+                        : Task.FromResult(Results.BadRequest(new { title = "Unknown document kind." })))
+            .DisableAntiforgery()
+            .WithMetadata(new RequestSizeLimitAttribute(AddJobDocumentCommand.MaxBytes + 64 * 1024));
 
         driver.MapPost("/jobs/{jobId:guid}/deliver", async (Guid jobId, DeliverBody body, IMediator m) =>
             Results.Ok(await m.Send(new DeliverJobCommand(
@@ -94,6 +100,14 @@ public static class JobEndpoints
         }
     }
 
+    private static async Task<IResult> UploadAsync(
+        IMediator m, Guid jobId, TripDocumentKind kind, IFormFile file, double? latitude, double? longitude, double? temperatureCelsius)
+    {
+        await using var content = file.OpenReadStream();
+        return Results.Ok(await m.Send(new AddJobDocumentCommand(
+            jobId, kind, content, NormalizeContentType(file.ContentType), file.Length, latitude, longitude, temperatureCelsius)));
+    }
+
     private static JobScope ParseScope(string? scope) =>
         Enum.TryParse<JobScope>(scope, ignoreCase: true, out var parsed) ? parsed : JobScope.Active;
 
@@ -114,7 +128,9 @@ public static class JobEndpoints
         string? Destination,
         double? DestinationLatitude,
         double? DestinationLongitude,
-        DateTimeOffset? PlannedDeliveryUtc);
+        DateTimeOffset? PlannedDeliveryUtc,
+        double? MinTempCelsius,
+        double? MaxTempCelsius);
 
     private record LocationsBody(IReadOnlyList<JobLocationPoint>? Points);
 

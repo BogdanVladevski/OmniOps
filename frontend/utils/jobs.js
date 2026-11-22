@@ -101,3 +101,64 @@ export function jobProgress(job, now = Date.now()) {
       return { primary: jobStatusMeta(job?.status).label, secondary: '', tone: 'neutral' };
   }
 }
+
+// ---- Temperature log (refrigerated loads) -------------------------------------------------
+
+export const TEMPERATURE_PRESETS = [
+  { key: 'none', label: 'Not refrigerated', range: null },
+  { key: 'chilled', label: 'Chilled 2–8 °C', range: [2, 8] },
+  { key: 'frozen', label: 'Frozen −25 to −18 °C', range: [-25, -18] },
+  { key: 'custom', label: 'Custom', range: null },
+];
+
+/** A delivery reading must be at most this old (matches the server rule). */
+export const DELIVERY_READING_MAX_MINUTES = 30;
+
+export function isRefrigerated(job) {
+  return job?.minTempCelsius != null && job?.maxTempCelsius != null;
+}
+
+const fmt = (n) => `${Number(n).toLocaleString(undefined, { maximumFractionDigits: 1 })}`.replace('-', '−');
+
+export function formatRange(job) {
+  return isRefrigerated(job) ? `${fmt(job.minTempCelsius)} to ${fmt(job.maxTempCelsius)} °C` : null;
+}
+
+export function formatCelsius(value) {
+  return value == null ? '—' : `${fmt(value)} °C`;
+}
+
+export function isOutOfRange(job, celsius) {
+  return isRefrigerated(job) && celsius != null && (celsius < job.minTempCelsius || celsius > job.maxTempCelsius);
+}
+
+/**
+ * Parses what a driver typed from the fridge display: accepts a decimal comma ("4,5"), a leading plus,
+ * and the Unicode minus. Returns null when it is not a usable number.
+ */
+export function parseTemperatureInput(text) {
+  const cleaned = String(text ?? '').trim().replace(',', '.').replace('−', '-').replace(/\s*°?\s*c?$/i, '');
+  if (!/^[+-]?\d{1,2}(\.\d{1,2})?$/.test(cleaned)) return null;
+  const value = Number(cleaned);
+  return value >= -40 && value <= 40 ? value : null;
+}
+
+/** Where the temperature log stands: { label, tone } for office and driver screens, or null if not refrigerated. */
+export function temperatureStatus(job, now = Date.now()) {
+  if (!isRefrigerated(job)) return null;
+  if (job.temperatureOutOfRangeCount > 0) {
+    return { label: `${job.temperatureOutOfRangeCount} reading${job.temperatureOutOfRangeCount === 1 ? '' : 's'} outside ${formatRange(job)}`, tone: 'critical' };
+  }
+  if (job.status === 'InProgress' && job.temperatureCheckDueUtc && new Date(job.temperatureCheckDueUtc).getTime() <= now) {
+    return { label: job.temperatureReadingCount ? 'Temperature check overdue' : 'No temperature logged yet', tone: 'warning' };
+  }
+  if (job.lastTemperatureCelsius != null) {
+    return { label: `${formatCelsius(job.lastTemperatureCelsius)} · within range`, tone: 'ok' };
+  }
+  return { label: `Keep at ${formatRange(job)}`, tone: 'neutral' };
+}
+
+/** True if a reading exists recent enough to confirm delivery. */
+export function hasRecentReading(lastReadingIso, now = Date.now()) {
+  return !!lastReadingIso && now - new Date(lastReadingIso).getTime() <= DELIVERY_READING_MAX_MINUTES * 60 * 1000;
+}

@@ -233,6 +233,9 @@ public class JobHandlerTests
         await _mediator.Received(1).Send(Arg.Is<ProcessTelemetryCommand>(c => c.Telemetry.Id == beforeDelivery.Id), Arg.Any<CancellationToken>());
     }
 
+    private AddJobDocumentCommandHandler DocumentHandler(IFileStore files) =>
+        new(_jobs, files, _tenant, _broadcast, NullLogger<AddJobDocumentCommandHandler>.Instance);
+
     // ---- Photos -----------------------------------------------------------------------------
 
     [Fact]
@@ -245,8 +248,9 @@ public class JobHandlerTests
         files.When(f => f.SaveAsync(Arg.Any<string>(), Arg.Any<Stream>(), Arg.Any<CancellationToken>())).Do(_ => calls.Add("file"));
         _jobs.When(j => j.SaveChangesAsync(Arg.Any<CancellationToken>())).Do(_ => calls.Add("db"));
 
-        var dto = await new AddJobPhotoCommandHandler(_jobs, files, _tenant).Handle(
-            new AddJobPhotoCommand(job.Id, new MemoryStream([1, 2, 3]), "image/jpeg", 3, null, null), CancellationToken.None);
+        var dto = await DocumentHandler(files).Handle(
+            new AddJobDocumentCommand(job.Id, TripDocumentKind.DeliveryPhoto, new MemoryStream([1, 2, 3]), "image/jpeg", 3, null, null),
+            CancellationToken.None);
 
         Assert.Equal(["file", "db"], calls);
         Assert.Equal("DeliveryPhoto", dto.Kind);
@@ -257,11 +261,137 @@ public class JobHandlerTests
     [Fact]
     public async Task Photo_OverTheLimit_IsRejected()
     {
-        var job = Job(photos: AddJobPhotoCommand.MaxPhotosPerJob);
+        var job = Job(photos: AddJobDocumentCommand.MaxPhotosPerKind);
         Returns(job);
 
-        await Assert.ThrowsAsync<BusinessRuleException>(() => new AddJobPhotoCommandHandler(_jobs, Substitute.For<IFileStore>(), _tenant)
-            .Handle(new AddJobPhotoCommand(job.Id, new MemoryStream([1]), "image/jpeg", 1, null, null), CancellationToken.None));
+        await Assert.ThrowsAsync<BusinessRuleException>(() => DocumentHandler(Substitute.For<IFileStore>())
+            .Handle(new AddJobDocumentCommand(job.Id, TripDocumentKind.DeliveryPhoto, new MemoryStream([1]), "image/jpeg", 1, null, null),
+                CancellationToken.None));
+    }
+
+    // ---- Paperwork and temperature log ----------------------------------------------------
+
+    private static Trip Refrigerated(TripStatus status = TripStatus.InProgress, int photos = 1)
+    {
+        var job = Job(status, photos);
+        job.MinTempCelsius = 2;
+        job.MaxTempCelsius = 8;
+        return job;
+    }
+
+    private static void AddReading(Trip job, double celsius, DateTime at) =>
+        job.Documents.Add(new TripDocument
+        {
+            Id = Guid.NewGuid(), TripId = job.Id, Kind = TripDocumentKind.TemperaturePhoto,
+            TemperatureCelsius = celsius, CapturedAtUtc = at,
+        });
+
+    private static AddJobDocumentCommand Reading(Guid jobId, double celsius) =>
+        new(jobId, TripDocumentKind.TemperaturePhoto, new MemoryStream([1]), "image/jpeg", 1, null, null, celsius);
+
+    [Fact]
+    public async Task LoadingNote_CanBePhotographedBeforeTheTripStarts()
+    {
+        var job = Job(TripStatus.Planned);
+        Returns(job);
+
+        var dto = await DocumentHandler(Substitute.For<IFileStore>()).Handle(
+            new AddJobDocumentCommand(job.Id, TripDocumentKind.PickupDocument, new MemoryStream([1]), "image/jpeg", 1, null, null),
+            CancellationToken.None);
+
+        Assert.Equal("PickupDocument", dto.Kind);
+    }
+
+    [Fact]
+    public async Task TemperatureReading_OutsideTheRange_IsSavedThenAlertsTheOffice()
+    {
+        var job = Refrigerated();
+        Returns(job);
+        var calls = new List<string>();
+        _jobs.When(j => j.SaveChangesAsync(Arg.Any<CancellationToken>())).Do(_ => calls.Add("save"));
+        _broadcast.When(b => b.BroadcastAlertAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(),
+            Arg.Any<string>(), Arg.Any<CancellationToken>())).Do(_ => calls.Add("alert"));
+
+        var dto = await DocumentHandler(Substitute.For<IFileStore>()).Handle(Reading(job.Id, 11.5), CancellationToken.None);
+
+        Assert.Equal(11.5, dto.TemperatureCelsius);
+        Assert.Equal(["save", "alert"], calls);
+        await _broadcast.Received(1).BroadcastAlertAsync("Truck-001", CargoTemperatureAlerts.Excursion, Arg.Any<string>(),
+            Arg.Is<string>(m => m.Contains("11.5") && m.Contains("2–8")), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task TemperatureReading_InsideTheRange_RaisesNoAlert()
+    {
+        var job = Refrigerated();
+        Returns(job);
+
+        await DocumentHandler(Substitute.For<IFileStore>()).Handle(Reading(job.Id, 5), CancellationToken.None);
+
+        await _broadcast.DidNotReceive().BroadcastAlertAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(),
+            Arg.Any<string>(), Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task TemperatureReading_IsKeptEvenWhenTheLiveAlertFails()
+    {
+        var job = Refrigerated();
+        Returns(job);
+        _broadcast.BroadcastAlertAsync(Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<string>(), Arg.Any<CancellationToken>())
+            .Returns<Task>(_ => throw new InvalidOperationException("hub down"));
+
+        var dto = await DocumentHandler(Substitute.For<IFileStore>()).Handle(Reading(job.Id, 20), CancellationToken.None);
+
+        Assert.Equal(20, dto.TemperatureCelsius);
+        await _jobs.Received(1).SaveChangesAsync(Arg.Any<CancellationToken>());
+    }
+
+    [Fact]
+    public async Task Deliver_RefrigeratedLoadWithoutARecentReading_IsRejected()
+    {
+        var job = Refrigerated(photos: 1);
+        AddReading(job, 4, DateTime.UtcNow.AddHours(-3));
+        Returns(job);
+
+        var ex = await Assert.ThrowsAsync<BusinessRuleException>(() =>
+            DeliverHandler().Handle(new DeliverJobCommand(job.Id, "Ana", null, null, null), CancellationToken.None));
+
+        Assert.Contains("temperature", ex.Message);
+        Assert.Equal(TripStatus.InProgress, job.Status);
+    }
+
+    [Fact]
+    public async Task Deliver_RefrigeratedLoadWithAReadingAtTheDoor_Succeeds()
+    {
+        var job = Refrigerated(photos: 1);
+        AddReading(job, 4, DateTime.UtcNow.AddMinutes(-5));
+        Returns(job);
+
+        var dto = await DeliverHandler().Handle(new DeliverJobCommand(job.Id, "Ana", null, null, null), CancellationToken.None);
+
+        Assert.Equal("Completed", dto.Status);
+    }
+
+    [Fact]
+    public void JobSummary_CountsOutOfRangeReadingsAndSchedulesTheNextCheck()
+    {
+        var job = Refrigerated();
+        var last = DateTime.UtcNow.AddMinutes(-30);
+        AddReading(job, 4, DateTime.UtcNow.AddHours(-2));
+        AddReading(job, 9.5, last);
+
+        var dto = Dtos.JobDto.FromEntity(job);
+
+        Assert.Equal(2, dto.TemperatureReadingCount);
+        Assert.Equal(1, dto.TemperatureOutOfRangeCount);
+        Assert.Equal(9.5, dto.LastTemperatureCelsius);
+        Assert.Equal(last + JobTemperaturePolicy.CheckInterval, dto.TemperatureCheckDueUtc);
+    }
+
+    [Fact]
+    public void JobSummary_WithoutARange_HasNoTemperatureSchedule()
+    {
+        Assert.Null(Dtos.JobDto.FromEntity(Job()).TemperatureCheckDueUtc);
     }
 
     // ---- Deliver ----------------------------------------------------------------------------

@@ -142,6 +142,49 @@ public class DeliveryJobIntegrationTests(OmniOpsApiFixture fixture)
     }
 
     [Fact]
+    public async Task RefrigeratedLoad_TemperatureLogGatesDelivery()
+    {
+        var assignable = await Client.GetFromJsonAsync<JsonElement>("/api/v1/jobs/assignable");
+        var vehicleId = assignable.GetProperty("vehicles")[0].GetProperty("id").GetGuid();
+        var created = await Client.PostAsJsonAsync("/api/v1/jobs", new
+        {
+            vehicleId, customerName = "Cold store", destination = "Bitola", minTempCelsius = 2.0, maxTempCelsius = 8.0,
+        });
+        var jobId = (await created.Content.ReadFromJsonAsync<JsonElement>()).GetProperty("id").GetGuid();
+
+        // Loading note before the trip starts.
+        (await Upload(jobId, "PickupDocument")).EnsureSuccessStatusCode();
+        (await Client.PostAsync($"/api/v1/driver/jobs/{jobId}/start", null)).EnsureSuccessStatusCode();
+        (await Upload(jobId, "DeliveryPhoto")).EnsureSuccessStatusCode();
+
+        // A reading is required at the door.
+        var noReading = await Client.PostAsJsonAsync($"/api/v1/driver/jobs/{jobId}/deliver", new { recipientName = "Ana" });
+        Assert.Equal(HttpStatusCode.Conflict, noReading.StatusCode);
+
+        Assert.Equal(HttpStatusCode.BadRequest, (await Upload(jobId, "TemperaturePhoto")).StatusCode); // no value
+        (await Upload(jobId, "TemperaturePhoto", "&temperatureCelsius=9.5")).EnsureSuccessStatusCode();
+        (await Client.PostAsJsonAsync($"/api/v1/driver/jobs/{jobId}/deliver", new { recipientName = "Ana" })).EnsureSuccessStatusCode();
+
+        var detail = await Client.GetFromJsonAsync<JsonElement>($"/api/v1/jobs/{jobId}");
+        var job = detail.GetProperty("job");
+        Assert.Equal(1, job.GetProperty("pickupDocumentCount").GetInt32());
+        Assert.Equal(1, job.GetProperty("temperatureOutOfRangeCount").GetInt32());
+        Assert.Contains(detail.GetProperty("documents").EnumerateArray(),
+            d => d.GetProperty("kind").GetString() == "TemperaturePhoto" && d.GetProperty("temperatureCelsius").GetDouble() == 9.5);
+
+        Assert.Equal(HttpStatusCode.BadRequest, (await Upload(jobId, "Invoice")).StatusCode);
+    }
+
+    private async Task<HttpResponseMessage> Upload(Guid jobId, string kind, string extra = "")
+    {
+        using var form = new MultipartFormDataContent();
+        var image = new ByteArrayContent([0xFF, 0xD8, 0xFF, 0xE0, 9]);
+        image.Headers.ContentType = new MediaTypeHeaderValue("image/jpeg");
+        form.Add(image, "file", "photo.jpg");
+        return await Client.PostAsync($"/api/v1/driver/jobs/{jobId}/documents?kind={kind}{extra}", form);
+    }
+
+    [Fact]
     public async Task InvalidRequests_AreRejectedWithReasons()
     {
         var noDestination = await Client.PostAsJsonAsync("/api/v1/jobs", new { vehicleId = Guid.NewGuid(), customerName = "X" });
