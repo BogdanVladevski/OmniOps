@@ -1,11 +1,13 @@
 // One job, in full: where it is, its story so far, waiting time, and every piece of paperwork the driver captured.
 import { router } from 'expo-router';
+import { useState } from 'react';
 import { Linking, StyleSheet, Text, View } from 'react-native';
 import { API_URL } from '@/api/client';
 import type { Job, JobDocument, Wait } from '@/api/types';
-import { AuthImage, Button, Card, Sheet, Status } from '@/components/ui';
+import { AuthImage, Button, Card, Sheet, Status, TextAction } from '@/components/ui';
 import { money } from '@/features/invoices/invoice-format';
 import { shareTrackingLink, useJob } from '@/features/office-queries';
+import { openAuthorizedFile } from '@/lib/open-file';
 import { dayAndTime, timeAgo, clock } from '@/lib/time';
 import { useTheme } from '@/theme/theme-provider';
 import { radius, spacing, toneColors, typography } from '@/theme/tokens';
@@ -239,6 +241,18 @@ function JobDetailBody({
     ['Temperature', formatRange(job)],
   ].filter((r): r is [string, string] => !!r[1]);
 
+  const openCustomer = (customerId: string) => {
+    onClose();
+    router.navigate({ pathname: '/customers', params: { open: customerId } });
+  };
+  const [pdfError, setPdfError] = useState<string | null>(null);
+  const proofPack = () => {
+    setPdfError(null);
+    openAuthorizedFile(`/api/v1/jobs/${job.id}/proof.pdf`, `proof-${job.reference ?? job.id.slice(0, 8)}.pdf`).catch(
+      (e: unknown) => setPdfError(e instanceof Error ? e.message : 'Could not open the proof pack.'),
+    );
+  };
+
   const invoice = () => {
     onClose();
     router.navigate({ pathname: '/invoices', params: job.invoiceId ? { open: job.invoiceId } : { job: job.id } });
@@ -252,6 +266,12 @@ function JobDetailBody({
         <Text style={[typography.label, { color: isPositionStale(job) ? colors.warning : colors.textSecondary }]}>
           {progressText(job)}
         </Text>
+        {job.customerId ? (
+          <TextAction
+            label={`${job.customerName ?? 'Customer'}: details and portal link`}
+            onPress={() => openCustomer(job.customerId!)}
+          />
+        ) : null}
       </View>
       <Card padded={false}>
         {rows.map(([k, v], i) => (
@@ -341,8 +361,10 @@ function JobDetailBody({
           </Card>
         </Block>
       ) : null}
+      {pdfError ? <Text style={[typography.label, { color: colors.critical }]}>{pdfError}</Text> : null}
       <View style={styles.actions}>
         <Button label="Close" variant="secondary" onPress={onClose} style={styles.flex} />
+        <Button label="Proof pack (PDF)" variant="secondary" onPress={proofPack} style={styles.flex} />
         {job.trackingPath ? (
           <Button
             label="Open customer page"

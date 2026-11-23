@@ -20,6 +20,12 @@ const SCREENS: { id: string; label: string; href: Href; keywords: string }[] = [
     href: { pathname: '/jobs', params: { create: '1' } },
     keywords: 'create add delivery order',
   },
+  {
+    id: 'customers',
+    label: 'Customers and portal links',
+    href: '/customers',
+    keywords: 'customer client portal link whatsapp viber share email updates',
+  },
   { id: 'invoices', label: 'Invoices', href: '/invoices', keywords: 'invoice bill money paid unpaid overdue reminder' },
   {
     id: 'fleet',

@@ -42,6 +42,7 @@ export function LiveUpdatesProvider({ children }: { children: ReactNode }) {
       changed.current.clear();
       void queryClient.invalidateQueries({ queryKey: keys.allJobs });
       void queryClient.invalidateQueries({ queryKey: keys.invoices });
+      void queryClient.invalidateQueries({ queryKey: keys.customers });
       ids.forEach((id) => void queryClient.invalidateQueries({ queryKey: keys.job(id) }));
     };
     const onChange = (jobId: string) => {

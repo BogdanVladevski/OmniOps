@@ -22,6 +22,8 @@ export type InvoiceDetail = S['InvoiceDetailDto'];
 export type UninvoicedJob = S['UninvoicedJobDto'];
 export type SuggestedLine = S['SuggestedLineDto'];
 export type AuditEntry = S['AuditEntryDto'];
+export type Customer = S['CustomerDto'];
+export type CustomerDetail = S['CustomerDetailDto'];
 export type LocationPoint = S['LocationPoint'];
 
 export type JobStatus = 'Planned' | 'InProgress' | 'Delivered' | 'Cancelled';

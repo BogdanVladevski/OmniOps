@@ -9,3 +9,4 @@ export { Sheet } from './sheet';
 export { Status } from './status';
 export { AuthImage, useAuthorizedUri } from './auth-image';
 export { Choice, type ChoiceOption } from './choice';
+export { Toggle } from './toggle';
