@@ -4,6 +4,7 @@ using OmniOps.Api.Infrastructure;
 using OmniOps.Application.Common.Security;
 using OmniOps.Application.Features.Audit;
 using OmniOps.Application.Features.Billing;
+using OmniOps.Application.Features.Customers;
 using OmniOps.Application.Features.Demo;
 using OmniOps.Application.Features.Jobs;
 
@@ -42,9 +43,17 @@ internal static class PublicEndpoints
                 ? Results.Stream(file.Content, file.ContentType)
                 : Results.NotFound());
 
+        pub.MapGet("/api/public/portal/{token}", async Task<Results<Ok<CustomerPortalDto>, NotFound>> (string token, IMediator m, CancellationToken ct) =>
+            await m.Send(new GetCustomerPortalQuery(token), ct) is { } portal ? TypedResults.Ok(portal) : TypedResults.NotFound());
+        pub.MapGet("/api/public/portal/{token}/jobs/{jobId:guid}/proof.pdf", async (string token, Guid jobId, HttpContext context, IMediator m, CancellationToken ct) =>
+                await m.Send(new GetPortalProofPackQuery(token, jobId), ct) is { } pdf ? PdfResults.Inline(context, pdf) : Results.NotFound())
+            .Produces(StatusCodes.Status200OK, contentType: "application/pdf")
+            .Produces(StatusCodes.Status404NotFound);
+
         // The pages themselves; they fetch the data above.
         pub.MapGet("/t/{token}", (IWebHostEnvironment env) => Page(env, "track.html")).ExcludeFromDescription();
         pub.MapGet("/i/{token}", (IWebHostEnvironment env) => Page(env, "invoice.html")).ExcludeFromDescription();
+        pub.MapGet("/c/{token}", (IWebHostEnvironment env) => Page(env, "portal.html")).ExcludeFromDescription();
     }
 
     private static IResult Page(IWebHostEnvironment env, string file) =>

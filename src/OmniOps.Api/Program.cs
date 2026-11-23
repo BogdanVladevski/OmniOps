@@ -69,6 +69,7 @@ app.MapDefaultEndpoints();
 app.MapHub<LiveHub>(LiveHub.Path);
 app.MapAccountEndpoints();
 app.MapFleetEndpoints();
+app.MapCustomerEndpoints();
 app.MapJobEndpoints();
 app.MapDriverEndpoints();
 app.MapBillingEndpoints();

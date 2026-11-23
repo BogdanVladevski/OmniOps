@@ -319,6 +319,9 @@ namespace OmniOps.Infrastructure.Persistence.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
 
+                    b.Property<bool>("EmailUpdates")
+                        .HasColumnType("boolean");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -335,6 +338,17 @@ namespace OmniOps.Infrastructure.Persistence.Migrations
                     b.Property<int?>("PaymentTermsDays")
                         .HasColumnType("integer");
 
+                    b.Property<string>("Phone")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
+                    b.Property<DateTime?>("PortalCreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("PortalToken")
+                        .HasMaxLength(64)
+                        .HasColumnType("character varying(64)");
+
                     b.Property<string>("TaxId")
                         .HasMaxLength(50)
                         .HasColumnType("character varying(50)");
@@ -343,6 +357,10 @@ namespace OmniOps.Infrastructure.Persistence.Migrations
                         .HasColumnType("timestamp with time zone");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("PortalToken")
+                        .IsUnique()
+                        .HasFilter("\"PortalToken\" IS NOT NULL");
 
                     b.HasIndex("OrganizationId", "NormalizedName")
                         .IsUnique();
@@ -371,6 +389,9 @@ namespace OmniOps.Infrastructure.Persistence.Migrations
                     b.Property<string>("CustomerEmail")
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
+
+                    b.Property<Guid?>("CustomerId")
+                        .HasColumnType("uuid");
 
                     b.Property<string>("CustomerName")
                         .IsRequired()
@@ -456,11 +477,15 @@ namespace OmniOps.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("CustomerId");
+
                     b.HasIndex("JobId")
                         .IsUnique();
 
                     b.HasIndex("PublicToken")
                         .IsUnique();
+
+                    b.HasIndex("OrganizationId", "CustomerId");
 
                     b.HasIndex("OrganizationId", "Number")
                         .IsUnique();
@@ -652,9 +677,21 @@ namespace OmniOps.Infrastructure.Persistence.Migrations
                     b.Property<DateTime>("CreatedAtUtc")
                         .HasColumnType("timestamp with time zone");
 
+                    b.Property<DateTime?>("CustomerArrivingNoticeAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTime?>("CustomerDeliveredNoticeAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<Guid?>("CustomerId")
+                        .HasColumnType("uuid");
+
                     b.Property<string>("CustomerName")
                         .HasMaxLength(200)
                         .HasColumnType("character varying(200)");
+
+                    b.Property<DateTime?>("CustomerPickedUpNoticeAtUtc")
+                        .HasColumnType("timestamp with time zone");
 
                     b.Property<DateTime?>("DeliveredAtUtc")
                         .HasColumnType("timestamp with time zone");
@@ -772,12 +809,16 @@ namespace OmniOps.Infrastructure.Persistence.Migrations
 
                     b.HasKey("Id");
 
+                    b.HasIndex("CustomerId");
+
                     b.HasIndex("DriverId");
 
                     b.HasIndex("TrackingToken")
                         .IsUnique();
 
                     b.HasIndex("VehicleId");
+
+                    b.HasIndex("OrganizationId", "CustomerId");
 
                     b.HasIndex("OrganizationId", "Status");
 
@@ -882,6 +923,11 @@ namespace OmniOps.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("OmniOps.Domain.Billing.Invoice", b =>
                 {
+                    b.HasOne("OmniOps.Domain.Billing.Customer", null)
+                        .WithMany()
+                        .HasForeignKey("CustomerId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("OmniOps.Domain.Jobs.Job", "Job")
                         .WithMany()
                         .HasForeignKey("JobId")
@@ -910,6 +956,11 @@ namespace OmniOps.Infrastructure.Persistence.Migrations
 
             modelBuilder.Entity("OmniOps.Domain.Jobs.Job", b =>
                 {
+                    b.HasOne("OmniOps.Domain.Billing.Customer", null)
+                        .WithMany()
+                        .HasForeignKey("CustomerId")
+                        .OnDelete(DeleteBehavior.SetNull);
+
                     b.HasOne("OmniOps.Domain.Fleet.Driver", "Driver")
                         .WithMany()
                         .HasForeignKey("DriverId")

@@ -1,0 +1,212 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="robots" content="noindex, nofollow">
+  <!-- The URL contains the private token: never send it to other sites. -->
+  <meta name="referrer" content="no-referrer">
+  <title>Your deliveries</title>
+  <link rel="icon" href="data:,">
+  <style>
+    :root {
+      --bg: #F5F5F3; --card: #FFFFFF; --sunken: #EFEFEC; --text: #16181D; --text2: #545A66; --muted: #8A8F99;
+      --border: #E4E4E0; --accent: #2E5BDB; --ok: #1C7A45; --warn: #A85C0A; --crit: #C8322B;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root { --bg: #0F1012; --card: #17181B; --sunken: #202227; --text: #ECEDEF; --text2: #A3A8B2; --muted: #6F747E;
+        --border: #2A2C31; --accent: #7A9BFF; --ok: #4CC285; --warn: #E0A04A; --crit: #F07167; }
+    }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; background: var(--bg); color: var(--text);
+      font: 15px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; }
+    .wrap { max-width: 760px; margin: 0 auto; padding: 24px 16px 40px; }
+    .company { font-size: 13px; color: var(--text2); }
+    h1 { font-size: 26px; line-height: 1.2; letter-spacing: -0.5px; margin: 2px 0 4px; font-weight: 700; }
+    .sub { color: var(--text2); margin: 0; }
+    .figures { display: flex; gap: 28px; flex-wrap: wrap; margin: 20px 0 4px; }
+    .figure b { display: block; font-size: 26px; letter-spacing: -0.5px; font-variant-numeric: tabular-nums; }
+    .figure span { font-size: 12px; color: var(--muted); }
+    .figure.crit b { color: var(--crit); }
+    h2 { font-size: 13px; font-weight: 600; color: var(--text2); margin: 28px 0 8px; }
+    .card { background: var(--card); border: 1px solid var(--border); border-radius: 14px; overflow: hidden; }
+    .item { display: flex; gap: 16px; justify-content: space-between; align-items: flex-start; padding: 14px 16px; }
+    .item + .item { border-top: 1px solid var(--border); }
+    .main { min-width: 0; }
+    .title { font-weight: 600; }
+    .meta { font-size: 13px; color: var(--text2); overflow-wrap: anywhere; }
+    .side { text-align: right; flex-shrink: 0; }
+    .big { font-weight: 600; font-variant-numeric: tabular-nums; }
+    .status { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 500; }
+    .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--muted); }
+    .s-onTheWay { color: var(--accent); } .s-onTheWay .dot { background: var(--accent); }
+    .s-delivered, .s-paid { color: var(--ok); } .s-delivered .dot, .s-paid .dot { background: var(--ok); }
+    .s-overdue { color: var(--crit); } .s-overdue .dot { background: var(--crit); }
+    .s-unpaid { color: var(--warn); } .s-unpaid .dot { background: var(--warn); }
+    .links { display: flex; gap: 14px; justify-content: flex-end; margin-top: 6px; font-size: 13px; font-weight: 500; }
+    a { color: var(--accent); text-decoration: none; }
+    a:hover { text-decoration: underline; }
+    .empty { padding: 16px; color: var(--muted); }
+    .foot { color: var(--muted); font-size: 12px; margin-top: 24px; text-align: center; }
+    .gone { text-align: center; padding-top: 18vh; }
+    .hidden { display: none; }
+    @media (max-width: 520px) { .item { flex-direction: column; gap: 6px; } .side { text-align: left; } .links { justify-content: flex-start; } }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <div id="content" class="hidden">
+      <div class="company" id="company"></div>
+      <h1 id="customer"></h1>
+      <p class="sub">Your deliveries, proof of delivery and invoices, kept up to date.</p>
+      <div class="figures" id="figures"></div>
+      <section id="moving"></section>
+      <section id="planned"></section>
+      <section id="delivered"></section>
+      <section id="invoices"></section>
+      <div class="foot" id="foot"></div>
+    </div>
+    <div id="notFound" class="gone hidden">
+      <h1>This link is not available</h1>
+      <p class="sub">It may have been turned off or replaced. Please ask the company that sent it for a new one.</p>
+    </div>
+  </main>
+  <script>
+  (function () {
+    var token = decodeURIComponent(location.pathname.split('/').filter(Boolean).pop() || '');
+    var POLL_MS = 60000;
+    var $ = function (id) { return document.getElementById(id); };
+
+    function el(tag, cls, text) {
+      var e = document.createElement(tag);
+      if (cls) e.className = cls;
+      if (text != null) e.textContent = text;
+      return e;
+    }
+    function link(href, text) { var a = el('a', null, text); a.href = href; a.target = '_blank'; a.rel = 'noopener noreferrer'; return a; }
+    function time(iso) { return new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }); }
+    function day(iso) {
+      var d = new Date(iso);
+      var today = new Date().toDateString() === d.toDateString();
+      return today ? 'today' : d.toLocaleDateString([], { day: 'numeric', month: 'short', year: d.getFullYear() === new Date().getFullYear() ? undefined : 'numeric' });
+    }
+    function money(n, c) {
+      try { return new Intl.NumberFormat(undefined, { style: 'currency', currency: c }).format(n); } catch (e) { return n.toFixed(2) + ' ' + c; }
+    }
+    function plural(n, one, many) { return n + ' ' + (n === 1 ? one : many); }
+    function status(kind, label) {
+      var s = el('span', 'status s-' + kind);
+      s.appendChild(el('span', 'dot'));
+      s.appendChild(el('span', null, label));
+      return s;
+    }
+    function title(job) { return job.reference ? 'Order ' + job.reference : (job.destination || 'Delivery'); }
+
+    function section(id, heading, items, render, emptyText) {
+      var host = $(id);
+      host.textContent = '';
+      if (!items.length && !emptyText) return;
+      host.appendChild(el('h2', null, heading + (items.length ? ' · ' + items.length : '')));
+      var card = el('div', 'card');
+      if (!items.length) card.appendChild(el('div', 'empty', emptyText));
+      items.forEach(function (x) { card.appendChild(render(x)); });
+      host.appendChild(card);
+    }
+
+    function jobItem(job) {
+      var item = el('div', 'item');
+      var main = el('div', 'main');
+      main.appendChild(el('div', 'title', title(job)));
+      main.appendChild(el('div', 'meta', [job.origin, job.destination].filter(Boolean).join(' → ')));
+      var side = el('div', 'side');
+      var links = el('div', 'links');
+
+      if (job.status === 'OnTheWay') {
+        side.appendChild(status('onTheWay', 'On the way'));
+        if (job.arrivedAtUtc) side.appendChild(el('div', 'big', 'Arrived ' + time(job.arrivedAtUtc)));
+        else if (job.remainingKm === 0) side.appendChild(el('div', 'big', 'Arriving now'));
+        else if (job.etaUtc) side.appendChild(el('div', 'big', 'Around ' + time(job.etaUtc)));
+        if (job.trackingPath) links.appendChild(link(job.trackingPath, 'Track live'));
+      } else if (job.status === 'Planned') {
+        side.appendChild(status('planned', 'Planned'));
+        if (job.plannedDeliveryUtc) side.appendChild(el('div', 'meta', 'Due ' + day(job.plannedDeliveryUtc) + ', ' + time(job.plannedDeliveryUtc)));
+      } else {
+        side.appendChild(status('delivered', 'Delivered ' + day(job.deliveredAtUtc) + ', ' + time(job.deliveredAtUtc)));
+        var proof = [];
+        if (job.receivedBy) proof.push('received by ' + job.receivedBy);
+        if (job.hasSignature) proof.push('signed');
+        if (job.photoCount) proof.push(plural(job.photoCount, 'photo', 'photos'));
+        if (job.temperatureReadings) proof.push(plural(job.temperatureReadings, 'temperature reading', 'temperature readings'));
+        if (proof.length) main.appendChild(el('div', 'meta', proof.join(' · ')));
+        if (job.problemsReported) main.appendChild(el('div', 'meta s-overdue', plural(job.problemsReported, 'problem reported', 'problems reported') + ' at delivery'));
+        if (job.proofPath) links.appendChild(link(job.proofPath, 'Proof of delivery (PDF)'));
+      }
+      if (links.childNodes.length) side.appendChild(links);
+      item.appendChild(main);
+      item.appendChild(side);
+      return item;
+    }
+
+    function invoiceItem(inv) {
+      var item = el('div', 'item');
+      var main = el('div', 'main');
+      main.appendChild(el('div', 'title', 'Invoice ' + inv.number));
+      main.appendChild(el('div', 'meta', 'Issued ' + day(inv.issueDateUtc) + (inv.deliveryReference ? ' · order ' + inv.deliveryReference : '')));
+      var side = el('div', 'side');
+      side.appendChild(el('div', 'big', money(inv.total, inv.currency)));
+      var label = inv.status === 'Paid' ? 'Paid' : inv.status === 'Overdue' ? 'Overdue since ' + day(inv.dueDateUtc) : 'Due ' + day(inv.dueDateUtc);
+      side.appendChild(status(inv.status.toLowerCase(), label));
+      var links = el('div', 'links');
+      links.appendChild(link(inv.publicPath, 'Open invoice'));
+      side.appendChild(links);
+      item.appendChild(main);
+      item.appendChild(side);
+      return item;
+    }
+
+    function figures(data) {
+      var host = $('figures');
+      host.textContent = '';
+      var unpaid = data.invoices.filter(function (i) { return i.status !== 'Paid'; });
+      var overdue = unpaid.filter(function (i) { return i.status === 'Overdue'; });
+      var currency = (data.invoices[0] || {}).currency || 'EUR';
+      var sum = function (list) { return list.reduce(function (s, i) { return s + i.total; }, 0); };
+      [[data.onTheWay.length, 'On the way'], [data.delivered.length, 'Delivered (90 days)'],
+       data.invoices.length ? [money(sum(unpaid), currency), 'To pay'] : null, overdue.length ? [money(sum(overdue), currency), 'Overdue', 'crit'] : null]
+        .filter(Boolean)
+        .forEach(function (f) {
+          var d = el('div', 'figure' + (f[2] ? ' ' + f[2] : ''));
+          d.appendChild(el('b', null, String(f[0])));
+          d.appendChild(el('span', null, f[1]));
+          host.appendChild(d);
+        });
+    }
+
+    function render(data) {
+      document.title = 'Deliveries for ' + data.customerName + ' · ' + data.companyName;
+      $('company').textContent = data.companyName;
+      $('customer').textContent = data.customerName;
+      figures(data);
+      section('moving', 'On the way', data.onTheWay, jobItem);
+      section('planned', 'Planned', data.planned, jobItem);
+      section('delivered', 'Delivered', data.delivered, jobItem, data.onTheWay.length || data.planned.length ? null : 'No deliveries yet.');
+      section('invoices', 'Invoices', data.invoices, invoiceItem);
+      $('foot').textContent = 'Updated ' + time(new Date().toISOString()) + '. This page refreshes by itself. Keep this link private: anyone with it can see these deliveries.';
+      $('content').classList.remove('hidden');
+    }
+
+    function load() {
+      fetch('/api/public/portal/' + encodeURIComponent(token), { headers: { Accept: 'application/json' } })
+        .then(function (r) {
+          if (r.status === 404) { $('content').classList.add('hidden'); $('notFound').classList.remove('hidden'); return null; }
+          if (!r.ok) throw new Error(String(r.status));
+          return r.json();
+        })
+        .then(function (data) { if (data) { render(data); setTimeout(load, POLL_MS); } })
+        .catch(function () { setTimeout(load, POLL_MS); });
+    }
+    load();
+  })();
+  </script>
+</body>
+</html>

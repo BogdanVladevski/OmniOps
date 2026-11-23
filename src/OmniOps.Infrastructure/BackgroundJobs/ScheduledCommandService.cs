@@ -44,3 +44,7 @@ internal sealed class InvoiceReminderService(IServiceScopeFactory scopes, ILogge
 /// <summary>Every 2 minutes: trucks whose free waiting time just ran out.</summary>
 internal sealed class WaitingAlertService(IServiceScopeFactory scopes, ILogger<WaitingAlertService> logger)
     : ScheduledCommandService<Application.Features.Jobs.ProcessWaitingAlertsCommand>(scopes, logger, TimeSpan.FromMinutes(2));
+
+/// <summary>Every minute: customers' email updates (picked up, arriving soon, delivered with proof).</summary>
+internal sealed class CustomerUpdateService(IServiceScopeFactory scopes, ILogger<CustomerUpdateService> logger)
+    : ScheduledCommandService<Application.Features.Customers.ProcessCustomerUpdatesCommand>(scopes, logger, TimeSpan.FromMinutes(1));

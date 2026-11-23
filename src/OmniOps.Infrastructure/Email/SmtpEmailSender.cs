@@ -46,6 +46,10 @@ internal sealed class PublicLinks(IOptions<PublicUrlOptions> options) : IPublicL
 
     public string Tracking(string token) => $"{_api}/t/{token}";
 
+    public string Portal(string token) => $"{_api}/c/{token}";
+
+    public string PortalProof(string token, Guid jobId) => $"{_api}/api/public/portal/{token}/jobs/{jobId}/proof.pdf";
+
     public string Join(string token) => $"{_app}/join/{Uri.EscapeDataString(token)}";
 
     public string PasswordReset(string token) => $"{_app}/reset/{Uri.EscapeDataString(token)}";

@@ -25,6 +25,9 @@ public class Job
     /// <summary>Who the load is for, as shown on the tracking page and the paperwork.</summary>
     public string? CustomerName { get; set; }
 
+    /// <summary>The customer record; <see cref="CustomerName"/> keeps the name as it was when the job was created.</summary>
+    public Guid? CustomerId { get; set; }
+
     /// <summary>Customer's order / PO / consignment number.</summary>
     public string? Reference { get; set; }
 
@@ -70,6 +73,11 @@ public class Job
     /// <summary>When the office was told free waiting time ran out (once per stop).</summary>
     public DateTime? PickupWaitAlertedAtUtc { get; set; }
     public DateTime? DeliveryWaitAlertedAtUtc { get; set; }
+
+    /// <summary>Email updates already handled for the customer (sent, or skipped because a later one went out).</summary>
+    public DateTime? CustomerPickedUpNoticeAtUtc { get; set; }
+    public DateTime? CustomerArrivingNoticeAtUtc { get; set; }
+    public DateTime? CustomerDeliveredNoticeAtUtc { get; set; }
 
     public Vehicle Vehicle { get; set; } = null!;
     public Driver? Driver { get; set; }

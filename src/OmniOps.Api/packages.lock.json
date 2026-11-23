@@ -421,7 +421,8 @@
           "Microsoft.EntityFrameworkCore": "[10.0.15, )",
           "Microsoft.Extensions.Diagnostics.HealthChecks.EntityFrameworkCore": "[10.0.15, )",
           "Npgsql.EntityFrameworkCore.PostgreSQL": "[10.0.4, )",
-          "OmniOps.Application": "[1.0.0, )"
+          "OmniOps.Application": "[1.0.0, )",
+          "QuestPDF": "[2026.9.2, )"
         }
       },
       "omniops.servicedefaults": {
@@ -550,6 +551,12 @@
         "dependencies": {
           "OpenTelemetry.Api": "[1.21.0, 2.0.0)"
         }
+      },
+      "QuestPDF": {
+        "type": "CentralTransitive",
+        "requested": "[2026.9.2, )",
+        "resolved": "2026.9.2",
+        "contentHash": "Nc7nvV/CmL/lonuw1mTQbiETfU7EZoM2kZ9YRgdbC5VivVjxsMHPJ18g4t5FMx/jUGh6XpJXFfW1rFWvAYOeTg=="
       }
     }
   }
