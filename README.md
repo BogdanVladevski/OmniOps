@@ -109,10 +109,11 @@ docs/                       API contract and development guide
 
 ## Getting started
 
-Prerequisites: .NET SDK 10, Node.js 22 or later, Docker.
+Prerequisites: .NET SDK 10, Node.js 22 or later, Docker, and the [Aspire CLI](https://get.aspire.dev)
+(`dotnet tool install -g aspire.cli`, with `~/.dotnet/tools` on your `PATH`).
 
 ```bash
-dotnet tool restore                      # Aspire CLI and EF Core tools
+dotnet tool restore                      # EF Core tools
 (cd app && npm ci)
 dotnet run --project src/OmniOps.AppHost
 ```
