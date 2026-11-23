@@ -1,39 +1,61 @@
+# Dependency updates, batched: at most one pull request per ecosystem each month.
+#
+# Deliberately left to manual upgrades:
+# - .NET major versions: the project tracks the LTS release (10). Move to the next LTS on purpose.
+# - Expo-managed packages (expo, react, react-native and their libraries): upgraded together with
+#   `npx expo install --fix` when moving to a new Expo SDK, never one by one.
+# - TypeScript and ESLint majors: they follow what the Expo SDK supports.
 version: 2
 updates:
   - package-ecosystem: nuget
     directory: /
     schedule:
-      interval: weekly
+      interval: monthly
+    open-pull-requests-limit: 1
+    ignore:
+      - dependency-name: '*'
+        update-types: [version-update:semver-major]
     groups:
-      microsoft:
-        patterns: [Microsoft.*, Aspire.*, System.*]
-      testing:
-        patterns: [xunit*, Testcontainers*, coverlet*]
-      everything-else:
+      nuget:
         patterns: ['*']
-        update-types: [minor, patch]
 
   - package-ecosystem: npm
     directory: /app
     schedule:
-      interval: weekly
-    groups:
-      # Expo SDK packages move together; upgrade them with `npx expo install --fix` on an SDK bump instead.
-      expo:
-        patterns: [expo, expo-*, react, react-dom, react-native, react-native-*, '@expo/*', jest-expo, eslint-config-expo]
-      everything-else:
-        patterns: ['*']
-        update-types: [minor, patch]
+      interval: monthly
+    open-pull-requests-limit: 1
     ignore:
+      - dependency-name: expo
+      - dependency-name: expo-*
+      - dependency-name: '@expo/*'
+      - dependency-name: jest-expo
+      - dependency-name: eslint-config-expo
+      - dependency-name: react
+      - dependency-name: react-dom
       - dependency-name: react-native
-        update-types: [version-update:semver-major, version-update:semver-minor]
+      - dependency-name: react-native-*
+      - dependency-name: '@react-native-async-storage/*'
+      - dependency-name: '@types/react'
+      - dependency-name: '*'
+        update-types: [version-update:semver-major]
+    groups:
+      npm:
+        patterns: ['*']
 
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: monthly
+    open-pull-requests-limit: 1
+    groups:
+      actions:
+        patterns: ['*']
 
   - package-ecosystem: docker
     directory: /deploy
     schedule:
-      interval: weekly
+      interval: monthly
+    open-pull-requests-limit: 1
+    ignore:
+      - dependency-name: '*'
+        update-types: [version-update:semver-major]
