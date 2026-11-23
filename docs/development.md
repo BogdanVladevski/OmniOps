@@ -4,10 +4,12 @@
 
 - .NET SDK 10 (the exact version is pinned in `global.json`)
 - Node.js 22 or later
-- Docker (for PostgreSQL and the integration tests)
+- Docker (for PostgreSQL and the integration tests), usable without `sudo`
+- The Aspire CLI, which runs the local environment: `dotnet tool install -g aspire.cli`. It must be on your `PATH`
+  (`~/.dotnet/tools`); otherwise the AppHost build stops with `ASPIRE009`.
 
 ```bash
-dotnet tool restore      # Aspire CLI, EF Core tools (dotnet-tools.json)
+dotnet tool restore      # EF Core tools (dotnet-tools.json)
 (cd app && npm ci)
 ```
 
