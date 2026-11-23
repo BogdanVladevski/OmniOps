@@ -11,6 +11,9 @@
     <GenerateDocumentationFile>true</GenerateDocumentationFile>
     <NoWarn>$(NoWarn);CS1591</NoWarn>
     <InvariantGlobalization>false</InvariantGlobalization>
+    <!-- Reproducible restores: exact package versions are locked; CI restores in locked mode. -->
+    <RestorePackagesWithLockFile>true</RestorePackagesWithLockFile>
+    <RestoreLockedMode Condition="'$(CI)' == 'true'">true</RestoreLockedMode>
     <Authors>OmniOps</Authors>
     <Company>OmniOps</Company>
     <Copyright>© OmniOps. All rights reserved.</Copyright>
