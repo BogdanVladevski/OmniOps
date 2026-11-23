@@ -4,6 +4,22 @@ All notable changes to OmniOps are documented in this file.
 
 ## [Unreleased]
 
+### Added (customer portal)
+
+- Customers: jobs and invoices now belong to a customer, created by name when the first job for them is made (existing
+  data is linked by a migration). A new Customers screen shows what's active, what they owe and what's overdue, with
+  their contact details and payment terms
+- Customer portal: one permanent link per customer (`/c/{token}`) with their deliveries on the way (live ETA, tracking
+  link), planned and delivered ones (who received it, signature, photos, temperature readings) and their invoices with
+  paid, unpaid or overdue status. The office can replace the link (the old one stops working) or turn it off
+- Share the portal link through WhatsApp (straight into the customer's chat when their phone number is known), Viber,
+  email, or copy it
+- Proof pack: a PDF per delivery with the timeline, waiting time and its evidence, the temperature log, every photo with
+  when and where it was taken, and the receiver's signature, in the carrier's time zone. From the job in the office
+  (`GET /api/v1/jobs/{id}/proof.pdf`) and from the portal for delivered jobs
+- Email updates for customers who want them: picked up, arriving in about 30 minutes (from the truck's live position),
+  and delivered with a link to the proof. Sent once each, never stale, and only when email sending is set up
+
 ### Changed (platform)
 
 - Backend rebuilt on .NET 10 / C# 14: `src/` and `tests/` layout, `OmniOps.slnx`, central package management, NuGet lock

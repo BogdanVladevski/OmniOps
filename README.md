@@ -19,7 +19,7 @@ OmniOps serves three people with one system:
 | --- | --- |
 | **The office** (owner, dispatchers) | A *Today* screen: what's moving, what needs attention (late, no signal, temperature, waiting time), and money ready to invoice, each with one next step. Jobs, invoices with reminders, fleet, team. |
 | **The driver** | One job at a time, one large button per step, in their own language (9 languages). Works without signal: every action is stored on the phone and sent in order later. |
-| **The customer** | A tracking link with a live ETA, and an invoice page with the signed proof, photos and temperature log attached. |
+| **The customer** | One permanent portal link: every delivery live with an ETA, signed proof as a PDF, and their invoices. Optional email updates when a load is picked up, about to arrive and delivered. No account, no app. |
 
 What sets it apart from typical fleet tools:
 
@@ -27,6 +27,10 @@ What sets it apart from typical fleet tools:
   "I've arrived" tap). Waiting past the free time becomes a priced invoice line, with the times as proof.
 - **Proof that holds up.** Receiver signatures, loading notes and damage reports are captured on the phone. Blurry or
   dark document photos are flagged on the device before they're saved.
+- **One link per customer, shared where they already are.** WhatsApp, Viber or email, prefilled. The portal shows
+  everything the carrier does for that customer and nothing else, and the office can replace or turn off the link.
+- **A proof pack for every delivery.** One PDF with the timeline, waiting time, temperature log, photos with time and
+  position, and the receiver's signature: the answer to "where is my proof?" and to cargo claims.
 - **Delivered today, invoiced today.** A delivered job carries its paperwork straight into an invoice. Unpaid invoices
   get reminders, and the customer's page shows the proof.
 - **Cold chain without sensors.** For refrigerated loads, drivers log readings with a photo of the unit's display, on a
