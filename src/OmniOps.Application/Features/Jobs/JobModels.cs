@@ -47,7 +47,8 @@ public sealed record JobDto(
     int ExceptionCount,
     DateTime? PickupArrivedAtUtc,
     DateTime? DeliveryArrivedAtUtc,
-    Guid? InvoiceId)
+    Guid? InvoiceId,
+    Guid? CustomerId)
 {
     public static JobDto From(Job job)
     {
@@ -67,7 +68,7 @@ public sealed record JobDto(
             readings.Count(r => JobTemperaturePolicy.IsOutOfRange(job, r.TemperatureCelsius!.Value)),
             JobTemperaturePolicy.NextCheckDueUtc(job),
             Count(JobDocumentKind.DeliveryPhoto), Count(JobDocumentKind.PickupDocument), Count(JobDocumentKind.Signature),
-            Count(JobDocumentKind.Exception), job.PickupArrivedAtUtc, job.DeliveryArrivedAtUtc, job.InvoiceId);
+            Count(JobDocumentKind.Exception), job.PickupArrivedAtUtc, job.DeliveryArrivedAtUtc, job.InvoiceId, job.CustomerId);
     }
 
     /// <summary>Arrival estimate while on the way and both positions are known; otherwise nothing.</summary>

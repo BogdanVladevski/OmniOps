@@ -801,6 +801,155 @@
         }
       }
     },
+    "/api/v1/customers": {
+      "get": {
+        "tags": [
+          "Customers"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CustomerDto"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/customers/{customerId}": {
+      "get": {
+        "tags": [
+          "Customers"
+        ],
+        "parameters": [
+          {
+            "name": "customerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CustomerDetailDto"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Customers"
+        ],
+        "parameters": [
+          {
+            "name": "customerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CustomerBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CustomerDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/customers/{customerId}/portal": {
+      "post": {
+        "tags": [
+          "Customers"
+        ],
+        "summary": "Turns the customer's portal link on, or replaces it (the old link stops working).",
+        "parameters": [
+          {
+            "name": "customerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CustomerDto"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Customers"
+        ],
+        "parameters": [
+          {
+            "name": "customerId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CustomerDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/v1/jobs": {
       "get": {
         "tags": [
@@ -904,6 +1053,30 @@
                 }
               }
             }
+          }
+        }
+      }
+    },
+    "/api/v1/jobs/{jobId}/proof.pdf": {
+      "get": {
+        "tags": [
+          "Jobs"
+        ],
+        "summary": "The delivery's proof pack: timeline, waiting time, temperature log, photos and signature.",
+        "parameters": [
+          {
+            "name": "jobId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
           }
         }
       }
@@ -1506,6 +1679,72 @@
           }
         }
       }
+    },
+    "/api/public/portal/{token}": {
+      "get": {
+        "tags": [
+          "Public"
+        ],
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CustomerPortalDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
+    },
+    "/api/public/portal/{token}/jobs/{jobId}/proof.pdf": {
+      "get": {
+        "tags": [
+          "Public"
+        ],
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "jobId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -2025,6 +2264,232 @@
               "null",
               "string"
             ]
+          }
+        }
+      },
+      "CustomerBody": {
+        "required": [
+          "name",
+          "email",
+          "phone",
+          "address",
+          "taxId",
+          "paymentTermsDays",
+          "emailUpdates"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "email": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "phone": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "address": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "taxId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "paymentTermsDays": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "emailUpdates": {
+            "type": "boolean"
+          }
+        }
+      },
+      "CustomerDetailDto": {
+        "required": [
+          "customer",
+          "recentJobs",
+          "invoices"
+        ],
+        "type": "object",
+        "properties": {
+          "customer": {
+            "$ref": "#/components/schemas/CustomerDto"
+          },
+          "recentJobs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/JobDto"
+            }
+          },
+          "invoices": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InvoiceSummaryDto"
+            }
+          }
+        }
+      },
+      "CustomerDto": {
+        "required": [
+          "id",
+          "name",
+          "email",
+          "phone",
+          "address",
+          "taxId",
+          "paymentTermsDays",
+          "emailUpdates",
+          "portalUrl",
+          "portalCreatedAtUtc",
+          "activeJobs",
+          "deliveredLast30Days",
+          "lastJobAtUtc",
+          "outstanding",
+          "overdue",
+          "currency"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "email": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "phone": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "address": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "taxId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "paymentTermsDays": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "emailUpdates": {
+            "type": "boolean"
+          },
+          "portalUrl": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "portalCreatedAtUtc": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "activeJobs": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "deliveredLast30Days": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "lastJobAtUtc": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "outstanding": {
+            "type": "number",
+            "format": "double"
+          },
+          "overdue": {
+            "type": "number",
+            "format": "double"
+          },
+          "currency": {
+            "type": "string"
+          }
+        },
+        "description": "A customer as the office sees it, with where things stand."
+      },
+      "CustomerPortalDto": {
+        "required": [
+          "companyName",
+          "customerName",
+          "onTheWay",
+          "planned",
+          "delivered",
+          "invoices"
+        ],
+        "type": "object",
+        "properties": {
+          "companyName": {
+            "type": "string"
+          },
+          "customerName": {
+            "type": "string"
+          },
+          "onTheWay": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PortalJobDto"
+            }
+          },
+          "planned": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PortalJobDto"
+            }
+          },
+          "delivered": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PortalJobDto"
+            }
+          },
+          "invoices": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PortalInvoiceDto"
+            }
           }
         }
       },
@@ -2646,7 +3111,8 @@
           "exceptionCount",
           "pickupArrivedAtUtc",
           "deliveryArrivedAtUtc",
-          "invoiceId"
+          "invoiceId",
+          "customerId"
         ],
         "type": "object",
         "properties": {
@@ -2905,6 +3371,13 @@
               "string"
             ],
             "format": "uuid"
+          },
+          "customerId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
           }
         }
       },
@@ -3032,6 +3505,176 @@
           }
         },
         "description": "Anonymous: a driver's phone exchanges a pairing code for a driver sign-in. Each code works once."
+      },
+      "PortalInvoiceDto": {
+        "required": [
+          "number",
+          "issueDateUtc",
+          "dueDateUtc",
+          "total",
+          "currency",
+          "status",
+          "deliveryReference",
+          "publicPath"
+        ],
+        "type": "object",
+        "properties": {
+          "number": {
+            "type": "string"
+          },
+          "issueDateUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "dueDateUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "total": {
+            "type": "number",
+            "format": "double"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "deliveryReference": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "publicPath": {
+            "type": "string"
+          }
+        }
+      },
+      "PortalJobDto": {
+        "required": [
+          "id",
+          "reference",
+          "status",
+          "origin",
+          "destination",
+          "plannedDeliveryUtc",
+          "startedAtUtc",
+          "etaUtc",
+          "remainingKm",
+          "arrivedAtUtc",
+          "deliveredAtUtc",
+          "receivedBy",
+          "photoCount",
+          "hasSignature",
+          "temperatureReadings",
+          "problemsReported",
+          "trackingPath",
+          "proofPath"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "reference": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "status": {
+            "type": "string"
+          },
+          "origin": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "destination": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "plannedDeliveryUtc": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "startedAtUtc": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "etaUtc": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "remainingKm": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "arrivedAtUtc": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "deliveredAtUtc": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "receivedBy": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "photoCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "hasSignature": {
+            "type": "boolean"
+          },
+          "temperatureReadings": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "problemsReported": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "trackingPath": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "proofPath": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
       },
       "PublicInvoiceDocumentDto": {
         "required": [
@@ -4089,6 +4732,9 @@
     },
     {
       "name": "Fleet"
+    },
+    {
+      "name": "Customers"
     },
     {
       "name": "Jobs"

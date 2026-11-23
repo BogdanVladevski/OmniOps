@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
+using OmniOps.Domain.Billing;
 using OmniOps.Domain.Jobs;
 
 namespace OmniOps.Infrastructure.Persistence.Configurations;
@@ -18,6 +19,8 @@ internal sealed class JobConfiguration : IEntityTypeConfiguration<Job>
         entity.Property(e => e.TrackingToken).HasMaxLength(64);
         entity.Property(e => e.RecipientName).HasMaxLength(200);
         entity.Property(e => e.DeliveryNote).HasMaxLength(1000);
+        entity.HasIndex(e => new { e.OrganizationId, e.CustomerId });
+        entity.HasOne<Customer>().WithMany().HasForeignKey(e => e.CustomerId).OnDelete(DeleteBehavior.SetNull);
         entity.HasOne(e => e.Vehicle).WithMany().HasForeignKey(e => e.VehicleId).OnDelete(DeleteBehavior.Restrict);
         entity.HasOne(e => e.Driver).WithMany().HasForeignKey(e => e.DriverId).OnDelete(DeleteBehavior.SetNull);
         entity.HasMany(e => e.Documents).WithOne(d => d.Job).HasForeignKey(d => d.JobId).OnDelete(DeleteBehavior.Cascade);

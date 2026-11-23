@@ -7,6 +7,7 @@ using Microsoft.Extensions.Options;
 using OmniOps.Application.Common.Interfaces;
 using OmniOps.Infrastructure.Auditing;
 using OmniOps.Infrastructure.BackgroundJobs;
+using OmniOps.Infrastructure.Documents;
 using OmniOps.Infrastructure.Email;
 using OmniOps.Infrastructure.Identity;
 using OmniOps.Infrastructure.Persistence;
@@ -44,6 +45,7 @@ public static class DependencyInjection
         services.Configure<PublicUrlOptions>(builder.Configuration.GetSection(PublicUrlOptions.SectionName));
         services.AddSingleton<IEmailSender, SmtpEmailSender>();
         services.AddSingleton<IPublicLinks, PublicLinks>();
+        services.AddSingleton<IProofPackRenderer, QuestPdfProofPackRenderer>();
 
         services.Configure<StorageOptions>(builder.Configuration.GetSection(StorageOptions.SectionName));
         services.AddSingleton<IFileStore>(sp =>
@@ -55,6 +57,7 @@ public static class DependencyInjection
 
         services.AddHostedService<InvoiceReminderService>();
         services.AddHostedService<WaitingAlertService>();
+        services.AddHostedService<CustomerUpdateService>();
         return builder;
     }
 }

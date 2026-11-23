@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using OmniOps.Application.Common.Interfaces;
 using OmniOps.Application.Common.Security;
+using OmniOps.Application.Features.Customers;
 using OmniOps.Application.Features.Jobs;
 using OmniOps.Domain.Billing;
 using OmniOps.Domain.Common;
@@ -118,24 +119,23 @@ public sealed class CreateInvoiceHandler(IAppDbContext db, ITenantContext tenant
         db.Invoices.Add(invoice);
         job.InvoiceId = invoice.Id;
 
-        await RememberCustomerAsync(invoice, command.PaymentTermsDays, now, cancellationToken);
+        await RememberCustomerAsync(invoice, job.CustomerId, command.PaymentTermsDays, now, cancellationToken);
         audit.Record("Issue", "Invoice", invoice.Id.ToString(), $"{invoice.Number} {invoice.Total} {invoice.Currency} to {invoice.CustomerName}");
         await db.SaveChangesAsync(cancellationToken);
         return InvoiceDetailDto.From(invoice, now);
     }
 
-    /// <summary>Keeps the customer's billing details so the next invoice for them is pre-filled.</summary>
-    private async Task RememberCustomerAsync(Invoice invoice, int? terms, DateTime now, CancellationToken cancellationToken)
+    /// <summary>
+    /// Links the invoice to the delivery's customer (even when the invoice names them differently, e.g. their legal name)
+    /// and keeps their billing details so the next invoice for them is pre-filled.
+    /// </summary>
+    private async Task RememberCustomerAsync(Invoice invoice, Guid? jobCustomerId, int? terms, DateTime now, CancellationToken cancellationToken)
     {
-        var normalized = BillingText.NormalizeName(invoice.CustomerName);
-        var customer = await db.Customers.FirstOrDefaultAsync(c => c.NormalizedName == normalized, cancellationToken);
-        if (customer is null)
-        {
-            customer = new Customer { Id = Guid.NewGuid(), OrganizationId = invoice.OrganizationId, NormalizedName = normalized };
-            db.Customers.Add(customer);
-        }
+        var customer = jobCustomerId is { } id
+            ? await CustomerDirectory.GetAsync(db, id, cancellationToken)
+            : await CustomerDirectory.FindOrCreateAsync(db, invoice.OrganizationId, invoice.CustomerName, now, cancellationToken);
+        invoice.CustomerId = customer.Id;
 
-        customer.Name = invoice.CustomerName;
         customer.Email = invoice.CustomerEmail ?? customer.Email;
         customer.Address = invoice.CustomerAddress ?? customer.Address;
         customer.TaxId = invoice.CustomerTaxId ?? customer.TaxId;
@@ -257,8 +257,8 @@ public sealed class GetInvoiceOverviewHandler(IAppDbContext db, ITenantContext t
         var toInvoice = await db.Visible(tenant)
             .Where(j => j.Status == JobStatus.Delivered && j.InvoiceId == null && j.DeliveredAtUtc >= since)
             .OrderByDescending(j => j.DeliveredAtUtc).Take(200).ToListAsync(cancellationToken);
-        var names = toInvoice.Select(j => BillingText.NormalizeName(j.CustomerName ?? string.Empty)).Distinct().ToList();
-        var customers = await db.Customers.Where(c => names.Contains(c.NormalizedName)).ToDictionaryAsync(c => c.NormalizedName, cancellationToken);
+        var customerIds = toInvoice.Where(j => j.CustomerId != null).Select(j => j.CustomerId!.Value).Distinct().ToList();
+        var customers = await db.Customers.Where(c => customerIds.Contains(c.Id)).ToDictionaryAsync(c => c.Id, cancellationToken);
 
         var unpaid = invoices.Where(i => i.Status != InvoiceStatus.Paid).ToList();
         var overdue = unpaid.Where(i => InvoiceRules.IsOverdue(i, now)).ToList();
@@ -271,7 +271,7 @@ public sealed class GetInvoiceOverviewHandler(IAppDbContext db, ITenantContext t
             invoices.Select(i => InvoiceSummaryDto.From(i, now)).ToList(),
             toInvoice.Select(j =>
             {
-                customers.TryGetValue(BillingText.NormalizeName(j.CustomerName ?? string.Empty), out var c);
+                var c = j.CustomerId is { } id ? customers.GetValueOrDefault(id) : null;
                 return new UninvoicedJobDto(JobDto.From(j), BillingText.Describe(j), c?.Email, c?.Address, c?.TaxId, c?.PaymentTermsDays,
                     terms.Waits(j, now), terms.SuggestedLines(j, now));
             }).ToList());

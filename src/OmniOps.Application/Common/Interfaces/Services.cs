@@ -39,6 +39,12 @@ public interface IPublicLinks
 
     string Tracking(string token);
 
+    /// <summary>The customer's portal: all their deliveries, proof and invoices.</summary>
+    string Portal(string token);
+
+    /// <summary>The proof pack (PDF) of one delivered job, opened through the customer's portal link.</summary>
+    string PortalProof(string token, Guid jobId);
+
     /// <summary>Opens the app to accept an invitation to a company.</summary>
     string Join(string token);
 
@@ -84,4 +90,10 @@ public interface IUnitOfWork
 public interface IPolicyEnforcer
 {
     Task EnforceAsync(string policy, CancellationToken cancellationToken = default);
+}
+
+/// <summary>Turns a delivery's proof pack into a PDF.</summary>
+public interface IProofPackRenderer
+{
+    byte[] Render(Features.Jobs.ProofPack pack);
 }

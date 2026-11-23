@@ -36,7 +36,10 @@ public class BillingProfile
     public DateTime UpdatedAtUtc { get; set; }
 }
 
-/// <summary>Remembered billing details for a customer, used to pre-fill the next invoice.</summary>
+/// <summary>
+/// A company the carrier delivers for. Jobs and invoices point at it; its billing details pre-fill the next invoice, and
+/// its portal link shows the customer all of their deliveries, proof and invoices in one place.
+/// </summary>
 public class Customer
 {
     public Guid Id { get; set; }
@@ -50,6 +53,18 @@ public class Customer
     public string? Address { get; set; }
     public string? TaxId { get; set; }
     public int? PaymentTermsDays { get; set; }
+
+    /// <summary>For sharing links through WhatsApp or Viber.</summary>
+    public string? Phone { get; set; }
+
+    /// <summary>Unguessable token of the customer's portal link; null when the link is off.</summary>
+    public string? PortalToken { get; set; }
+
+    public DateTime? PortalCreatedAtUtc { get; set; }
+
+    /// <summary>The customer asked for email updates (picked up, arriving soon, delivered with proof).</summary>
+    public bool EmailUpdates { get; set; }
+
     public DateTime UpdatedAtUtc { get; set; }
 }
 
@@ -58,6 +73,7 @@ public class Invoice
     public Guid Id { get; set; }
     public Guid OrganizationId { get; set; }
     public Guid? JobId { get; set; }
+    public Guid? CustomerId { get; set; }
 
     /// <summary>e.g. "INV-2026-0007"; unique per organization, never reused.</summary>
     public string Number { get; set; } = string.Empty;

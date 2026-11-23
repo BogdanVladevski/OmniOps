@@ -3,6 +3,7 @@ using Mediator;
 using Microsoft.EntityFrameworkCore;
 using OmniOps.Application.Common.Interfaces;
 using OmniOps.Application.Common.Security;
+using OmniOps.Application.Features.Customers;
 using OmniOps.Domain.Common;
 using OmniOps.Domain.Jobs;
 
@@ -63,6 +64,9 @@ public sealed class CreateJobHandler(IAppDbContext db, ITenantContext tenant, IA
               ?? throw new KeyNotFoundException("Driver not found.")
             : null;
 
+        var now = clock.GetUtcNow().UtcDateTime;
+        var customer = await CustomerDirectory.FindOrCreateAsync(db, tenant.OrganizationId, command.CustomerName, now, cancellationToken);
+
         var job = new Job
         {
             Id = Guid.NewGuid(),
@@ -70,8 +74,9 @@ public sealed class CreateJobHandler(IAppDbContext db, ITenantContext tenant, IA
             VehicleId = vehicle.Id,
             DriverId = driver?.Id,
             Status = JobStatus.Planned,
-            CreatedAtUtc = clock.GetUtcNow().UtcDateTime,
+            CreatedAtUtc = now,
             CustomerName = command.CustomerName.Trim(),
+            CustomerId = customer.Id,
             Reference = command.Reference?.Trim(),
             Origin = command.Origin?.Trim(),
             OriginLatitude = command.OriginLatitude,

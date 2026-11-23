@@ -33,6 +33,9 @@ internal sealed class CustomerConfiguration : IEntityTypeConfiguration<Customer>
         entity.Property(e => e.Email).HasMaxLength(200);
         entity.Property(e => e.Address).HasMaxLength(500);
         entity.Property(e => e.TaxId).HasMaxLength(50);
+        entity.Property(e => e.Phone).HasMaxLength(40);
+        entity.Property(e => e.PortalToken).HasMaxLength(64);
+        entity.HasIndex(e => e.PortalToken).IsUnique().HasFilter("\"PortalToken\" IS NOT NULL");
     }
 }
 
@@ -61,6 +64,8 @@ internal sealed class InvoiceConfiguration : IEntityTypeConfiguration<Invoice>
         entity.HasOne(e => e.Job).WithMany().HasForeignKey(e => e.JobId).OnDelete(DeleteBehavior.SetNull);
         entity.HasMany(e => e.Lines).WithOne().HasForeignKey(l => l.InvoiceId).OnDelete(DeleteBehavior.Cascade);
         entity.HasMany(e => e.Reminders).WithOne().HasForeignKey(r => r.InvoiceId).OnDelete(DeleteBehavior.Cascade);
+        entity.HasIndex(e => new { e.OrganizationId, e.CustomerId });
+        entity.HasOne<Customer>().WithMany().HasForeignKey(e => e.CustomerId).OnDelete(DeleteBehavior.SetNull);
     }
 }
 
