@@ -394,6 +394,10 @@ namespace OmniOps.Infrastructure.Migrations
                     b.Property<string>("LicenseNumber")
                         .HasColumnType("text");
 
+                    b.Property<string>("Phone")
+                        .HasMaxLength(40)
+                        .HasColumnType("character varying(40)");
+
                     b.Property<double>("SafetyScore")
                         .HasColumnType("double precision");
 

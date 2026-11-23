@@ -202,6 +202,40 @@ function DocumentGroup({ title, empty, job, documents }) {
   );
 }
 
+/** The job's story so far: each step with its time, the ones still to come in grey. */
+function Timeline({ job }) {
+  const { colors } = useTheme();
+  const when = (iso) => new Date(iso).toLocaleString([], { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' });
+  const steps = [
+    { label: 'Job created', at: job.createdAtUtc },
+    job.pickupArrivedAtUtc ? { label: 'Arrived at pickup', at: job.pickupArrivedAtUtc } : null,
+    { label: 'Left for the customer', at: job.startedAtUtc },
+    job.deliveryArrivedAtUtc || job.status !== 'Completed' ? { label: 'Arrived at the customer', at: job.deliveryArrivedAtUtc } : null,
+    { label: job.recipientName ? `Delivered, received by ${job.recipientName}` : 'Delivered', at: job.deliveredAtUtc },
+    { label: 'Invoiced', at: null, done: !!job.invoiceId },
+  ].filter(Boolean);
+  return (
+    <View style={styles.gapSm}>
+      <Text style={[typography.title, { color: colors.text }]}>Timeline</Text>
+      <View>
+        {steps.map((s, i) => {
+          const done = s.done ?? !!s.at;
+          return (
+            <View key={s.label} style={styles.step}>
+              <View style={styles.stepRail}>
+                <View style={[styles.stepDot, { backgroundColor: done ? colors.text : 'transparent', borderColor: done ? colors.text : colors.border }]} />
+                {i < steps.length - 1 ? <View style={[styles.stepLine, { backgroundColor: colors.border }]} /> : null}
+              </View>
+              <Text style={[typography.label, styles.flex, { color: done ? colors.text : colors.muted }]}>{s.label}</Text>
+              <Text style={[typography.caption, { color: colors.muted }]}>{s.at ? when(s.at) : done ? '' : '—'}</Text>
+            </View>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
 function WaitingSection({ waits }) {
   const { colors } = useTheme();
   if (!waits.length) return null;
@@ -255,9 +289,7 @@ function JobSheet({ jobId, onClose, onNotice, onInvoice }) {
     ['Order', job.reference],
     ['Truck', [job.vehicleLabel, job.registration].filter(Boolean).join(' · ')],
     ['Driver', job.driverName],
-    ['Started', job.startedAtUtc && new Date(job.startedAtUtc).toLocaleString()],
-    ['Delivered', job.deliveredAtUtc && new Date(job.deliveredAtUtc).toLocaleString()],
-    ['Received by', job.recipientName],
+    ['Phone', job.driverPhone],
     ['Note', job.deliveryNote],
     ['Temperature', formatRange(job)],
   ].filter(([, v]) => v) : [];
@@ -287,6 +319,7 @@ function JobSheet({ jobId, onClose, onNotice, onInvoice }) {
           {temp ? (
             <Text style={[typography.label, { color: toneColors(colors, temp.tone).fg }]}>{temp.label}</Text>
           ) : null}
+          <Timeline job={job} />
           <WaitingSection waits={detail?.waits ?? []} />
           <DocumentGroup title="Loading note" empty="No loading note photographed." job={job} documents={docs('PickupDocument')} />
           {isRefrigerated(job) ? (
@@ -504,6 +537,10 @@ const styles = StyleSheet.create({
   detailRow: { flexDirection: 'row', justifyContent: 'space-between', gap: spacing.lg, paddingHorizontal: spacing.lg, paddingVertical: spacing.sm },
   detailValue: { flex: 1, textAlign: 'right' },
   photos: { flexDirection: 'row', flexWrap: 'wrap', gap: spacing.sm },
+  step: { flexDirection: 'row', alignItems: 'flex-start', gap: spacing.md, minHeight: 28 },
+  stepRail: { width: 12, alignItems: 'center', alignSelf: 'stretch' },
+  stepDot: { width: 10, height: 10, borderRadius: 5, borderWidth: 1.5, marginTop: 4 },
+  stepLine: { width: 1, flex: 1, marginTop: 2 },
   waitRow: { paddingHorizontal: spacing.lg, paddingVertical: spacing.md, gap: 2 },
   photo: { width: 120, height: 120, borderRadius: radius.md, borderWidth: StyleSheet.hairlineWidth },
   readingRow: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.md, paddingVertical: spacing.sm },

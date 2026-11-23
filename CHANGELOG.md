@@ -6,6 +6,12 @@ All notable changes to OmniOps are documented in this file.
 
 ### Added
 
+- **Today** (the home screen, formerly Live): the map, plus three numbers — trucks moving, things that need you, deliveries to invoice — and a "Needs you" list in plain words with one next step each: a load outside its temperature range or a check overdue, a truck with no signal, a truck waiting past its free time (and a heads-up 15 minutes before), a reported problem, a late job, a job due soon that hasn't started, a job without a driver. Then the trucks on the road (late and silent ones first), jobs not started, money (ready to invoice, overdue), and today's deliveries
+- New companies get a setup checklist on Today (trucks, drivers, first job, a driver's phone, invoice settings) that ticks itself off
+- Drivers' phone numbers (Fleet): "Call Stefan" on Today and on the map's job card. Fleet now lists drivers, with the phone editable in place
+- Job timeline: created, arrived at pickup, left, arrived at the customer, delivered, invoiced — with times
+- Search (Ctrl K) finds jobs by customer, order number, place, truck or driver, and invoices by number or customer
+- The audit trail reads in plain words ("Invited someone to the team — ana@… as dispatcher")
 - Waiting time (detention) at pickup and delivery, recorded by the driver's phone: the delivery wait starts when GPS reaches the customer's address (or the driver taps "I've arrived") and ends at hand-over; the pickup wait runs from the driver's arrival tap until the trip starts. A tap far from the address is shown but not treated as proof
 - Companies set free waiting time and an hourly rate (Invoices → Invoice settings); waiting past the free time is charged per started 15 minutes and offered as a ready-priced line when invoicing the job, with the arrival and release times in the description. Without a rate, waiting is recorded but not charged
 - The office is alerted when a truck's free waiting time runs out; the receiver's tracking page shows when the truck arrived and from when waiting is charged; the invoice page lists the times at each stop
@@ -47,6 +53,7 @@ All notable changes to OmniOps are documented in this file.
 
 ### Changed
 
+- Fixed: GPS readings from before a trip started could be taken as the arrival at the customer
 - Fixed: job photos in the office app were blank in the browser since sign-in became required (the browser didn't send the sign-in with images)
 - Fixed: while offline, the driver app could say the location was "last sent" at a time when nothing had been sent
 - The Analytics tab is no longer in the navigation (Invoices takes its place); its screen is kept in the code

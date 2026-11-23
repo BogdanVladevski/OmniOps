@@ -30,6 +30,13 @@ public static class FleetEndpoints
         MapPost(app, "/api/drivers",
             async (CreateDriverCommand cmd, IMediator m) => Results.Created($"/api/drivers", await m.Send(cmd)),
             requireAuth);
+        var updateDriver = app.MapPut("/api/drivers/{driverId:guid}", async (Guid driverId, UpdateDriverBody body, IMediator m) =>
+                Results.Ok(await m.Send(new UpdateDriverCommand(driverId, body.FullName ?? string.Empty, body.Phone))))
+            .WithTags("Fleet");
+        if (requireAuth)
+        {
+            updateDriver.RequireAuthorization(AuthorizationPolicies.VehicleRead);
+        }
         MapPost(app, "/api/vehicles/{vehicleId:guid}/assign-driver",
             async (Guid vehicleId, AssignDriverRequest body, IMediator m) =>
                 Results.Ok(await m.Send(new AssignDriverToVehicleCommand(vehicleId, body.DriverId))),
@@ -87,4 +94,6 @@ public static class FleetEndpoints
     }
 
     private record AssignDriverRequest(Guid DriverId);
+
+    private record UpdateDriverBody(string? FullName, string? Phone);
 }

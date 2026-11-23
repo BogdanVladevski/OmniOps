@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { useTheme } from '../contexts/ThemeContext';
 import { radius, spacing, typography } from '../theme/tokens';
 import { adminApi, demoApi } from '../utils/api';
+import { describeAudit } from '../utils/audit';
 import { notifyJobsChanged } from '../utils/events';
 import { useLayout } from '../utils/layout';
 import { AccountCard, CompanyCard, DriverCodeCard, TeamCard } from './AccountCards';
@@ -147,8 +148,10 @@ export default function AdminPanel() {
             <View key={log.id} style={[styles.row, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border }]}>
               <View style={[styles.dot, { backgroundColor: colors.accent }]} />
               <View style={styles.flex}>
-                <Text style={[typography.bodyStrong, { color: colors.text }]}>{log.action} · {log.entityType}</Text>
-                <Text style={[typography.caption, { color: colors.textSecondary }]} numberOfLines={2}>{log.details ?? log.entityId}</Text>
+                <Text style={[typography.bodyStrong, { color: colors.text }]}>{describeAudit(log).title}</Text>
+                {describeAudit(log).detail ? (
+                  <Text style={[typography.caption, { color: colors.textSecondary }]} numberOfLines={2}>{describeAudit(log).detail}</Text>
+                ) : null}
               </View>
               <Text style={[typography.caption, { color: colors.muted }]}>{timeAgo(log.occurredAtUtc)}</Text>
             </View>

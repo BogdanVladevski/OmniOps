@@ -185,6 +185,7 @@ public class AppDbContext : DbContext
         {
             entity.HasKey(e => e.Id);
             entity.HasOne(e => e.Fleet).WithMany(f => f.Drivers).HasForeignKey(e => e.FleetId);
+            entity.Property(e => e.Phone).HasMaxLength(40);
         });
 
         modelBuilder.Entity<Trip>(entity =>

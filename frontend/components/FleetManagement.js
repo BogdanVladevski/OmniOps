@@ -1,9 +1,9 @@
-import React, { useMemo, useState } from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useFleet } from '../contexts/FleetContext';
 import { useTheme } from '../contexts/ThemeContext';
 import { spacing, typography } from '../theme/tokens';
-import { fleetApi } from '../utils/api';
+import { fleetApi, jobsApi } from '../utils/api';
 import { useLayout } from '../utils/layout';
 import { Button, Card, EmptyNote, Field, Grid, Page, Pill, SectionTitle, Segmented, StatTile } from './ui/kit';
 
@@ -13,6 +13,67 @@ const STATUS_FILTERS = [
   { key: 'maintenance', label: 'Maintenance' },
   { key: 'retired', label: 'Retired' },
 ];
+
+/** Drivers with their phone numbers, which the office uses for "Call driver". Edited in place. */
+function DriversCard({ refreshKey }) {
+  const { colors } = useTheme();
+  const [drivers, setDrivers] = useState([]);
+  const [editing, setEditing] = useState(null); // { id, phone }
+  const [error, setError] = useState(null);
+  const load = useCallback(() => jobsApi.assignable().then((a) => setDrivers(a.drivers)).catch((e) => setError(e.message)), []);
+  useEffect(() => { load(); }, [load, refreshKey]);
+
+  const save = async (d) => {
+    setError(null);
+    try {
+      await fleetApi.updateDriver(d.id, { fullName: d.label, phone: editing.phone.trim() || null });
+      setEditing(null);
+      load();
+    } catch (e) {
+      setError(e.message);
+    }
+  };
+
+  if (!drivers.length) return null;
+  return (
+    <>
+      <SectionTitle title="Drivers" />
+      <Card padded={false}>
+        {drivers.map((d, i) => (
+          <View key={d.id} style={[styles.driver, i > 0 && { borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: colors.border }]}>
+            <View style={styles.flex}>
+              <Text style={[typography.bodyStrong, { color: colors.text }]}>{d.label}</Text>
+              {editing?.id === d.id ? (
+                <Field
+                  label="Phone"
+                  placeholder="+389 70 123 456"
+                  value={editing.phone}
+                  onChangeText={(phone) => setEditing({ id: d.id, phone })}
+                  keyboardType="phone-pad"
+                  onSubmitEditing={() => save(d)}
+                />
+              ) : (
+                <Text style={[typography.caption, { color: d.detail ? colors.textSecondary : colors.muted }]}>
+                  {d.detail ?? 'No phone number. Add one to call from the Today screen.'}
+                </Text>
+              )}
+            </View>
+            {editing?.id === d.id ? (
+              <Pressable onPress={() => save(d)} accessibilityRole="button" hitSlop={8}>
+                <Text style={[typography.label, { color: colors.accent }]}>Save</Text>
+              </Pressable>
+            ) : (
+              <Pressable onPress={() => setEditing({ id: d.id, phone: d.detail ?? '' })} accessibilityRole="button" hitSlop={8}>
+                <Text style={[typography.label, { color: colors.accent }]}>{d.detail ? 'Change phone' : 'Add phone'}</Text>
+              </Pressable>
+            )}
+          </View>
+        ))}
+      </Card>
+      {error ? <Text style={[typography.caption, { color: colors.critical }]}>{error}</Text> : null}
+    </>
+  );
+}
 
 function statusTone(status) {
   const s = (status ?? '').toLowerCase();
@@ -26,6 +87,8 @@ export default function FleetManagement() {
   const { colors } = useTheme();
   const { isTablet, isWide } = useLayout();
   const [driverName, setDriverName] = useState('');
+  const [driverPhone, setDriverPhone] = useState('');
+  const [driversChanged, setDriversChanged] = useState(0);
   const [truck, setTruck] = useState({ name: '', registration: '' });
   const [truckMessage, setTruckMessage] = useState(null);
   const truckNameOk = /^[A-Za-z0-9_-]+$/.test(truck.name.trim());
@@ -48,9 +111,11 @@ export default function FleetManagement() {
     setBusy('driver');
     setDriverMessage(null);
     try {
-      await fleetApi.createDriver({ fleetId: defaultFleetId, fullName: driverName.trim(), licenseNumber: null });
+      await fleetApi.createDriver({ fleetId: defaultFleetId, fullName: driverName.trim(), licenseNumber: null, phone: driverPhone.trim() || null });
       setDriverMessage({ tone: 'ok', text: `${driverName.trim()} added to the fleet.` });
       setDriverName('');
+      setDriverPhone('');
+      setDriversChanged((n) => n + 1);
       await refreshFleetMeta();
     } catch (e) {
       setDriverMessage({ tone: 'critical', text: `Could not add driver: ${e.message}` });
@@ -119,9 +184,11 @@ export default function FleetManagement() {
       <SectionTitle title="Add a driver" />
       <Card style={styles.gap}>
         <Field label="Full name" placeholder="e.g. Ana Petrovska" value={driverName} onChangeText={setDriverName} />
+        <Field label="Phone (optional)" placeholder="+389 70 123 456" value={driverPhone} onChangeText={setDriverPhone} keyboardType="phone-pad" />
         <Button label={busy === 'driver' ? 'Adding…' : 'Add driver'} icon="person-add-outline" onPress={createDriver} disabled={busy === 'driver' || !driverName.trim()} />
         {driverMessage ? <Pill label={driverMessage.text} tone={driverMessage.tone} /> : null}
       </Card>
+      <DriversCard refreshKey={driversChanged} />
     </View>
   );
 
@@ -153,4 +220,5 @@ const styles = StyleSheet.create({
   columns: { flexDirection: 'row', gap: spacing.xl, alignItems: 'flex-start' },
   gap: { gap: spacing.md },
   row: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.lg, paddingVertical: spacing.md },
+  driver: { flexDirection: 'row', alignItems: 'center', gap: spacing.md, paddingHorizontal: spacing.lg, paddingVertical: spacing.md },
 });

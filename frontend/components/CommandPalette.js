@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -12,16 +12,17 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useFleet } from '../contexts/FleetContext';
 import { useTheme } from '../contexts/ThemeContext';
-import { demoApi } from '../utils/api';
+import { billingApi, jobsApi } from '../utils/api';
+import { searchRecords } from '../utils/search';
 import { radius, spacing, typography } from '../theme/tokens';
 
 const TAB_ROUTES = [
-  { id: 'live', label: 'Live map of today\'s deliveries', tab: 'Live', keywords: 'map live tracking trucks arrival eta home overview' },
+  { id: 'live', label: 'Today: map, what needs you, money', tab: 'Live', keywords: 'today map live tracking trucks arrival eta home overview needs attention' },
   { id: 'jobs', label: 'Delivery jobs', tab: 'Jobs', keywords: 'jobs deliveries orders proof tracking link customer driver' },
   { id: 'fleet', label: 'Fleet management', tab: 'Fleet', keywords: 'vehicles drivers assign' },
   { id: 'invoices', label: 'Invoices and payments', tab: 'Invoices', keywords: 'invoice bill money paid unpaid overdue reminder customer' },
   { id: 'alerts', label: 'Alerts', tab: 'Alerts', keywords: 'incidents playbook' },
-  { id: 'admin', label: 'Admin', tab: 'Admin', keywords: 'api keys audit logs' },
+  { id: 'admin', label: 'Admin', tab: 'Admin', keywords: 'team invite password account company api keys audit logs driver phone code' },
 ];
 
 export default function CommandPalette({ visible, onClose, navigationRef, onAbout, onBootstrap }) {
@@ -30,6 +31,14 @@ export default function CommandPalette({ visible, onClose, navigationRef, onAbou
   const { dbVehicles, vehicles, setSelectedVehicleId, refreshFleetMeta } = useFleet();
   const [query, setQuery] = useState('');
   const [busy, setBusy] = useState(false);
+  const [records, setRecords] = useState({ jobs: [], invoices: [] });
+
+  // Jobs and invoices are searched by customer, order number, place, truck, driver or invoice number.
+  useEffect(() => {
+    if (!visible) return;
+    Promise.all([jobsApi.list('all').catch(() => []), billingApi.overview().catch(() => null)])
+      .then(([jobs, overview]) => setRecords({ jobs: jobs ?? [], invoices: overview?.invoices ?? [] }));
+  }, [visible]);
 
   const items = useMemo(() => {
     const q = query.trim().toLowerCase();
@@ -45,19 +54,22 @@ export default function CommandPalette({ visible, onClose, navigationRef, onAbou
 
     const actions = [
       { id: 'refresh', label: 'Refresh fleet data', subtitle: 'Reload statistics and vehicles', keywords: 'refresh sync reload', action: 'refresh' },
-      { id: 'bootstrap', label: 'Bootstrap demo telemetry', subtitle: 'Queue sample packets for all vehicles', keywords: 'demo seed sample bootstrap', action: 'bootstrap' },
       { id: 'about', label: 'About OmniOps', subtitle: 'Version and environment', keywords: 'about version info', action: 'about' },
     ];
 
-    const all = [...TAB_ROUTES.map((t) => ({ ...t, action: 'tab', subtitle: `Navigate to ${t.tab}` })), ...vehicleItems, ...actions];
+    const all = [...TAB_ROUTES.map((t) => ({ ...t, action: 'tab', subtitle: `Go to ${t.label.split(':')[0]}` })), ...vehicleItems, ...actions];
     if (!q) return all.slice(0, 12);
-    return all.filter(
-      (item) =>
-        item.label.toLowerCase().includes(q) ||
-        item.subtitle?.toLowerCase().includes(q) ||
-        item.keywords?.toLowerCase().includes(q),
-    );
-  }, [query, dbVehicles, vehicles]);
+    const found = searchRecords(records, q);
+    return [
+      ...found,
+      ...all.filter(
+        (item) =>
+          item.label.toLowerCase().includes(q) ||
+          item.subtitle?.toLowerCase().includes(q) ||
+          item.keywords?.toLowerCase().includes(q),
+      ),
+    ];
+  }, [query, dbVehicles, vehicles, records]);
 
   const run = async (item) => {
     if (busy) return;
@@ -73,9 +85,11 @@ export default function CommandPalette({ visible, onClose, navigationRef, onAbou
       } else if (item.action === 'refresh') {
         await refreshFleetMeta();
         onClose();
-      } else if (item.action === 'bootstrap') {
-        await demoApi.bootstrap(6);
-        onBootstrap?.();
+      } else if (item.action === 'job') {
+        navigationRef?.current?.navigate('Jobs', { openJobId: item.jobId });
+        onClose();
+      } else if (item.action === 'invoice') {
+        navigationRef?.current?.navigate('Invoices', { openInvoiceId: item.invoiceId });
         onClose();
       } else if (item.action === 'about') {
         onAbout?.();
