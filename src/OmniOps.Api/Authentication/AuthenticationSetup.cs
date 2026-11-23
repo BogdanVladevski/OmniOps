@@ -12,7 +12,11 @@ internal static class AuthenticationSetup
 {
     public static IServiceCollection AddOmniAuthentication(this IServiceCollection services)
     {
-        services.AddOptions<JwtOptions>().BindConfiguration(JwtOptions.SectionName).ValidateDataAnnotations().ValidateOnStart();
+        var jwt = services.AddOptions<JwtOptions>().BindConfiguration(JwtOptions.SectionName).ValidateDataAnnotations();
+        if (!Infrastructure.BuildContext.IsGeneratingOpenApiDocument)
+        {
+            jwt.ValidateOnStart();
+        }
 
         services.AddAuthentication(JwtBearerDefaults.AuthenticationScheme).AddJwtBearer();
         // Configured from options when the app runs, so test and host configuration (applied at Build) are honoured.

@@ -1,3 +1,4 @@
+using System.Text.Json.Serialization;
 using Mediator;
 using Microsoft.EntityFrameworkCore;
 using OmniOps.Application.Common.Interfaces;
@@ -7,6 +8,7 @@ using OmniOps.Domain.Jobs;
 
 namespace OmniOps.Application.Features.Jobs;
 
+[JsonConverter(typeof(JsonStringEnumConverter<JobScope>))]
 public enum JobScope
 {
     /// <summary>Planned and on the way, plus jobs delivered in the last 24 hours.</summary>
