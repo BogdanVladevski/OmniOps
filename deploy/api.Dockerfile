@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.7
 # OmniOps API. Build from the repository root:  docker build -f deploy/api.Dockerfile .
 
-FROM mcr.microsoft.com/dotnet/sdk:10.0-alpine AS build
+FROM mcr.microsoft.com/dotnet/sdk:11.0-alpine AS build
 WORKDIR /repo
 COPY global.json Directory.Build.props Directory.Packages.props .editorconfig ./
 COPY src/ src/
