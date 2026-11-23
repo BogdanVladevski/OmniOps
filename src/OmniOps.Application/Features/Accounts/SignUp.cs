@@ -4,12 +4,14 @@ using Mediator;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using OmniOps.Application.Common.Interfaces;
+using OmniOps.Application.Common.Security;
 using OmniOps.Domain.Accounts;
 using OmniOps.Domain.Common;
 
 namespace OmniOps.Application.Features.Accounts;
 
 /// <summary>Anonymous: creates a company account and its first owner.</summary>
+[Anonymous]
 public sealed record SignUpCommand(string CompanyName, string Name, string Email, string Password) : ICommand<AccountDto>;
 
 public sealed class SignUpValidator : AbstractValidator<SignUpCommand>

@@ -12,10 +12,8 @@ public sealed record DriverDto(Guid Id, string FullName, string? Phone, bool IsA
     public static DriverDto From(Driver d) => new(d.Id, d.FullName, d.Phone, d.IsActive);
 }
 
-public sealed record ListDriversQuery(bool IncludeInactive = false) : IQuery<IReadOnlyList<DriverDto>>, IRequirePolicy
-{
-    public string Policy => Policies.Office;
-}
+[RequiresPolicy(Policies.Office)]
+public sealed record ListDriversQuery(bool IncludeInactive = false) : IQuery<IReadOnlyList<DriverDto>>;
 
 public sealed class ListDriversHandler(IAppDbContext db) : IQueryHandler<ListDriversQuery, IReadOnlyList<DriverDto>>
 {
@@ -24,10 +22,8 @@ public sealed class ListDriversHandler(IAppDbContext db) : IQueryHandler<ListDri
             .Select(d => new DriverDto(d.Id, d.FullName, d.Phone, d.IsActive)).ToListAsync(cancellationToken);
 }
 
-public sealed record CreateDriverCommand(string FullName, string? Phone) : ICommand<DriverDto>, IRequirePolicy
-{
-    public string Policy => Policies.Office;
-}
+[RequiresPolicy(Policies.Office)]
+public sealed record CreateDriverCommand(string FullName, string? Phone) : ICommand<DriverDto>;
 
 public sealed class CreateDriverValidator : AbstractValidator<CreateDriverCommand>
 {
@@ -56,10 +52,8 @@ public sealed class CreateDriverHandler(IAppDbContext db, ITenantContext tenant,
     }
 }
 
-public sealed record UpdateDriverCommand(Guid DriverId, string FullName, string? Phone) : ICommand<DriverDto>, IRequirePolicy
-{
-    public string Policy => Policies.Office;
-}
+[RequiresPolicy(Policies.Office)]
+public sealed record UpdateDriverCommand(Guid DriverId, string FullName, string? Phone) : ICommand<DriverDto>;
 
 public sealed class UpdateDriverValidator : AbstractValidator<UpdateDriverCommand>
 {

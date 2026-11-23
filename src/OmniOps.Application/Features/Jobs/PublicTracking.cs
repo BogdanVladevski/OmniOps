@@ -1,6 +1,7 @@
 using Mediator;
 using Microsoft.EntityFrameworkCore;
 using OmniOps.Application.Common.Interfaces;
+using OmniOps.Application.Common.Security;
 using OmniOps.Domain.Common;
 using OmniOps.Domain.Jobs;
 
@@ -28,6 +29,7 @@ public sealed record PublicTrackingDto(
     DateTime? WaitingChargedFromUtc);
 
 /// <summary>Anonymous: the token is the credential. Null for unknown, cancelled or expired links.</summary>
+[Anonymous]
 public sealed record GetPublicTrackingQuery(string Token) : IQuery<PublicTrackingDto?>;
 
 public sealed class GetPublicTrackingHandler(IAppDbContext db, TimeProvider clock) : IQueryHandler<GetPublicTrackingQuery, PublicTrackingDto?>

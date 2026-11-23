@@ -34,13 +34,17 @@ public sealed class AuthorizationBehaviour<TMessage, TResponse>(IPolicyEnforcer 
 {
     public async ValueTask<TResponse> Handle(TMessage message, MessageHandlerDelegate<TMessage, TResponse> next, CancellationToken cancellationToken)
     {
-        if (message is IRequirePolicy secured)
+        if (RequiredPolicy is { } policy)
         {
-            await enforcer.EnforceAsync(secured.Policy, cancellationToken);
+            await enforcer.EnforceAsync(policy, cancellationToken);
         }
 
         return await next(message, cancellationToken);
     }
+
+    // Read once per message type.
+    private static readonly string? RequiredPolicy =
+        typeof(TMessage).GetCustomAttributes(typeof(RequiresPolicyAttribute), inherit: false) is [RequiresPolicyAttribute a, ..] ? a.Policy : null;
 }
 
 public sealed class ValidationBehaviour<TMessage, TResponse>(IEnumerable<IValidator<TMessage>> validators)

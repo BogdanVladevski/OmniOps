@@ -12,10 +12,8 @@ namespace OmniOps.Application.Features.Jobs;
 // and times are taken from the phone (when it happened), kept between job creation and now.
 
 /// <summary>Start the job. <paramref name="StartedAt"/> is when Start was tapped (the phone may have been offline).</summary>
-public sealed record StartJobCommand(Guid JobId, DateTimeOffset? StartedAt = null) : ICommand<JobDto>, IRequirePolicy
-{
-    public string Policy => Policies.JobWork;
-}
+[RequiresPolicy(Policies.JobWork)]
+public sealed record StartJobCommand(Guid JobId, DateTimeOffset? StartedAt = null) : ICommand<JobDto>;
 
 public sealed class StartJobHandler(IAppDbContext db, ITenantContext tenant, IAuditLog audit, TimeProvider clock)
     : ICommandHandler<StartJobCommand, JobDto>
@@ -45,11 +43,9 @@ public sealed class StartJobHandler(IAppDbContext db, ITenantContext tenant, IAu
 /// "I've arrived" at the pickup (before starting) or the delivery. Starts the waiting clock with the phone's position as
 /// evidence. GPS also detects delivery arrivals by itself; the earlier record wins.
 /// </summary>
+[RequiresPolicy(Policies.JobWork)]
 public sealed record MarkArrivedCommand(Guid JobId, string Stop, DateTimeOffset? ArrivedAt, double? Latitude, double? Longitude)
-    : ICommand<JobDto>, IRequirePolicy
-{
-    public string Policy => Policies.JobWork;
-}
+    : ICommand<JobDto>;
 
 public sealed class MarkArrivedValidator : AbstractValidator<MarkArrivedCommand>
 {
@@ -118,12 +114,10 @@ public sealed class MarkArrivedHandler(IAppDbContext db, ITenantContext tenant, 
 /// Close the job with proof of delivery: at least one delivery photo or the receiver's signature, and for
 /// refrigerated loads a temperature reading from the 30 minutes before hand-over.
 /// </summary>
+[RequiresPolicy(Policies.JobWork)]
 public sealed record DeliverJobCommand(
     Guid JobId, string RecipientName, string? Note, double? Latitude, double? Longitude, DateTimeOffset? DeliveredAt = null)
-    : ICommand<JobDto>, IRequirePolicy
-{
-    public string Policy => Policies.JobWork;
-}
+    : ICommand<JobDto>;
 
 public sealed class DeliverJobValidator : AbstractValidator<DeliverJobCommand>
 {

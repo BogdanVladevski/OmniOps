@@ -10,6 +10,7 @@ using OmniOps.Domain.Common;
 namespace OmniOps.Application.Features.Accounts;
 
 /// <summary>Anonymous. Always succeeds, so nobody can learn which emails have accounts.</summary>
+[Anonymous]
 public sealed record RequestPasswordResetCommand(string Email) : ICommand;
 
 public sealed class RequestPasswordResetValidator : AbstractValidator<RequestPasswordResetCommand>
@@ -45,10 +46,8 @@ public sealed class RequestPasswordResetHandler(
 }
 
 /// <summary>For teammates who forgot their password when no email can be sent: the owner hands them the link.</summary>
-public sealed record CreatePasswordResetLinkCommand(Guid UserId) : ICommand<AccountLinkDto>, IRequirePolicy
-{
-    public string Policy => Policies.Owner;
-}
+[RequiresPolicy(Policies.Owner)]
+public sealed record CreatePasswordResetLinkCommand(Guid UserId) : ICommand<AccountLinkDto>;
 
 public sealed class CreatePasswordResetLinkHandler(
     IAppDbContext db, ITenantContext tenant, IEmailSender email, IPublicLinks links, IAuditLog audit, TimeProvider clock,
@@ -75,6 +74,7 @@ public sealed class CreatePasswordResetLinkHandler(
 }
 
 /// <summary>Anonymous: sets a new password from a reset link, ends every other sign-in and signs in.</summary>
+[Anonymous]
 public sealed record ResetPasswordCommand(string Token, string Password) : ICommand<AccountDto>;
 
 public sealed class ResetPasswordValidator : AbstractValidator<ResetPasswordCommand>
@@ -112,10 +112,8 @@ public sealed class ResetPasswordHandler(IAppDbContext db, IAccountSessions sess
 }
 
 /// <summary>Signed-in office user. Ends their other sign-ins.</summary>
-public sealed record ChangePasswordCommand(string CurrentPassword, string NewPassword) : ICommand<AccountDto>, IRequirePolicy
-{
-    public string Policy => Policies.Office;
-}
+[RequiresPolicy(Policies.Office)]
+public sealed record ChangePasswordCommand(string CurrentPassword, string NewPassword) : ICommand<AccountDto>;
 
 public sealed class ChangePasswordValidator : AbstractValidator<ChangePasswordCommand>
 {

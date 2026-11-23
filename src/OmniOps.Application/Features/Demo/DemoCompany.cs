@@ -26,6 +26,7 @@ public static class DemoCompany
 }
 
 /// <summary>Creates the demo company (owner, trucks, drivers, invoice details) if it doesn't exist. Returns the owner's id.</summary>
+[Anonymous]
 public sealed record EnsureDemoCompanyCommand : ICommand<Guid>;
 
 public sealed class EnsureDemoCompanyHandler(IAppDbContext db, TimeProvider clock) : ICommandHandler<EnsureDemoCompanyCommand, Guid>
@@ -69,10 +70,8 @@ public sealed class EnsureDemoCompanyHandler(IAppDbContext db, TimeProvider cloc
 
 public sealed record DemoStatusDto(bool IsDemoCompany);
 
-public sealed record GetDemoStatusQuery : IQuery<DemoStatusDto>, IRequirePolicy
-{
-    public string Policy => Policies.Office;
-}
+[RequiresPolicy(Policies.Office)]
+public sealed record GetDemoStatusQuery : IQuery<DemoStatusDto>;
 
 public sealed class GetDemoStatusHandler(IAppDbContext db, ITenantContext tenant) : IQueryHandler<GetDemoStatusQuery, DemoStatusDto>
 {
@@ -86,10 +85,8 @@ public sealed record DemoDayDto(int JobsCreated, int TrucksOnTheWay, int Locatio
 /// Loads a realistic delivery day in the demo company: trucks on the road with a GPS trail and a delivery waiting to
 /// start. Running it again moves the trucks to where they would be now instead of creating duplicates.
 /// </summary>
-public sealed record LoadDemoDayCommand : ICommand<DemoDayDto>, IRequirePolicy
-{
-    public string Policy => Policies.Office;
-}
+[RequiresPolicy(Policies.Office)]
+public sealed record LoadDemoDayCommand : ICommand<DemoDayDto>;
 
 public sealed class LoadDemoDayHandler(IAppDbContext db, ITenantContext tenant, IMediator mediator, TimeProvider clock)
     : ICommandHandler<LoadDemoDayCommand, DemoDayDto>

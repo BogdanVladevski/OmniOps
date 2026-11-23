@@ -8,10 +8,8 @@ namespace OmniOps.Application.Features.Audit;
 public sealed record AuditEntryDto(Guid Id, string Action, string EntityType, string? EntityId, Guid? UserId, string? UserName, string? Details, DateTime OccurredAtUtc);
 
 /// <summary>Owners: who changed what in their company, newest first.</summary>
-public sealed record GetAuditLogQuery(int Limit = 100) : IQuery<IReadOnlyList<AuditEntryDto>>, IRequirePolicy
-{
-    public string Policy => Policies.Owner;
-}
+[RequiresPolicy(Policies.Owner)]
+public sealed record GetAuditLogQuery(int Limit = 100) : IQuery<IReadOnlyList<AuditEntryDto>>;
 
 public sealed class GetAuditLogHandler(IAppDbContext db) : IQueryHandler<GetAuditLogQuery, IReadOnlyList<AuditEntryDto>>
 {

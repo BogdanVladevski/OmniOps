@@ -7,10 +7,8 @@ namespace OmniOps.Application.Features.Jobs;
 
 public sealed record JobDetailDto(JobDto Job, IReadOnlyList<JobDocumentDto> Documents, IReadOnlyList<WaitDto> Waits);
 
-public sealed record GetJobQuery(Guid JobId) : IQuery<JobDetailDto>, IRequirePolicy
-{
-    public string Policy => Policies.Office;
-}
+[RequiresPolicy(Policies.Office)]
+public sealed record GetJobQuery(Guid JobId) : IQuery<JobDetailDto>;
 
 public sealed class GetJobHandler(IAppDbContext db, ITenantContext tenant, TimeProvider clock) : IQueryHandler<GetJobQuery, JobDetailDto>
 {
@@ -25,10 +23,8 @@ public sealed class GetJobHandler(IAppDbContext db, ITenantContext tenant, TimeP
     }
 }
 
-public sealed record GetJobDocumentQuery(Guid JobId, Guid DocumentId) : IQuery<FileContent>, IRequirePolicy
-{
-    public string Policy => Policies.Office;
-}
+[RequiresPolicy(Policies.Office)]
+public sealed record GetJobDocumentQuery(Guid JobId, Guid DocumentId) : IQuery<FileContent>;
 
 public sealed class GetJobDocumentHandler(IAppDbContext db, IFileStore files) : IQueryHandler<GetJobDocumentQuery, FileContent>
 {

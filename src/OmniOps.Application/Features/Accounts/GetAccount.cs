@@ -1,10 +1,12 @@
 using Mediator;
 using Microsoft.EntityFrameworkCore;
 using OmniOps.Application.Common.Interfaces;
+using OmniOps.Application.Common.Security;
 
 namespace OmniOps.Application.Features.Accounts;
 
 /// <summary>Reloads an account by id (token refresh, "me"). Null if it no longer exists or was switched off.</summary>
+[Anonymous]
 public sealed record GetAccountQuery(Guid UserId) : IQuery<AccountDto?>;
 
 public sealed class GetAccountHandler(IAppDbContext db) : IQueryHandler<GetAccountQuery, AccountDto?>

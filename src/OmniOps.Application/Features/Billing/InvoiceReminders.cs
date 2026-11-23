@@ -2,11 +2,13 @@ using Mediator;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using OmniOps.Application.Common.Interfaces;
+using OmniOps.Application.Common.Security;
 using OmniOps.Domain.Billing;
 
 namespace OmniOps.Application.Features.Billing;
 
 /// <summary>System, hourly: sends the payment reminders that are due, across all companies.</summary>
+[Anonymous]
 public sealed record ProcessInvoiceRemindersCommand : ICommand<InvoiceReminderRunDto>;
 
 public sealed class ProcessInvoiceRemindersHandler(

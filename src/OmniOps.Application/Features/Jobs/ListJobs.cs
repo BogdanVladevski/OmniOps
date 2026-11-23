@@ -18,10 +18,8 @@ public enum JobScope
 }
 
 /// <summary>Office: the company's jobs. Driver: only their own, whatever else is asked for.</summary>
-public sealed record ListJobsQuery(JobScope Scope) : IQuery<IReadOnlyList<JobDto>>, IRequirePolicy
-{
-    public string Policy => Policies.JobWork;
-}
+[RequiresPolicy(Policies.JobWork)]
+public sealed record ListJobsQuery(JobScope Scope) : IQuery<IReadOnlyList<JobDto>>;
 
 public sealed class ListJobsHandler(IAppDbContext db, ITenantContext tenant, TimeProvider clock) : IQueryHandler<ListJobsQuery, IReadOnlyList<JobDto>>
 {
@@ -46,10 +44,8 @@ public sealed class ListJobsHandler(IAppDbContext db, ITenantContext tenant, Tim
 /// <summary>Trucks and drivers to choose from when creating a job.</summary>
 public sealed record JobOptionsDto(IReadOnlyList<VehicleDto> Vehicles, IReadOnlyList<DriverDto> Drivers);
 
-public sealed record GetJobOptionsQuery : IQuery<JobOptionsDto>, IRequirePolicy
-{
-    public string Policy => Policies.Office;
-}
+[RequiresPolicy(Policies.Office)]
+public sealed record GetJobOptionsQuery : IQuery<JobOptionsDto>;
 
 public sealed class GetJobOptionsHandler(IMediator mediator) : IQueryHandler<GetJobOptionsQuery, JobOptionsDto>
 {
