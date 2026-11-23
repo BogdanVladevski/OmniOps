@@ -10,7 +10,6 @@ using OmniOps.Infrastructure.BackgroundJobs;
 using OmniOps.Infrastructure.Email;
 using OmniOps.Infrastructure.Identity;
 using OmniOps.Infrastructure.Persistence;
-using OmniOps.Infrastructure.Realtime;
 using OmniOps.Infrastructure.Storage;
 
 namespace OmniOps.Infrastructure;
@@ -53,9 +52,6 @@ public static class DependencyInjection
             var contentRoot = sp.GetRequiredService<IWebHostEnvironment>().ContentRootPath;
             return new LocalFileStore(Path.IsPathRooted(root) ? root : Path.Combine(contentRoot, root));
         });
-
-        services.AddSignalR();
-        services.AddSingleton<IRealtimeNotifier, SignalRNotifier>();
 
         services.AddHostedService<InvoiceReminderService>();
         services.AddHostedService<WaitingAlertService>();

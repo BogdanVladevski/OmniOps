@@ -106,6 +106,7 @@ public sealed class AddDocumentHandler(
         await files.SaveAsync(document.StorageKey, command.Content, cancellationToken);
         db.JobDocuments.Add(document);
         await db.SaveChangesAsync(cancellationToken);
+        await notifier.JobChangedAsync(job.OrganizationId, job.Id, cancellationToken);
 
         if (document.TemperatureCelsius is { } celsius && JobTemperaturePolicy.IsOutOfRange(job, celsius))
         {

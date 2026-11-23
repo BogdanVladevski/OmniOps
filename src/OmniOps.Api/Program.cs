@@ -2,11 +2,12 @@ using Microsoft.EntityFrameworkCore;
 using OmniOps.Api.Authentication;
 using OmniOps.Api.Endpoints;
 using OmniOps.Api.Infrastructure;
+using OmniOps.Api.Realtime;
 using OmniOps.Application;
 using OmniOps.Application.Common.Behaviours;
+using OmniOps.Application.Common.Interfaces;
 using OmniOps.Infrastructure;
 using OmniOps.Infrastructure.Persistence;
-using OmniOps.Infrastructure.Realtime;
 using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -32,6 +33,8 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 
 builder.Services.AddOmniAuthentication();
 builder.Services.AddOmniRateLimits();
+builder.Services.AddSignalR();
+builder.Services.AddSingleton<IRealtimeNotifier, SignalRNotifier>();
 builder.Services.AddProblemDetails();
 builder.Services.AddExceptionHandler<ProblemExceptionHandler>();
 builder.Services.AddOpenApi();
