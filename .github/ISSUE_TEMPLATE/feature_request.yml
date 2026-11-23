@@ -1,0 +1,15 @@
+name: Feature request
+description: Suggest something new or a better way to do something.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: Who runs into it (office, driver, customer) and when?
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would help

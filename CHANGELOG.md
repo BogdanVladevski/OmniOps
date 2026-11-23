@@ -4,7 +4,33 @@ All notable changes to OmniOps are documented in this file.
 
 ## [Unreleased]
 
+### Changed (platform)
+
+- Backend rebuilt on .NET 10 / C# 14: `src/` and `tests/` layout, `OmniOps.slnx`, central package management, NuGet lock
+  files, analyzers with warnings as errors, feature-sliced application layer on the source-generated Mediator, EF Core
+  10 with a named tenant query filter, and one fresh `InitialCreate` migration
+- Authorization is declared on each command and query (`[RequiresPolicy]` / `[Anonymous]`) and checked by an
+  architecture test; the policy no longer leaks into request bodies or the API contract
+- The OpenAPI document is generated at build time (`docs/api/omniops-api.json`); the app's TypeScript client is
+  generated from it, and CI fails if either is out of date
+- App rebuilt on Expo SDK 58 (React Native 0.88, React 19, React Compiler) in TypeScript with Expo Router (URL-driven
+  screens: `/jobs?open=…`, `/invoices?tab=unpaid`), TanStack Query, ESLint and Prettier. The web map uses a platform
+  file (`delivery-map.web.tsx`) instead of a module alias
+- Local development runs on .NET Aspire: PostgreSQL, the API and the app with one command, plus a dashboard
+- New app icon and splash
+
 ### Added
+
+- Live updates: the office's screens refresh when a driver moves, starts, arrives, uploads or delivers, over SignalR
+  (`job-changed`), and only for the driver's own company
+- Invitation and password-reset links open the app directly at `/join/{token}` and `/reset/{token}`
+
+### Fixed
+
+- The live channel took the company from the request context, which isn't reliable inside hub methods; it now uses the
+  connection's own sign-in
+- Development CORS settings (`appsettings.Development.json`) were excluded by `.gitignore`, so a fresh clone couldn't
+  call the API from the app
 
 - **Today** (the home screen, formerly Live): the map, plus three numbers — trucks moving, things that need you, deliveries to invoice — and a "Needs you" list in plain words with one next step each: a load outside its temperature range or a check overdue, a truck with no signal, a truck waiting past its free time (and a heads-up 15 minutes before), a reported problem, a late job, a job due soon that hasn't started, a job without a driver. Then the trucks on the road (late and silent ones first), jobs not started, money (ready to invoice, overdue), and today's deliveries
 - New companies get a setup checklist on Today (trucks, drivers, first job, a driver's phone, invoice settings) that ticks itself off

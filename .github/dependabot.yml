@@ -1,0 +1,39 @@
+version: 2
+updates:
+  - package-ecosystem: nuget
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      microsoft:
+        patterns: [Microsoft.*, Aspire.*, System.*]
+      testing:
+        patterns: [xunit*, Testcontainers*, coverlet*]
+      everything-else:
+        patterns: ['*']
+        update-types: [minor, patch]
+
+  - package-ecosystem: npm
+    directory: /app
+    schedule:
+      interval: weekly
+    groups:
+      # Expo SDK packages move together; upgrade them with `npx expo install --fix` on an SDK bump instead.
+      expo:
+        patterns: [expo, expo-*, react, react-dom, react-native, react-native-*, '@expo/*', jest-expo, eslint-config-expo]
+      everything-else:
+        patterns: ['*']
+        update-types: [minor, patch]
+    ignore:
+      - dependency-name: react-native
+        update-types: [version-update:semver-major, version-update:semver-minor]
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+
+  - package-ecosystem: docker
+    directory: /deploy
+    schedule:
+      interval: weekly
