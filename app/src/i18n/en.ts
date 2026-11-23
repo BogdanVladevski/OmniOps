@@ -1,0 +1,118 @@
+// Driver app — English (the reference: every other language has the same keys).
+export const en = {
+  language: 'Language',
+  signOut: 'Sign out',
+  driver: 'Driver',
+  pleaseWait: 'Please wait…',
+
+  yourJobs: 'Your jobs',
+  noJobsTitle: 'No jobs for you right now',
+  noJobsBody: 'When the office gives you a delivery, it appears here.',
+  offlineJobs: 'No connection. Showing the jobs saved on this phone.',
+  order: 'Order {ref}',
+  allJobs: '‹ All jobs',
+  keepAt: 'Keep at {range}',
+
+  'status.Planned': 'Planned',
+  'status.InProgress': 'On the way',
+  'status.Delivered': 'Delivered',
+  'status.Cancelled': 'Cancelled',
+
+  waiting: 'Saved on this phone: {count}. It will be sent when there is signal.',
+  sending: 'Sending…',
+  refused: 'Not accepted: {message}',
+  remove: 'Remove',
+
+  takePhoto: 'Take photo',
+  fromGallery: 'From gallery',
+  cameraOff: 'Camera access is off. Turn it on in Settings, or choose a photo from the gallery.',
+
+  'quality.blurry': 'This photo looks blurry. The office and the customer may not be able to read it.',
+  'quality.dark': 'This photo is very dark. The office and the customer may not be able to read it.',
+  retake: 'Take it again',
+  keepPhoto: 'Use it anyway',
+
+  'loading.title': 'Loading note',
+  'loading.hint': 'Photograph the signed loading note or CMR when you collect the goods. It goes with the invoice.',
+  'loading.count': 'Pages attached: {count}',
+  'loading.add': 'Photograph loading note',
+  'loading.addAnother': 'Add another page',
+
+  'temp.title': 'Load temperature',
+  'temp.hint': 'Log the temperature at loading, every 2 hours on the road, and at delivery.',
+  'temp.last': 'Last: {value} at {time}.',
+  'temp.dueNow': 'Next check is due now.',
+  'temp.dueBy': 'Next check by {time}.',
+  'temp.field': 'Reading on the fridge display (°C)',
+  'temp.placeholder': 'e.g. 4,5',
+  'temp.invalid': 'Enter a number like 4,5 or −18.',
+  'temp.enterFirst': 'Enter the temperature shown on the display first.',
+  'temp.save': 'Photograph display and save',
+  'temp.saved': '{value} saved.',
+  'temp.outOfRange':
+    '{value} is outside {range}. Check the fridge unit’s setting. The office is alerted as soon as this is sent.',
+
+  'problem.title': 'Report a problem',
+  'problem.hint': 'Damage, missing goods or anything else wrong, at loading or at delivery. A photo puts it on record.',
+  'problem.damaged': 'Damaged',
+  'problem.short': 'Missing / short',
+  'problem.wrong': 'Wrong goods',
+  'problem.refused': 'Refused',
+  'problem.other': 'Other',
+  'problem.describe': 'What is wrong?',
+  'problem.placeholder': 'e.g. 2 cartons crushed',
+  'problem.send': 'Photograph and report',
+  'problem.done': 'Problem recorded. The office is told as soon as this is sent.',
+  'problem.count': 'Problems reported: {count}',
+
+  'start.hint':
+    'When you leave, start the trip. Your location is shared with the office and the customer until you deliver.',
+  'start.button': 'Start trip',
+
+  'gps.sharing': 'Sharing your location. Keep the app open while driving.',
+  'gps.sentAt': 'Sharing your location, last sent at {time}. Keep the app open while driving.',
+  'gps.offline': 'No connection. Location updates saved: {count}. They will be sent when you are back online.',
+  'gps.denied':
+    'Location is off for OmniOps. Turn it on in Settings so the office and the customer can follow the delivery.',
+  'gps.starting': 'Starting location sharing…',
+  'gps.error': 'Location problem: {message}',
+
+  'pod.title': 'Proof of delivery',
+  'pod.hint': 'Photograph the signed delivery note or the goods at the door, or let the receiver sign on this screen.',
+  'pod.hintCold': 'A temperature reading taken at the door is also needed.',
+  'pod.photos': 'Photos attached: {count}',
+  'pod.receivedBy': 'Received by',
+  'pod.receivedByPlaceholder': 'Name of the person who took the goods',
+  'pod.note': 'Note (optional)',
+  'pod.notePlaceholder': 'e.g. Left at gate 2',
+  'pod.needReading': 'Log the temperature at the door before confirming.',
+  'pod.needProof': 'Add a photo or the receiver’s signature.',
+  'pod.needName': 'Enter the receiver’s name.',
+  'pod.confirm': 'Confirm delivery',
+
+  'sign.open': 'Receiver signs on screen',
+  'sign.title': 'Receiver’s signature',
+  'sign.hint': 'Ask {name} to sign with a finger in the box.',
+  'sign.needName': 'Type the receiver’s name first.',
+  'sign.clear': 'Clear',
+  'sign.save': 'Save signature',
+  'sign.done': 'Signed by {name}',
+
+  'done.title': 'Delivered',
+  'done.by': 'Received by {name}',
+  'done.pending': 'Saved on this phone. It will be sent when there is signal.',
+
+  'wait.arrivePickup': "I've arrived at the pickup",
+  'wait.arriveDelivery': "I've arrived at the customer",
+  'wait.hint': 'Tap when you reach the gate. If you have to wait, the time is recorded for the invoice.',
+  'wait.since': 'Arrived at {time}. Waiting: {duration}.',
+  'unit.h': 'h',
+  'unit.min': 'min',
+  connectTitle: 'Connect this phone',
+  connectIntro: 'Enter the 8-character code from your office. You only need to do this once.',
+  connectCode: 'Code',
+  connect: 'Connect',
+} as const;
+
+export type StringKey = keyof typeof en;
+export type Strings = Record<StringKey, string>;

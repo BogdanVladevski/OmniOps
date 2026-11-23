@@ -1,0 +1,119 @@
+import type { Strings } from './en';
+
+// Aplikacioni për shoferë — shqip.
+export const sq: Strings = {
+  language: 'Gjuha',
+  signOut: 'Dil',
+  driver: 'Shofer',
+  pleaseWait: 'Ju lutem prisni…',
+
+  yourJobs: 'Detyrat tuaja',
+  noJobsTitle: 'Për momentin nuk keni detyra',
+  noJobsBody: 'Kur zyra ju cakton një dërgesë, ajo shfaqet këtu.',
+  offlineJobs: 'Nuk ka lidhje. Po shfaqen detyrat e ruajtura në këtë telefon.',
+  order: 'Porosia {ref}',
+  allJobs: '‹ Të gjitha detyrat',
+  keepAt: 'Të ruhet në {range}',
+
+  'status.Planned': 'E planifikuar',
+  'status.InProgress': 'Në rrugë',
+  'status.Delivered': 'E dorëzuar',
+  'status.Cancelled': 'E anuluar',
+
+  waiting: 'Të ruajtura në këtë telefon: {count}. Do të dërgohen kur të ketë sinjal.',
+  sending: 'Po dërgohet…',
+  refused: 'Nuk u pranua: {message}',
+  remove: 'Hiqe',
+
+  takePhoto: 'Bëj foto',
+  fromGallery: 'Nga galeria',
+  cameraOff: 'Kamera është e çaktivizuar. Aktivizojeni te Cilësimet ose zgjidhni një foto nga galeria.',
+
+  'quality.blurry': 'Kjo foto duket e turbullt. Zyra dhe klienti mund të mos e lexojnë dot.',
+  'quality.dark': 'Kjo foto është shumë e errët. Zyra dhe klienti mund të mos e lexojnë dot.',
+  retake: 'Bëje përsëri',
+  keepPhoto: 'Përdore gjithsesi',
+
+  'loading.title': 'Fletë-ngarkesa',
+  'loading.hint': 'Fotografoni fletë-ngarkesën e nënshkruar ose CMR-në kur merrni mallin. Shkon bashkë me faturën.',
+  'loading.count': 'Faqe të bashkëngjitura: {count}',
+  'loading.add': 'Fotografo fletë-ngarkesën',
+  'loading.addAnother': 'Shto një faqe tjetër',
+
+  'temp.title': 'Temperatura e ngarkesës',
+  'temp.hint': 'Shënoni temperaturën gjatë ngarkimit, çdo 2 orë në rrugë dhe gjatë dorëzimit.',
+  'temp.last': 'E fundit: {value} në {time}.',
+  'temp.dueNow': 'Kontrolli i radhës është tani.',
+  'temp.dueBy': 'Kontrolli i radhës deri në {time}.',
+  'temp.field': 'Vlera në ekranin e frigoriferit (°C)',
+  'temp.placeholder': 'p.sh. 4,5',
+  'temp.invalid': 'Shkruani një numër si 4,5 ose −18.',
+  'temp.enterFirst': 'Fillimisht shkruani temperaturën që shfaq ekrani.',
+  'temp.save': 'Fotografo ekranin dhe ruaj',
+  'temp.saved': '{value} u ruajt.',
+  'temp.outOfRange':
+    '{value} është jashtë {range}. Kontrolloni cilësimin e frigoriferit. Zyra njoftohet sapo të dërgohet kjo.',
+
+  'problem.title': 'Raporto një problem',
+  'problem.hint':
+    'Dëmtim, mall që mungon ose diçka tjetër që nuk shkon, gjatë ngarkimit ose dorëzimit. Fotoja e dokumenton.',
+  'problem.damaged': 'I dëmtuar',
+  'problem.short': 'Mungon',
+  'problem.wrong': 'Mall i gabuar',
+  'problem.refused': 'I refuzuar',
+  'problem.other': 'Tjetër',
+  'problem.describe': 'Çfarë nuk shkon?',
+  'problem.placeholder': 'p.sh. 2 kuti të shtypura',
+  'problem.send': 'Fotografo dhe raporto',
+  'problem.done': 'Problemi u regjistrua. Zyra njoftohet sapo të dërgohet kjo.',
+  'problem.count': 'Probleme të raportuara: {count}',
+
+  'start.hint': 'Kur nisheni, filloni udhëtimin. Vendndodhja juaj ndahet me zyrën dhe klientin deri në dorëzim.',
+  'start.button': 'Fillo udhëtimin',
+
+  'gps.sharing': 'Vendndodhja po ndahet. Mbajeni aplikacionin të hapur gjatë drejtimit.',
+  'gps.sentAt':
+    'Vendndodhja po ndahet, dërguar për herë të fundit në {time}. Mbajeni aplikacionin të hapur gjatë drejtimit.',
+  'gps.offline': 'Nuk ka lidhje. Vendndodhje të ruajtura: {count}. Do të dërgohen kur të rikthehet lidhja.',
+  'gps.denied':
+    'Vendndodhja është e çaktivizuar për OmniOps. Aktivizojeni te Cilësimet që zyra dhe klienti të ndjekin dërgesën.',
+  'gps.starting': 'Po aktivizohet ndarja e vendndodhjes…',
+  'gps.error': 'Problem me vendndodhjen: {message}',
+
+  'pod.title': 'Dëshmia e dorëzimit',
+  'pod.hint':
+    'Fotografoni fletë-dorëzimin e nënshkruar ose mallin te dera, ose lëreni marrësin të nënshkruajë në ekran.',
+  'pod.hintCold': 'Nevojitet edhe një matje e temperaturës te dera.',
+  'pod.photos': 'Foto të bashkëngjitura: {count}',
+  'pod.receivedBy': 'Marrësi',
+  'pod.receivedByPlaceholder': 'Emri i personit që mori mallin',
+  'pod.note': 'Shënim (opsional)',
+  'pod.notePlaceholder': 'p.sh. U la te porta 2',
+  'pod.needReading': 'Shënoni temperaturën te dera para se të konfirmoni.',
+  'pod.needProof': 'Shtoni një foto ose nënshkrimin e marrësit.',
+  'pod.needName': 'Shkruani emrin e marrësit.',
+  'pod.confirm': 'Konfirmo dorëzimin',
+
+  'sign.open': 'Marrësi nënshkruan në ekran',
+  'sign.title': 'Nënshkrimi i marrësit',
+  'sign.hint': 'Kërkojini {name} të nënshkruajë me gisht në kuti.',
+  'sign.needName': 'Fillimisht shkruani emrin e marrësit.',
+  'sign.clear': 'Fshi',
+  'sign.save': 'Ruaj nënshkrimin',
+  'sign.done': 'Nënshkruar nga {name}',
+
+  'done.title': 'E dorëzuar',
+  'done.by': 'Marrë nga {name}',
+  'done.pending': 'Ruajtur në këtë telefon. Do të dërgohet kur të ketë sinjal.',
+
+  'wait.arrivePickup': 'Mbërrita te ngarkimi',
+  'wait.arriveDelivery': 'Mbërrita te klienti',
+  'wait.hint': 'Shtypni kur arrini te porta. Nëse duhet të prisni, koha regjistrohet për faturën.',
+  'wait.since': 'Mbërritur në {time}. Pritje: {duration}.',
+  'unit.h': 'orë',
+  'unit.min': 'min',
+  connectTitle: 'Lidh këtë telefon',
+  connectIntro: 'Shkruani kodin me 8 shenja nga zyra. Këtë e bëni vetëm një herë.',
+  connectCode: 'Kodi',
+  connect: 'Lidh',
+};

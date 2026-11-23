@@ -1,0 +1,51 @@
+{
+  "expo": {
+    "name": "OmniOps",
+    "slug": "omniops",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/images/icon.png",
+    "scheme": "omniops",
+    "userInterfaceStyle": "automatic",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "app.omniops",
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "OmniOps shares your location with your office and the customer while a delivery is under way.",
+        "NSCameraUsageDescription": "Photograph loading notes, proof of delivery and the fridge display."
+      }
+    },
+    "android": {
+      "package": "app.omniops",
+      "adaptiveIcon": {
+        "backgroundColor": "#16181D",
+        "foregroundImage": "./assets/images/android-icon-foreground.png",
+        "backgroundImage": "./assets/images/android-icon-background.png",
+        "monochromeImage": "./assets/images/android-icon-monochrome.png"
+      },
+      "permissions": ["ACCESS_FINE_LOCATION", "CAMERA"],
+      "predictiveBackGestureEnabled": false
+    },
+    "web": {
+      "output": "single",
+      "favicon": "./assets/images/favicon.png",
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-splash-screen",
+        {
+          "backgroundColor": "#16181D",
+          "image": "./assets/images/splash-icon.png",
+          "imageWidth": 96
+        }
+      ],
+      "expo-localization"
+    ],
+    "experiments": {
+      "typedRoutes": true,
+      "reactCompiler": true
+    }
+  }
+}
