@@ -1057,6 +1057,162 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/customers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CustomerDto"][];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/customers/{customerId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    customerId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CustomerDetailDto"];
+                    };
+                };
+            };
+        };
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    customerId: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["CustomerBody"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CustomerDto"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/customers/{customerId}/portal": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Turns the customer's portal link on, or replaces it (the old link stops working). */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    customerId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CustomerDto"];
+                    };
+                };
+            };
+        };
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    customerId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CustomerDto"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/jobs": {
         parameters: {
             query?: never;
@@ -1178,6 +1334,42 @@ export interface paths {
                     content: {
                         "application/json": components["schemas"]["JobDetailDto"];
                     };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/jobs/{jobId}/proof.pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** The delivery's proof pack: timeline, waiting time, temperature log, photos and signature. */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    jobId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
                 };
             };
         };
@@ -1893,6 +2085,93 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/public/portal/{token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    token: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CustomerPortalDto"];
+                    };
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/public/portal/{token}/jobs/{jobId}/proof.pdf": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    token: string;
+                    jobId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description Not Found */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -2026,6 +2305,56 @@ export interface components {
         CreateVehicleCommand: {
             name: string;
             registration: null | string;
+        };
+        CustomerBody: {
+            name: null | string;
+            email: null | string;
+            phone: null | string;
+            address: null | string;
+            taxId: null | string;
+            /** Format: int32 */
+            paymentTermsDays: null | number;
+            emailUpdates: boolean;
+        };
+        CustomerDetailDto: {
+            customer: components["schemas"]["CustomerDto"];
+            recentJobs: components["schemas"]["JobDto"][];
+            invoices: components["schemas"]["InvoiceSummaryDto"][];
+        };
+        /** @description A customer as the office sees it, with where things stand. */
+        CustomerDto: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            email: null | string;
+            phone: null | string;
+            address: null | string;
+            taxId: null | string;
+            /** Format: int32 */
+            paymentTermsDays: null | number;
+            emailUpdates: boolean;
+            portalUrl: null | string;
+            /** Format: date-time */
+            portalCreatedAtUtc: null | string;
+            /** Format: int32 */
+            activeJobs: number;
+            /** Format: int32 */
+            deliveredLast30Days: number;
+            /** Format: date-time */
+            lastJobAtUtc: null | string;
+            /** Format: double */
+            outstanding: number;
+            /** Format: double */
+            overdue: number;
+            currency: string;
+        };
+        CustomerPortalDto: {
+            companyName: string;
+            customerName: string;
+            onTheWay: components["schemas"]["PortalJobDto"][];
+            planned: components["schemas"]["PortalJobDto"][];
+            delivered: components["schemas"]["PortalJobDto"][];
+            invoices: components["schemas"]["PortalInvoiceDto"][];
         };
         DeliverBody: {
             recipientName: null | string;
@@ -2262,6 +2591,8 @@ export interface components {
             deliveryArrivedAtUtc: null | string;
             /** Format: uuid */
             invoiceId: null | string;
+            /** Format: uuid */
+            customerId: null | string;
         };
         /** @description Trucks and drivers to choose from when creating a job. */
         JobOptionsDto: {
@@ -2296,6 +2627,49 @@ export interface components {
         /** @description Anonymous: a driver's phone exchanges a pairing code for a driver sign-in. Each code works once. */
         PairDriverCommand: {
             code: string;
+        };
+        PortalInvoiceDto: {
+            number: string;
+            /** Format: date-time */
+            issueDateUtc: string;
+            /** Format: date-time */
+            dueDateUtc: string;
+            /** Format: double */
+            total: number;
+            currency: string;
+            status: string;
+            deliveryReference: null | string;
+            publicPath: string;
+        };
+        PortalJobDto: {
+            /** Format: uuid */
+            id: string;
+            reference: null | string;
+            status: string;
+            origin: null | string;
+            destination: null | string;
+            /** Format: date-time */
+            plannedDeliveryUtc: null | string;
+            /** Format: date-time */
+            startedAtUtc: null | string;
+            /** Format: date-time */
+            etaUtc: null | string;
+            /** Format: double */
+            remainingKm: null | number;
+            /** Format: date-time */
+            arrivedAtUtc: null | string;
+            /** Format: date-time */
+            deliveredAtUtc: null | string;
+            receivedBy: null | string;
+            /** Format: int32 */
+            photoCount: number;
+            hasSignature: boolean;
+            /** Format: int32 */
+            temperatureReadings: number;
+            /** Format: int32 */
+            problemsReported: number;
+            trackingPath: null | string;
+            proofPath: null | string;
         };
         PublicInvoiceDocumentDto: {
             /** Format: uuid */

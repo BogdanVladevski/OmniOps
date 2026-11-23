@@ -21,6 +21,8 @@ export const keys = {
   vehicles: ['vehicles'] as const,
   drivers: ['drivers'] as const,
   invoices: ['invoices'] as const,
+  customers: ['customers'] as const,
+  customer: (id: string) => ['customer', id] as const,
   invoice: (id: string) => ['invoice', id] as const,
   billingProfile: ['billing-profile'] as const,
   team: ['team'] as const,

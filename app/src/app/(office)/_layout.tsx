@@ -40,6 +40,7 @@ export default function OfficeLayout() {
         >
           <Tabs.Screen name="index" />
           <Tabs.Screen name="jobs" />
+          <Tabs.Screen name="customers" />
           <Tabs.Screen name="invoices" />
           <Tabs.Screen name="fleet" />
           <Tabs.Screen name="settings" />

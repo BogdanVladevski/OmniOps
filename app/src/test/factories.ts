@@ -46,6 +46,7 @@ export function aJob(over: Partial<Job> = {}): Job {
     pickupArrivedAtUtc: null,
     deliveryArrivedAtUtc: null,
     invoiceId: null,
+    customerId: null,
     ...over,
   };
 }
