@@ -58,11 +58,24 @@ cd app
 EXPO_PUBLIC_API_URL=http://localhost:5031 npm run web
 ```
 
-## The driver app on a phone
+## Test on a phone
 
-Run `npm start` in `app/` and open the project in Expo Go. Set `EXPO_PUBLIC_API_URL` to your computer's LAN address
-(e.g. `http://192.168.1.20:5031`) so the phone can reach the API. In the office, open *Fleet → Connect phone* next to a
-driver, then on the phone choose "I'm a driver" and enter the code.
+Phone mode makes the API and the app's dev server reachable from your Wi-Fi, so the real app runs on your phone in
+[Expo Go](https://expo.dev/go) with GPS and the camera:
+
+```bash
+OMNIOPS_PHONE=1 dotnet run --project src/OmniOps.AppHost
+```
+
+1. Put the phone on the same Wi-Fi as this computer and install Expo Go (it must support the project's Expo SDK).
+2. In the Aspire dashboard, the `app` resource shows an **Open in Expo Go** link (`exp://<this computer>:8081`). In
+   Expo Go, choose *Enter URL manually* and type it, or scan the QR code in the `app` resource's console log.
+3. The office still works in this computer's browser at <http://localhost:8081>. On the phone, sign in to the demo
+   company, or connect as a driver: *Fleet → Connect phone* in the office, then "I'm a driver" on the phone.
+
+The computer's address is found automatically; set `OMNIOPS_LAN_HOST` to override it. If the phone can't connect, a
+firewall is blocking ports 5031 and 8081 (on Ubuntu: `sudo ufw allow 5031/tcp && sudo ufw allow 8081/tcp`). Tracking,
+portal and invitation links use the computer's network address in this mode, so they open on the phone too.
 
 GPS is shared while the app is open. Background tracking needs a development build (planned).
 
