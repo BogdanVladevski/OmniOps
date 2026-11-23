@@ -8,7 +8,7 @@ COPY src/ src/
 RUN --mount=type=cache,target=/root/.nuget/packages \
     dotnet publish src/OmniOps.Api/OmniOps.Api.csproj -c Release -o /app/publish -p:UseAppHost=false -p:OpenApiGenerateDocuments=false
 
-FROM mcr.microsoft.com/dotnet/aspnet:10.0-alpine AS runtime
+FROM mcr.microsoft.com/dotnet/aspnet:11.0-alpine AS runtime
 # tzdata: invoices state times (e.g. a truck's arrival) in each company's time zone.
 RUN apk add --no-cache tzdata wget \
  && mkdir -p /app/data/uploads && chown -R app:app /app/data
