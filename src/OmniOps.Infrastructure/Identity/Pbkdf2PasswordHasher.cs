@@ -1,5 +1,5 @@
-using OmniOps.Application.Common.Interfaces;
 using System.Security.Cryptography;
+using OmniOps.Application.Common.Interfaces;
 
 namespace OmniOps.Infrastructure.Identity;
 

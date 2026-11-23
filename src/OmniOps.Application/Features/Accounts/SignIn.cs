@@ -2,11 +2,13 @@ using FluentValidation;
 using Mediator;
 using Microsoft.EntityFrameworkCore;
 using OmniOps.Application.Common.Interfaces;
+using OmniOps.Application.Common.Security;
 using OmniOps.Domain.Common;
 
 namespace OmniOps.Application.Features.Accounts;
 
 /// <summary>Anonymous: office sign-in with email and password. Five wrong passwords lock the account for 15 minutes.</summary>
+[Anonymous]
 public sealed record SignInCommand(string Email, string Password) : ICommand<AccountDto>;
 
 public sealed class SignInValidator : AbstractValidator<SignInCommand>

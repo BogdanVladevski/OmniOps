@@ -13,6 +13,7 @@ namespace OmniOps.Application.Features.Jobs;
 /// typed, the receiver's signature, or a problem report. <paramref name="ClientId"/> makes a resend safe;
 /// <paramref name="CapturedAt"/> is when it was taken (possibly offline).
 /// </summary>
+[RequiresPolicy(Policies.JobWork)]
 public sealed record AddDocumentCommand(
     Guid JobId,
     JobDocumentKind Kind,
@@ -24,7 +25,7 @@ public sealed record AddDocumentCommand(
     double? TemperatureCelsius = null,
     string? Note = null,
     Guid? ClientId = null,
-    DateTimeOffset? CapturedAt = null) : ICommand<JobDocumentDto>, IRequirePolicy
+    DateTimeOffset? CapturedAt = null) : ICommand<JobDocumentDto>
 {
     public const long MaxBytes = 10 * 1024 * 1024;
     public const int MaxPhotosPerKind = 10;
@@ -40,7 +41,6 @@ public sealed record AddDocumentCommand(
         ["image/heic"] = "heic",
     };
 
-    public string Policy => Policies.JobWork;
 }
 
 public sealed class AddDocumentValidator : AbstractValidator<AddDocumentCommand>

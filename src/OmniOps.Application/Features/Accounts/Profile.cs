@@ -6,10 +6,8 @@ using OmniOps.Application.Common.Security;
 
 namespace OmniOps.Application.Features.Accounts;
 
-public sealed record UpdateProfileCommand(string DisplayName) : ICommand<AccountDto>, IRequirePolicy
-{
-    public string Policy => Policies.Office;
-}
+[RequiresPolicy(Policies.Office)]
+public sealed record UpdateProfileCommand(string DisplayName) : ICommand<AccountDto>;
 
 public sealed class UpdateProfileValidator : AbstractValidator<UpdateProfileCommand>
 {
@@ -28,10 +26,8 @@ public sealed class UpdateProfileHandler(IAppDbContext db, ITenantContext tenant
 }
 
 /// <summary>Signs the caller out on every device, this one included.</summary>
-public sealed record SignOutEverywhereCommand : ICommand, IRequirePolicy
-{
-    public string Policy => Policies.JobWork;
-}
+[RequiresPolicy(Policies.JobWork)]
+public sealed record SignOutEverywhereCommand : ICommand;
 
 public sealed class SignOutEverywhereHandler(IAppDbContext db, IAccountSessions sessions, ITenantContext tenant)
     : ICommandHandler<SignOutEverywhereCommand>
@@ -44,10 +40,8 @@ public sealed class SignOutEverywhereHandler(IAppDbContext db, IAccountSessions 
     }
 }
 
-public sealed record UpdateCompanyCommand(string Name) : ICommand<CompanyDto>, IRequirePolicy
-{
-    public string Policy => Policies.Owner;
-}
+[RequiresPolicy(Policies.Owner)]
+public sealed record UpdateCompanyCommand(string Name) : ICommand<CompanyDto>;
 
 public sealed class UpdateCompanyValidator : AbstractValidator<UpdateCompanyCommand>
 {

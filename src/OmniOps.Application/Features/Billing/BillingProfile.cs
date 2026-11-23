@@ -8,10 +8,8 @@ using OmniOps.Domain.Billing;
 
 namespace OmniOps.Application.Features.Billing;
 
-public sealed record GetBillingProfileQuery : IQuery<BillingProfileDto>, IRequirePolicy
-{
-    public string Policy => Policies.Office;
-}
+[RequiresPolicy(Policies.Office)]
+public sealed record GetBillingProfileQuery : IQuery<BillingProfileDto>;
 
 public sealed class GetBillingProfileHandler(IAppDbContext db, IEmailSender email) : IQueryHandler<GetBillingProfileQuery, BillingProfileDto>
 {
@@ -20,6 +18,7 @@ public sealed class GetBillingProfileHandler(IAppDbContext db, IEmailSender emai
 }
 
 /// <summary>The company's invoice details, terms, numbering and waiting-time terms.</summary>
+[RequiresPolicy(Policies.Owner)]
 public sealed record SaveBillingProfileCommand(
     string LegalName,
     string Address,
@@ -34,10 +33,7 @@ public sealed record SaveBillingProfileCommand(
     string InvoicePrefix,
     int FreeWaitingMinutes = 120,
     decimal? WaitingRatePerHour = null,
-    string? TimeZone = null) : ICommand<BillingProfileDto>, IRequirePolicy
-{
-    public string Policy => Policies.Owner;
-}
+    string? TimeZone = null) : ICommand<BillingProfileDto>;
 
 public sealed class SaveBillingProfileValidator : AbstractValidator<SaveBillingProfileCommand>
 {

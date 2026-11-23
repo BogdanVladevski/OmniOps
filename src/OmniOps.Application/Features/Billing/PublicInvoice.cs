@@ -1,12 +1,14 @@
 using Mediator;
 using Microsoft.EntityFrameworkCore;
 using OmniOps.Application.Common.Interfaces;
+using OmniOps.Application.Common.Security;
 using OmniOps.Application.Features.Jobs;
 using OmniOps.Domain.Common;
 
 namespace OmniOps.Application.Features.Billing;
 
 /// <summary>Anonymous: the customer's invoice page. The token is the credential; null for unknown tokens.</summary>
+[Anonymous]
 public sealed record GetPublicInvoiceQuery(string Token) : IQuery<PublicInvoiceDto?>;
 
 public sealed class GetPublicInvoiceHandler(IAppDbContext db, TimeProvider clock) : IQueryHandler<GetPublicInvoiceQuery, PublicInvoiceDto?>
@@ -27,6 +29,7 @@ public sealed class GetPublicInvoiceHandler(IAppDbContext db, TimeProvider clock
 }
 
 /// <summary>Anonymous: a photo from the invoiced delivery, reachable only through that invoice's token.</summary>
+[Anonymous]
 public sealed record GetPublicInvoiceDocumentQuery(string Token, Guid DocumentId) : IQuery<FileContent?>;
 
 public sealed class GetPublicInvoiceDocumentHandler(IAppDbContext db, IFileStore files) : IQueryHandler<GetPublicInvoiceDocumentQuery, FileContent?>

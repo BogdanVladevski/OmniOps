@@ -13,10 +13,8 @@ public sealed record VehicleDto(Guid Id, string Name, string? Registration, bool
     public static VehicleDto From(Vehicle v) => new(v.Id, v.Name, v.Registration, v.IsActive);
 }
 
-public sealed record ListVehiclesQuery(bool IncludeInactive = false) : IQuery<IReadOnlyList<VehicleDto>>, IRequirePolicy
-{
-    public string Policy => Policies.Office;
-}
+[RequiresPolicy(Policies.Office)]
+public sealed record ListVehiclesQuery(bool IncludeInactive = false) : IQuery<IReadOnlyList<VehicleDto>>;
 
 public sealed class ListVehiclesHandler(IAppDbContext db) : IQueryHandler<ListVehiclesQuery, IReadOnlyList<VehicleDto>>
 {
@@ -25,10 +23,8 @@ public sealed class ListVehiclesHandler(IAppDbContext db) : IQueryHandler<ListVe
             .Select(v => new VehicleDto(v.Id, v.Name, v.Registration, v.IsActive)).ToListAsync(cancellationToken);
 }
 
-public sealed record CreateVehicleCommand(string Name, string? Registration) : ICommand<VehicleDto>, IRequirePolicy
-{
-    public string Policy => Policies.Office;
-}
+[RequiresPolicy(Policies.Office)]
+public sealed record CreateVehicleCommand(string Name, string? Registration) : ICommand<VehicleDto>;
 
 public sealed class CreateVehicleValidator : AbstractValidator<CreateVehicleCommand>
 {

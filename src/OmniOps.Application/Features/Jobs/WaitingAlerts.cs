@@ -2,11 +2,13 @@ using Mediator;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging;
 using OmniOps.Application.Common.Interfaces;
+using OmniOps.Application.Common.Security;
 using OmniOps.Domain.Jobs;
 
 namespace OmniOps.Application.Features.Jobs;
 
 /// <summary>System, every few minutes: tells each office when a truck's free waiting time has run out (once per stop).</summary>
+[Anonymous]
 public sealed record ProcessWaitingAlertsCommand : ICommand<int>;
 
 public sealed class ProcessWaitingAlertsHandler(

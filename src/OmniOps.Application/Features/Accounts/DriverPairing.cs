@@ -9,10 +9,8 @@ using OmniOps.Domain.Common;
 namespace OmniOps.Application.Features.Accounts;
 
 /// <summary>Office: a one-time code a driver types to sign in their phone (valid 24 hours).</summary>
-public sealed record CreateDriverPairingCodeCommand(Guid DriverId) : ICommand<DriverPairingCodeDto>, IRequirePolicy
-{
-    public string Policy => Policies.Office;
-}
+[RequiresPolicy(Policies.Office)]
+public sealed record CreateDriverPairingCodeCommand(Guid DriverId) : ICommand<DriverPairingCodeDto>;
 
 public sealed class CreateDriverPairingCodeHandler(IAppDbContext db, ITenantContext tenant, IAuditLog audit, TimeProvider clock)
     : ICommandHandler<CreateDriverPairingCodeCommand, DriverPairingCodeDto>
@@ -41,6 +39,7 @@ public sealed class CreateDriverPairingCodeHandler(IAppDbContext db, ITenantCont
 }
 
 /// <summary>Anonymous: a driver's phone exchanges a pairing code for a driver sign-in. Each code works once.</summary>
+[Anonymous]
 public sealed record PairDriverCommand(string Code) : ICommand<AccountDto>;
 
 public sealed class PairDriverValidator : AbstractValidator<PairDriverCommand>

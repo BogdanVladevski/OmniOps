@@ -13,11 +13,22 @@ public static class Policies
     public const string JobWork = "JobWork";
 }
 
-/// <summary>A message that may only be sent by callers satisfying <see cref="Policy"/>.</summary>
-public interface IRequirePolicy
+/// <summary>
+/// The message may only be sent by callers satisfying <paramref name="policy"/>. A class attribute rather than a property
+/// so it never ends up in request bodies or the API contract.
+/// </summary>
+[AttributeUsage(AttributeTargets.Class, Inherited = false)]
+public sealed class RequiresPolicyAttribute(string policy) : Attribute
 {
-    string Policy { get; }
+    public string Policy { get; } = policy;
 }
+
+/// <summary>
+/// Needs no signed-in caller, on purpose: signing in, links from emails, public pages, and background work. Handlers of
+/// such messages establish whose data they touch themselves.
+/// </summary>
+[AttributeUsage(AttributeTargets.Class, Inherited = false)]
+public sealed class AnonymousAttribute : Attribute;
 
 /// <summary>A command whose writes must commit or fail together (e.g. allocating an invoice number).</summary>
 public interface ITransactional;

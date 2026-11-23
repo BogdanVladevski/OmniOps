@@ -2,12 +2,14 @@ using FluentValidation;
 using Mediator;
 using Microsoft.EntityFrameworkCore;
 using OmniOps.Application.Common.Interfaces;
+using OmniOps.Application.Common.Security;
 using OmniOps.Domain.Accounts;
 using OmniOps.Domain.Common;
 
 namespace OmniOps.Application.Features.Accounts;
 
 /// <summary>Anonymous: what the "join company" screen shows. Not found when used, withdrawn or expired.</summary>
+[Anonymous]
 public sealed record GetInvitationQuery(string Token) : IQuery<InvitationPreviewDto>;
 
 public sealed class GetInvitationHandler(IAppDbContext db, TimeProvider clock) : IQueryHandler<GetInvitationQuery, InvitationPreviewDto>
@@ -21,6 +23,7 @@ public sealed class GetInvitationHandler(IAppDbContext db, TimeProvider clock) :
 }
 
 /// <summary>Anonymous: creates the invited person's account and signs them in.</summary>
+[Anonymous]
 public sealed record AcceptInvitationCommand(string Token, string Name, string Password) : ICommand<AccountDto>;
 
 public sealed class AcceptInvitationValidator : AbstractValidator<AcceptInvitationCommand>

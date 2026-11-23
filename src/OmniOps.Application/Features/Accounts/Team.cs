@@ -11,10 +11,8 @@ namespace OmniOps.Application.Features.Accounts;
 
 // Owners invite office staff and manage who can sign in. Drivers join with pairing codes instead.
 
-public sealed record GetTeamQuery : IQuery<TeamDto>, IRequirePolicy
-{
-    public string Policy => Policies.Owner;
-}
+[RequiresPolicy(Policies.Owner)]
+public sealed record GetTeamQuery : IQuery<TeamDto>;
 
 public sealed class GetTeamHandler(IAppDbContext db, ITenantContext tenant, IEmailSender email, TimeProvider clock)
     : IQueryHandler<GetTeamQuery, TeamDto>
@@ -33,10 +31,8 @@ public sealed class GetTeamHandler(IAppDbContext db, ITenantContext tenant, IEma
 }
 
 /// <summary>Role is "Owner" or "Dispatcher". The link is emailed when possible and always returned to share by hand.</summary>
-public sealed record InviteTeammateCommand(string Email, string Role) : ICommand<TeamInvitationDto>, IRequirePolicy
-{
-    public string Policy => Policies.Owner;
-}
+[RequiresPolicy(Policies.Owner)]
+public sealed record InviteTeammateCommand(string Email, string Role) : ICommand<TeamInvitationDto>;
 
 public sealed class InviteTeammateValidator : AbstractValidator<InviteTeammateCommand>
 {
@@ -92,10 +88,8 @@ public sealed class InviteTeammateHandler(
     }
 }
 
-public sealed record RevokeInvitationCommand(Guid InvitationId) : ICommand, IRequirePolicy
-{
-    public string Policy => Policies.Owner;
-}
+[RequiresPolicy(Policies.Owner)]
+public sealed record RevokeInvitationCommand(Guid InvitationId) : ICommand;
 
 public sealed class RevokeInvitationHandler(IAppDbContext db, IAuditLog audit, TimeProvider clock) : ICommandHandler<RevokeInvitationCommand>
 {
@@ -111,10 +105,8 @@ public sealed class RevokeInvitationHandler(IAppDbContext db, IAuditLog audit, T
     }
 }
 
-public sealed record ChangeTeammateRoleCommand(Guid UserId, string Role) : ICommand<TeamMemberDto>, IRequirePolicy
-{
-    public string Policy => Policies.Owner;
-}
+[RequiresPolicy(Policies.Owner)]
+public sealed record ChangeTeammateRoleCommand(Guid UserId, string Role) : ICommand<TeamMemberDto>;
 
 public sealed class ChangeTeammateRoleValidator : AbstractValidator<ChangeTeammateRoleCommand>
 {
@@ -148,10 +140,8 @@ public sealed class ChangeTeammateRoleHandler(IAppDbContext db, IAccountSessions
 }
 
 /// <summary>Switches the account off and ends its sign-ins. Its history (jobs, audit log) stays.</summary>
-public sealed record RemoveTeammateCommand(Guid UserId) : ICommand, IRequirePolicy
-{
-    public string Policy => Policies.Owner;
-}
+[RequiresPolicy(Policies.Owner)]
+public sealed record RemoveTeammateCommand(Guid UserId) : ICommand;
 
 public sealed class RemoveTeammateHandler(IAppDbContext db, IAccountSessions sessions, ITenantContext tenant, IAuditLog audit)
     : ICommandHandler<RemoveTeammateCommand>

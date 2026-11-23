@@ -24,11 +24,11 @@ public sealed record RecordLocationsResultDto(int Accepted, int Skipped);
 /// GPS readings from the driver's phone. Processed synchronously so the phone keeps (and resends) anything not
 /// acknowledged; readings already stored are skipped, so resending is always safe.
 /// </summary>
-public sealed record RecordLocationsCommand(Guid JobId, IReadOnlyList<LocationPoint> Points) : ICommand<RecordLocationsResultDto>, IRequirePolicy
+[RequiresPolicy(Policies.JobWork)]
+public sealed record RecordLocationsCommand(Guid JobId, IReadOnlyList<LocationPoint> Points) : ICommand<RecordLocationsResultDto>
 {
     public const int MaxPointsPerBatch = 500;
 
-    public string Policy => Policies.JobWork;
 }
 
 public sealed class RecordLocationsValidator : AbstractValidator<RecordLocationsCommand>

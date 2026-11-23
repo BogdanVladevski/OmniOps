@@ -17,6 +17,7 @@ public sealed record InvoiceLineInput(string Description, decimal Quantity, deci
 /// Issues an invoice for a delivered job, in one transaction with the number allocation, so a failure gives the
 /// number back. Sending is a separate step that runs after commit.
 /// </summary>
+[RequiresPolicy(Policies.Office)]
 public sealed record CreateInvoiceCommand(
     Guid JobId,
     string CustomerName,
@@ -25,11 +26,10 @@ public sealed record CreateInvoiceCommand(
     string? CustomerTaxId,
     int? PaymentTermsDays,
     IReadOnlyList<InvoiceLineInput> Lines,
-    string? Notes) : ICommand<InvoiceDetailDto>, IRequirePolicy, ITransactional
+    string? Notes) : ICommand<InvoiceDetailDto>, ITransactional
 {
     public const int MaxLines = 20;
 
-    public string Policy => Policies.Office;
 }
 
 public sealed class CreateInvoiceValidator : AbstractValidator<CreateInvoiceCommand>
@@ -148,10 +148,8 @@ public sealed class CreateInvoiceHandler(IAppDbContext db, ITenantContext tenant
 /// Emails the invoice link (<paramref name="Email"/> = true) or records that the office sent it another way
 /// (WhatsApp, their own email). Either way it becomes "Sent" and reminders start.
 /// </summary>
-public sealed record SendInvoiceCommand(Guid InvoiceId, bool Email) : ICommand<InvoiceDetailDto>, IRequirePolicy
-{
-    public string Policy => Policies.Office;
-}
+[RequiresPolicy(Policies.Office)]
+public sealed record SendInvoiceCommand(Guid InvoiceId, bool Email) : ICommand<InvoiceDetailDto>;
 
 public sealed class SendInvoiceHandler(
     IAppDbContext db, IEmailSender email, IPublicLinks links, IAuditLog audit, TimeProvider clock, ILogger<SendInvoiceHandler> logger)
@@ -201,10 +199,8 @@ public sealed class SendInvoiceHandler(
     }
 }
 
-public sealed record MarkInvoicePaidCommand(Guid InvoiceId, DateTimeOffset? PaidAt) : ICommand<InvoiceDetailDto>, IRequirePolicy
-{
-    public string Policy => Policies.Office;
-}
+[RequiresPolicy(Policies.Office)]
+public sealed record MarkInvoicePaidCommand(Guid InvoiceId, DateTimeOffset? PaidAt) : ICommand<InvoiceDetailDto>;
 
 public sealed class MarkInvoicePaidHandler(IAppDbContext db, IAuditLog audit, TimeProvider clock) : ICommandHandler<MarkInvoicePaidCommand, InvoiceDetailDto>
 {
@@ -231,10 +227,8 @@ public sealed class MarkInvoicePaidHandler(IAppDbContext db, IAuditLog audit, Ti
     }
 }
 
-public sealed record GetInvoiceQuery(Guid InvoiceId) : IQuery<InvoiceDetailDto>, IRequirePolicy
-{
-    public string Policy => Policies.Office;
-}
+[RequiresPolicy(Policies.Office)]
+public sealed record GetInvoiceQuery(Guid InvoiceId) : IQuery<InvoiceDetailDto>;
 
 public sealed class GetInvoiceHandler(IAppDbContext db, TimeProvider clock) : IQueryHandler<GetInvoiceQuery, InvoiceDetailDto>
 {
@@ -243,10 +237,8 @@ public sealed class GetInvoiceHandler(IAppDbContext db, TimeProvider clock) : IQ
 }
 
 /// <summary>Money at a glance: what is owed, what is overdue, and delivered jobs still to invoice.</summary>
-public sealed record GetInvoiceOverviewQuery : IQuery<InvoiceOverviewDto>, IRequirePolicy
-{
-    public string Policy => Policies.Office;
-}
+[RequiresPolicy(Policies.Office)]
+public sealed record GetInvoiceOverviewQuery : IQuery<InvoiceOverviewDto>;
 
 public sealed class GetInvoiceOverviewHandler(IAppDbContext db, ITenantContext tenant, TimeProvider clock)
     : IQueryHandler<GetInvoiceOverviewQuery, InvoiceOverviewDto>

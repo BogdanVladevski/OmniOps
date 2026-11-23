@@ -8,6 +8,7 @@ using OmniOps.Domain.Jobs;
 
 namespace OmniOps.Application.Features.Jobs;
 
+[RequiresPolicy(Policies.Office)]
 public sealed record CreateJobCommand(
     Guid VehicleId,
     Guid? DriverId,
@@ -21,10 +22,7 @@ public sealed record CreateJobCommand(
     double? DestinationLongitude,
     DateTimeOffset? PlannedDeliveryUtc,
     double? MinTempCelsius,
-    double? MaxTempCelsius) : ICommand<JobDto>, IRequirePolicy
-{
-    public string Policy => Policies.Office;
-}
+    double? MaxTempCelsius) : ICommand<JobDto>;
 
 public sealed class CreateJobValidator : AbstractValidator<CreateJobCommand>
 {
