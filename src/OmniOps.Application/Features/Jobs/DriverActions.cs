@@ -15,7 +15,7 @@ namespace OmniOps.Application.Features.Jobs;
 [RequiresPolicy(Policies.JobWork)]
 public sealed record StartJobCommand(Guid JobId, DateTimeOffset? StartedAt = null) : ICommand<JobDto>;
 
-public sealed class StartJobHandler(IAppDbContext db, ITenantContext tenant, IAuditLog audit, TimeProvider clock)
+public sealed class StartJobHandler(IAppDbContext db, ITenantContext tenant, IAuditLog audit, IRealtimeNotifier notifier, TimeProvider clock)
     : ICommandHandler<StartJobCommand, JobDto>
 {
     public async ValueTask<JobDto> Handle(StartJobCommand command, CancellationToken cancellationToken)
@@ -35,6 +35,7 @@ public sealed class StartJobHandler(IAppDbContext db, ITenantContext tenant, IAu
         job.StartedAtUtc = PhoneClock.Resolve(command.StartedAt, job.CreatedAtUtc, clock.GetUtcNow().UtcDateTime);
         audit.Record("Start", "Job", job.Id.ToString());
         await db.SaveChangesAsync(cancellationToken);
+        await notifier.JobChangedAsync(job.OrganizationId, job.Id, cancellationToken);
         return JobDto.From(job);
     }
 }
@@ -57,7 +58,7 @@ public sealed class MarkArrivedValidator : AbstractValidator<MarkArrivedCommand>
     }
 }
 
-public sealed class MarkArrivedHandler(IAppDbContext db, ITenantContext tenant, IAuditLog audit, TimeProvider clock)
+public sealed class MarkArrivedHandler(IAppDbContext db, ITenantContext tenant, IAuditLog audit, IRealtimeNotifier notifier, TimeProvider clock)
     : ICommandHandler<MarkArrivedCommand, JobDto>
 {
     public async ValueTask<JobDto> Handle(MarkArrivedCommand command, CancellationToken cancellationToken)
@@ -106,6 +107,7 @@ public sealed class MarkArrivedHandler(IAppDbContext db, ITenantContext tenant, 
 
         audit.Record("Arrived", "Job", job.Id.ToString(), command.Stop);
         await db.SaveChangesAsync(cancellationToken);
+        await notifier.JobChangedAsync(job.OrganizationId, job.Id, cancellationToken);
         return JobDto.From(job);
     }
 }
@@ -168,6 +170,7 @@ public sealed class DeliverJobHandler(
         await db.SaveChangesAsync(cancellationToken);
 
         // Committed: now tell the office. A failed alert never undoes the delivery.
+        await notifier.JobChangedAsync(job.OrganizationId, job.Id, cancellationToken);
         try
         {
             var who = job.CustomerName ?? job.Destination ?? "the customer";

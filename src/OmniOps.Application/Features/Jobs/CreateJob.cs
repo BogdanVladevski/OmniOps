@@ -50,7 +50,7 @@ public sealed class CreateJobValidator : AbstractValidator<CreateJobCommand>
     }
 }
 
-public sealed class CreateJobHandler(IAppDbContext db, ITenantContext tenant, IAuditLog audit, TimeProvider clock)
+public sealed class CreateJobHandler(IAppDbContext db, ITenantContext tenant, IAuditLog audit, IRealtimeNotifier notifier, TimeProvider clock)
     : ICommandHandler<CreateJobCommand, JobDto>
 {
     public async ValueTask<JobDto> Handle(CreateJobCommand command, CancellationToken cancellationToken)
@@ -90,6 +90,7 @@ public sealed class CreateJobHandler(IAppDbContext db, ITenantContext tenant, IA
         db.Jobs.Add(job);
         audit.Record("Create", "Job", job.Id.ToString(), $"{job.CustomerName} → {job.Destination}");
         await db.SaveChangesAsync(cancellationToken);
+        await notifier.JobChangedAsync(job.OrganizationId, job.Id, cancellationToken);
         return JobDto.From(job);
     }
 }

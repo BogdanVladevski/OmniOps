@@ -1,0 +1,4109 @@
+{
+  "openapi": "3.1.1",
+  "info": {
+    "title": "OmniOps.Api | v1",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/api/v1/audit": {
+      "get": {
+        "tags": [
+          "Audit"
+        ],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": {
+              "type": "integer",
+              "format": "int32"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AuditEntryDto"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/account/sign-up": {
+      "post": {
+        "tags": [
+          "Account"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SignUpCommand"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/account/sign-in": {
+      "post": {
+        "tags": [
+          "Account"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SignInCommand"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/account/pair": {
+      "post": {
+        "tags": [
+          "Account"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PairDriverCommand"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/account/refresh": {
+      "post": {
+        "tags": [
+          "Account"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/account/sign-out": {
+      "post": {
+        "tags": [
+          "Account"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        }
+      }
+    },
+    "/api/v1/account/invitations/{token}": {
+      "get": {
+        "tags": [
+          "Account"
+        ],
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvitationPreviewDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/account/invitations/{token}/accept": {
+      "post": {
+        "tags": [
+          "Account"
+        ],
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AcceptBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/account/forgot-password": {
+      "post": {
+        "tags": [
+          "Account"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RequestPasswordResetCommand"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "description": "Accepted"
+          }
+        }
+      }
+    },
+    "/api/v1/account/reset-password": {
+      "post": {
+        "tags": [
+          "Account"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ResetPasswordCommand"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/account/options": {
+      "get": {
+        "tags": [
+          "Account"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SignInOptionsDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/account/demo": {
+      "post": {
+        "tags": [
+          "Account"
+        ],
+        "summary": "Signs in to the demo company (development servers only; 404 elsewhere).",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
+    },
+    "/api/v1/account/me": {
+      "get": {
+        "tags": [
+          "Account"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountDto"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Account"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateProfileCommand"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/account/password": {
+      "post": {
+        "tags": [
+          "Account"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangePasswordCommand"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SessionDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/account/sign-out-everywhere": {
+      "post": {
+        "tags": [
+          "Account"
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        }
+      }
+    },
+    "/api/v1/account/driver-codes": {
+      "post": {
+        "tags": [
+          "Account"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDriverPairingCodeCommand"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DriverPairingCodeDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/account/company": {
+      "put": {
+        "tags": [
+          "Account"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCompanyCommand"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CompanyDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/account/team": {
+      "get": {
+        "tags": [
+          "Account"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/account/team/invitations": {
+      "post": {
+        "tags": [
+          "Account"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InviteTeammateCommand"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamInvitationDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/account/team/invitations/{id}": {
+      "delete": {
+        "tags": [
+          "Account"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        }
+      }
+    },
+    "/api/v1/account/team/{userId}/role": {
+      "put": {
+        "tags": [
+          "Account"
+        ],
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RoleBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TeamMemberDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/account/team/{userId}": {
+      "delete": {
+        "tags": [
+          "Account"
+        ],
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          }
+        }
+      }
+    },
+    "/api/v1/account/team/{userId}/reset-link": {
+      "post": {
+        "tags": [
+          "Account"
+        ],
+        "parameters": [
+          {
+            "name": "userId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountLinkDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/vehicles": {
+      "get": {
+        "tags": [
+          "Fleet"
+        ],
+        "parameters": [
+          {
+            "name": "includeInactive",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/VehicleDto"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Fleet"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateVehicleCommand"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/VehicleDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/drivers": {
+      "get": {
+        "tags": [
+          "Fleet"
+        ],
+        "parameters": [
+          {
+            "name": "includeInactive",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/DriverDto"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Fleet"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateDriverCommand"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DriverDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/drivers/{driverId}": {
+      "put": {
+        "tags": [
+          "Fleet"
+        ],
+        "parameters": [
+          {
+            "name": "driverId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DriverBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DriverDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/jobs": {
+      "get": {
+        "tags": [
+          "Jobs"
+        ],
+        "parameters": [
+          {
+            "name": "scope",
+            "in": "query",
+            "schema": {
+              "$ref": "#/components/schemas/JobScope"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/JobDto"
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Jobs"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateJobCommand"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/jobs/options": {
+      "get": {
+        "tags": [
+          "Jobs"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobOptionsDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/jobs/{jobId}": {
+      "get": {
+        "tags": [
+          "Jobs"
+        ],
+        "parameters": [
+          {
+            "name": "jobId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobDetailDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/jobs/{jobId}/documents/{documentId}": {
+      "get": {
+        "tags": [
+          "Jobs"
+        ],
+        "parameters": [
+          {
+            "name": "jobId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "documentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/driver/jobs": {
+      "get": {
+        "tags": [
+          "Driver"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/JobDto"
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/driver/jobs/{jobId}/start": {
+      "post": {
+        "tags": [
+          "Driver"
+        ],
+        "parameters": [
+          {
+            "name": "jobId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/StartBody"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/driver/jobs/{jobId}/arrived": {
+      "post": {
+        "tags": [
+          "Driver"
+        ],
+        "parameters": [
+          {
+            "name": "jobId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ArrivedBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/driver/jobs/{jobId}/locations": {
+      "post": {
+        "tags": [
+          "Driver"
+        ],
+        "parameters": [
+          {
+            "name": "jobId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LocationsBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecordLocationsResultDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/driver/jobs/{jobId}/deliver": {
+      "post": {
+        "tags": [
+          "Driver"
+        ],
+        "parameters": [
+          {
+            "name": "jobId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeliverBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/driver/jobs/{jobId}/documents": {
+      "post": {
+        "tags": [
+          "Driver"
+        ],
+        "parameters": [
+          {
+            "name": "jobId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/UploadForm"
+              }
+            },
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "$ref": "#/components/schemas/UploadForm"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/v1/billing/profile": {
+      "get": {
+        "tags": [
+          "Billing"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BillingProfileDto"
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Billing"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SaveBillingProfileCommand"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BillingProfileDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/invoices": {
+      "get": {
+        "tags": [
+          "Billing"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoiceOverviewDto"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Billing"
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateInvoiceBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoiceDetailDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/invoices/{invoiceId}": {
+      "get": {
+        "tags": [
+          "Billing"
+        ],
+        "parameters": [
+          {
+            "name": "invoiceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoiceDetailDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/invoices/{invoiceId}/send": {
+      "post": {
+        "tags": [
+          "Billing"
+        ],
+        "parameters": [
+          {
+            "name": "invoiceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SendBody"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoiceDetailDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/invoices/{invoiceId}/paid": {
+      "post": {
+        "tags": [
+          "Billing"
+        ],
+        "parameters": [
+          {
+            "name": "invoiceId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/PaidBody"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoiceDetailDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/demo/status": {
+      "get": {
+        "tags": [
+          "Demo"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DemoStatusDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/v1/demo/day": {
+      "post": {
+        "tags": [
+          "Demo"
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DemoDayDto"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/public/track/{token}": {
+      "get": {
+        "tags": [
+          "Public"
+        ],
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicTrackingDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
+    },
+    "/api/public/invoices/{token}": {
+      "get": {
+        "tags": [
+          "Public"
+        ],
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PublicInvoiceDto"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Not Found"
+          }
+        }
+      }
+    },
+    "/api/public/invoices/{token}/documents/{documentId}": {
+      "get": {
+        "tags": [
+          "Public"
+        ],
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "documentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "AcceptBody": {
+        "required": [
+          "name",
+          "password"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "password": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "AccountDto": {
+        "required": [
+          "userId",
+          "displayName",
+          "email",
+          "role",
+          "organizationId",
+          "organizationName",
+          "driverId"
+        ],
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "email": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "role": {
+            "type": "string"
+          },
+          "organizationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "organizationName": {
+            "type": "string"
+          },
+          "driverId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          }
+        },
+        "description": "Who is signed in. The API turns this into tokens; the app uses it to choose office or driver mode."
+      },
+      "AccountLinkDto": {
+        "required": [
+          "link",
+          "expiresAtUtc",
+          "emailed"
+        ],
+        "type": "object",
+        "properties": {
+          "link": {
+            "type": "string"
+          },
+          "expiresAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "emailed": {
+            "type": "boolean"
+          }
+        },
+        "description": "A one-time link (password reset) to hand over when no email could be sent."
+      },
+      "ArrivedBody": {
+        "required": [
+          "stop",
+          "arrivedAt",
+          "latitude",
+          "longitude"
+        ],
+        "type": "object",
+        "properties": {
+          "stop": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "arrivedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "latitude": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "longitude": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          }
+        }
+      },
+      "AuditEntryDto": {
+        "required": [
+          "id",
+          "action",
+          "entityType",
+          "entityId",
+          "userId",
+          "userName",
+          "details",
+          "occurredAtUtc"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "action": {
+            "type": "string"
+          },
+          "entityType": {
+            "type": "string"
+          },
+          "entityId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "userId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "userName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "details": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "occurredAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "BillingProfileDto": {
+        "required": [
+          "legalName",
+          "address",
+          "taxId",
+          "iban",
+          "bankName",
+          "email",
+          "phone",
+          "currency",
+          "defaultVatRatePercent",
+          "defaultPaymentTermsDays",
+          "invoicePrefix",
+          "isComplete",
+          "emailSendingEnabled"
+        ],
+        "type": "object",
+        "properties": {
+          "legalName": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string"
+          },
+          "taxId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "iban": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "bankName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "email": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "phone": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "currency": {
+            "type": "string"
+          },
+          "defaultVatRatePercent": {
+            "type": "number",
+            "format": "double"
+          },
+          "defaultPaymentTermsDays": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "invoicePrefix": {
+            "type": "string"
+          },
+          "isComplete": {
+            "type": "boolean"
+          },
+          "emailSendingEnabled": {
+            "type": "boolean"
+          },
+          "freeWaitingMinutes": {
+            "type": "integer",
+            "format": "int32",
+            "default": 120
+          },
+          "waitingRatePerHour": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          }
+        }
+      },
+      "ChangePasswordCommand": {
+        "required": [
+          "currentPassword",
+          "newPassword"
+        ],
+        "type": "object",
+        "properties": {
+          "currentPassword": {
+            "type": "string"
+          },
+          "newPassword": {
+            "type": "string"
+          }
+        },
+        "description": "Signed-in office user. Ends their other sign-ins."
+      },
+      "CompanyDto": {
+        "required": [
+          "organizationId",
+          "name"
+        ],
+        "type": "object",
+        "properties": {
+          "organizationId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "CreateDriverCommand": {
+        "required": [
+          "fullName",
+          "phone"
+        ],
+        "type": "object",
+        "properties": {
+          "fullName": {
+            "type": "string"
+          },
+          "phone": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "CreateDriverPairingCodeCommand": {
+        "required": [
+          "driverId"
+        ],
+        "type": "object",
+        "properties": {
+          "driverId": {
+            "type": "string",
+            "format": "uuid"
+          }
+        },
+        "description": "Office: a one-time code a driver types to sign in their phone (valid 24 hours)."
+      },
+      "CreateInvoiceBody": {
+        "required": [
+          "jobId",
+          "customerName",
+          "customerEmail",
+          "customerAddress",
+          "customerTaxId",
+          "paymentTermsDays",
+          "lines",
+          "notes",
+          "send"
+        ],
+        "type": "object",
+        "properties": {
+          "jobId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "customerName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "customerEmail": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "customerAddress": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "customerTaxId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "paymentTermsDays": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "lines": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/InvoiceLineInput"
+            }
+          },
+          "notes": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "send": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "CreateJobCommand": {
+        "required": [
+          "vehicleId",
+          "driverId",
+          "customerName",
+          "reference",
+          "origin",
+          "originLatitude",
+          "originLongitude",
+          "destination",
+          "destinationLatitude",
+          "destinationLongitude",
+          "plannedDeliveryUtc",
+          "minTempCelsius",
+          "maxTempCelsius"
+        ],
+        "type": "object",
+        "properties": {
+          "vehicleId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "driverId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "customerName": {
+            "type": "string"
+          },
+          "reference": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "origin": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "originLatitude": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "originLongitude": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "destination": {
+            "type": "string"
+          },
+          "destinationLatitude": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "destinationLongitude": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "plannedDeliveryUtc": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "minTempCelsius": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "maxTempCelsius": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          }
+        }
+      },
+      "CreateVehicleCommand": {
+        "required": [
+          "name",
+          "registration"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "registration": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "DeliverBody": {
+        "required": [
+          "recipientName",
+          "note",
+          "latitude",
+          "longitude",
+          "deliveredAt"
+        ],
+        "type": "object",
+        "properties": {
+          "recipientName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "note": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "latitude": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "longitude": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "deliveredAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "DemoDayDto": {
+        "required": [
+          "jobsCreated",
+          "trucksOnTheWay",
+          "locationPoints",
+          "message"
+        ],
+        "type": "object",
+        "properties": {
+          "jobsCreated": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "trucksOnTheWay": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "locationPoints": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      },
+      "DemoStatusDto": {
+        "required": [
+          "isDemoCompany"
+        ],
+        "type": "object",
+        "properties": {
+          "isDemoCompany": {
+            "type": "boolean"
+          }
+        }
+      },
+      "DriverBody": {
+        "required": [
+          "fullName",
+          "phone"
+        ],
+        "type": "object",
+        "properties": {
+          "fullName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "phone": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "DriverDto": {
+        "required": [
+          "id",
+          "fullName",
+          "phone",
+          "isActive"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "fullName": {
+            "type": "string"
+          },
+          "phone": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "isActive": {
+            "type": "boolean"
+          }
+        }
+      },
+      "DriverPairingCodeDto": {
+        "required": [
+          "code",
+          "expiresAtUtc",
+          "driverName"
+        ],
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          },
+          "expiresAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "driverName": {
+            "type": "string"
+          }
+        }
+      },
+      "IFormFile": {
+        "type": [
+          "null",
+          "string"
+        ],
+        "format": "binary"
+      },
+      "InvitationPreviewDto": {
+        "required": [
+          "companyName",
+          "email",
+          "role"
+        ],
+        "type": "object",
+        "properties": {
+          "companyName": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          }
+        },
+        "description": "What the person opening an invitation link sees before choosing a password."
+      },
+      "InviteTeammateCommand": {
+        "required": [
+          "email",
+          "role"
+        ],
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          }
+        },
+        "description": "Role is \"Owner\" or \"Dispatcher\". The link is emailed when possible and always returned to share by hand."
+      },
+      "InvoiceDetailDto": {
+        "required": [
+          "summary",
+          "subtotal",
+          "vatAmount",
+          "lines",
+          "customerAddress",
+          "customerTaxId",
+          "notes",
+          "reminders"
+        ],
+        "type": "object",
+        "properties": {
+          "summary": {
+            "$ref": "#/components/schemas/InvoiceSummaryDto"
+          },
+          "subtotal": {
+            "type": "number",
+            "format": "double"
+          },
+          "vatAmount": {
+            "type": "number",
+            "format": "double"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InvoiceLineDto"
+            }
+          },
+          "customerAddress": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "customerTaxId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "notes": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "reminders": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InvoiceReminderDto"
+            }
+          },
+          "emailed": {
+            "type": "boolean",
+            "default": false
+          }
+        }
+      },
+      "InvoiceLineDto": {
+        "required": [
+          "description",
+          "quantity",
+          "unitPrice",
+          "vatRatePercent",
+          "netAmount",
+          "vatAmount"
+        ],
+        "type": "object",
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "number",
+            "format": "double"
+          },
+          "unitPrice": {
+            "type": "number",
+            "format": "double"
+          },
+          "vatRatePercent": {
+            "type": "number",
+            "format": "double"
+          },
+          "netAmount": {
+            "type": "number",
+            "format": "double"
+          },
+          "vatAmount": {
+            "type": "number",
+            "format": "double"
+          }
+        }
+      },
+      "InvoiceLineInput": {
+        "required": [
+          "description",
+          "quantity",
+          "unitPrice",
+          "vatRatePercent"
+        ],
+        "type": "object",
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "number",
+            "format": "double"
+          },
+          "unitPrice": {
+            "type": "number",
+            "format": "double"
+          },
+          "vatRatePercent": {
+            "type": "number",
+            "format": "double"
+          }
+        }
+      },
+      "InvoiceOverviewDto": {
+        "required": [
+          "currency",
+          "outstanding",
+          "overdue",
+          "overdueCount",
+          "paidLast30Days",
+          "invoices",
+          "toInvoice"
+        ],
+        "type": "object",
+        "properties": {
+          "currency": {
+            "type": "string"
+          },
+          "outstanding": {
+            "type": "number",
+            "format": "double"
+          },
+          "overdue": {
+            "type": "number",
+            "format": "double"
+          },
+          "overdueCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "paidLast30Days": {
+            "type": "number",
+            "format": "double"
+          },
+          "invoices": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InvoiceSummaryDto"
+            }
+          },
+          "toInvoice": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/UninvoicedJobDto"
+            }
+          }
+        }
+      },
+      "InvoiceReminderDto": {
+        "required": [
+          "kind",
+          "sentAtUtc",
+          "emailed"
+        ],
+        "type": "object",
+        "properties": {
+          "kind": {
+            "type": "string"
+          },
+          "sentAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "emailed": {
+            "type": "boolean"
+          }
+        }
+      },
+      "InvoiceSummaryDto": {
+        "required": [
+          "id",
+          "number",
+          "status",
+          "isOverdue",
+          "daysOverdue",
+          "customerName",
+          "customerEmail",
+          "currency",
+          "total",
+          "issueDateUtc",
+          "dueDateUtc",
+          "sentAtUtc",
+          "paidAtUtc",
+          "jobId",
+          "publicPath",
+          "remindersSent",
+          "lastReminderAtUtc"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "number": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "isOverdue": {
+            "type": "boolean"
+          },
+          "daysOverdue": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "customerName": {
+            "type": "string"
+          },
+          "customerEmail": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "currency": {
+            "type": "string"
+          },
+          "total": {
+            "type": "number",
+            "format": "double"
+          },
+          "issueDateUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "dueDateUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "sentAtUtc": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "paidAtUtc": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "jobId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "publicPath": {
+            "type": "string"
+          },
+          "remindersSent": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "lastReminderAtUtc": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "JobDetailDto": {
+        "required": [
+          "job",
+          "documents",
+          "waits"
+        ],
+        "type": "object",
+        "properties": {
+          "job": {
+            "$ref": "#/components/schemas/JobDto"
+          },
+          "documents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/JobDocumentDto"
+            }
+          },
+          "waits": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WaitDto"
+            }
+          }
+        }
+      },
+      "JobDocumentDto": {
+        "required": [
+          "id",
+          "kind",
+          "contentType",
+          "sizeBytes",
+          "capturedAtUtc",
+          "latitude",
+          "longitude",
+          "temperatureCelsius",
+          "note",
+          "clientId"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "contentType": {
+            "type": "string"
+          },
+          "sizeBytes": {
+            "type": "integer",
+            "format": "int64"
+          },
+          "capturedAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "latitude": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "longitude": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "temperatureCelsius": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "note": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "clientId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          }
+        }
+      },
+      "JobDto": {
+        "required": [
+          "id",
+          "status",
+          "vehicleId",
+          "vehicleName",
+          "registration",
+          "driverId",
+          "driverName",
+          "driverPhone",
+          "customerName",
+          "reference",
+          "origin",
+          "originLatitude",
+          "originLongitude",
+          "destination",
+          "destinationLatitude",
+          "destinationLongitude",
+          "plannedDeliveryUtc",
+          "createdAtUtc",
+          "startedAtUtc",
+          "deliveredAtUtc",
+          "recipientName",
+          "deliveryNote",
+          "lastLatitude",
+          "lastLongitude",
+          "lastSpeedKmh",
+          "lastPositionAtUtc",
+          "remainingKm",
+          "etaUtc",
+          "trackingPath",
+          "minTempCelsius",
+          "maxTempCelsius",
+          "lastTemperatureCelsius",
+          "lastTemperatureAtUtc",
+          "temperatureReadingCount",
+          "temperatureOutOfRangeCount",
+          "temperatureCheckDueUtc",
+          "photoCount",
+          "pickupDocumentCount",
+          "signatureCount",
+          "exceptionCount",
+          "pickupArrivedAtUtc",
+          "deliveryArrivedAtUtc",
+          "invoiceId"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string"
+          },
+          "vehicleId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "vehicleName": {
+            "type": "string"
+          },
+          "registration": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "driverId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "driverName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "driverPhone": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "customerName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "reference": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "origin": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "originLatitude": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "originLongitude": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "destination": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "destinationLatitude": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "destinationLongitude": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "plannedDeliveryUtc": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "createdAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "startedAtUtc": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "deliveredAtUtc": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "recipientName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "deliveryNote": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "lastLatitude": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "lastLongitude": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "lastSpeedKmh": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "lastPositionAtUtc": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "remainingKm": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "etaUtc": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "trackingPath": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "minTempCelsius": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "maxTempCelsius": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "lastTemperatureCelsius": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "lastTemperatureAtUtc": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "temperatureReadingCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "temperatureOutOfRangeCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "temperatureCheckDueUtc": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "photoCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "pickupDocumentCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "signatureCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "exceptionCount": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "pickupArrivedAtUtc": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "deliveryArrivedAtUtc": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "invoiceId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          }
+        }
+      },
+      "JobOptionsDto": {
+        "required": [
+          "vehicles",
+          "drivers"
+        ],
+        "type": "object",
+        "properties": {
+          "vehicles": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/VehicleDto"
+            }
+          },
+          "drivers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/DriverDto"
+            }
+          }
+        },
+        "description": "Trucks and drivers to choose from when creating a job."
+      },
+      "JobScope": {
+        "enum": [
+          "Active",
+          "Delivered",
+          "All",
+          null
+        ]
+      },
+      "LocationPoint": {
+        "required": [
+          "id",
+          "latitude",
+          "longitude",
+          "speedKmh",
+          "heading",
+          "accuracyMeters",
+          "recordedAtUtc"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "latitude": {
+            "type": "number",
+            "format": "double"
+          },
+          "longitude": {
+            "type": "number",
+            "format": "double"
+          },
+          "speedKmh": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "heading": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "accuracyMeters": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "recordedAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "LocationsBody": {
+        "required": [
+          "points"
+        ],
+        "type": "object",
+        "properties": {
+          "points": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/LocationPoint"
+            }
+          }
+        }
+      },
+      "PaidBody": {
+        "required": [
+          "paidAt"
+        ],
+        "type": "object",
+        "properties": {
+          "paidAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "PairDriverCommand": {
+        "required": [
+          "code"
+        ],
+        "type": "object",
+        "properties": {
+          "code": {
+            "type": "string"
+          }
+        },
+        "description": "Anonymous: a driver's phone exchanges a pairing code for a driver sign-in. Each code works once."
+      },
+      "PublicInvoiceDocumentDto": {
+        "required": [
+          "id",
+          "kind",
+          "capturedAtUtc",
+          "temperatureCelsius"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "kind": {
+            "type": "string"
+          },
+          "capturedAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "temperatureCelsius": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "note": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "PublicInvoiceDto": {
+        "required": [
+          "number",
+          "status",
+          "isOverdue",
+          "issueDateUtc",
+          "dueDateUtc",
+          "currency",
+          "subtotal",
+          "vatAmount",
+          "total",
+          "lines",
+          "sellerName",
+          "sellerAddress",
+          "sellerTaxId",
+          "sellerIban",
+          "sellerBankName",
+          "sellerEmail",
+          "customerName",
+          "customerAddress",
+          "customerTaxId",
+          "notes",
+          "deliveryReference",
+          "deliveryOrigin",
+          "deliveryDestination",
+          "deliveredAtUtc",
+          "receivedBy",
+          "minTempCelsius",
+          "maxTempCelsius",
+          "documents"
+        ],
+        "type": "object",
+        "properties": {
+          "number": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string"
+          },
+          "isOverdue": {
+            "type": "boolean"
+          },
+          "issueDateUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "dueDateUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "currency": {
+            "type": "string"
+          },
+          "subtotal": {
+            "type": "number",
+            "format": "double"
+          },
+          "vatAmount": {
+            "type": "number",
+            "format": "double"
+          },
+          "total": {
+            "type": "number",
+            "format": "double"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InvoiceLineDto"
+            }
+          },
+          "sellerName": {
+            "type": "string"
+          },
+          "sellerAddress": {
+            "type": "string"
+          },
+          "sellerTaxId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "sellerIban": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "sellerBankName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "sellerEmail": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "customerName": {
+            "type": "string"
+          },
+          "customerAddress": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "customerTaxId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "notes": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "deliveryReference": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "deliveryOrigin": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "deliveryDestination": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "deliveredAtUtc": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "receivedBy": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "minTempCelsius": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "maxTempCelsius": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "documents": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/PublicInvoiceDocumentDto"
+            }
+          },
+          "stopTimes": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "$ref": "#/components/schemas/PublicStopTimeDto"
+            }
+          }
+        },
+        "description": "The customer's invoice page: the invoice plus the delivery's proof. Nothing internal."
+      },
+      "PublicStopTimeDto": {
+        "required": [
+          "stop",
+          "arrivedAtUtc",
+          "releasedAtUtc",
+          "source",
+          "verified",
+          "waitedMinutes"
+        ],
+        "type": "object",
+        "properties": {
+          "stop": {
+            "type": "string"
+          },
+          "arrivedAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "releasedAtUtc": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "source": {
+            "type": "string"
+          },
+          "verified": {
+            "type": "boolean"
+          },
+          "waitedMinutes": {
+            "type": "integer",
+            "format": "int32"
+          }
+        },
+        "description": "When the truck arrived at and was released from a stop, as recorded by the driver's phone."
+      },
+      "PublicTrackingDto": {
+        "required": [
+          "companyName",
+          "reference",
+          "customerName",
+          "status",
+          "origin",
+          "destination",
+          "destinationLatitude",
+          "destinationLongitude",
+          "plannedDeliveryUtc",
+          "latitude",
+          "longitude",
+          "positionAtUtc",
+          "remainingKm",
+          "etaUtc",
+          "deliveredAtUtc",
+          "recipientName",
+          "arrivedAtUtc",
+          "waitingChargedFromUtc"
+        ],
+        "type": "object",
+        "properties": {
+          "companyName": {
+            "type": "string"
+          },
+          "reference": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "customerName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "status": {
+            "type": "string"
+          },
+          "origin": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "destination": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "destinationLatitude": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "destinationLongitude": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "plannedDeliveryUtc": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "latitude": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "longitude": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "positionAtUtc": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "remainingKm": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "etaUtc": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "deliveredAtUtc": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "recipientName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "arrivedAtUtc": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "waitingChargedFromUtc": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          }
+        },
+        "description": "What the receiver's tracking page may show: nothing about the driver, the truck or other jobs."
+      },
+      "RecordLocationsResultDto": {
+        "required": [
+          "accepted",
+          "skipped"
+        ],
+        "type": "object",
+        "properties": {
+          "accepted": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "skipped": {
+            "type": "integer",
+            "format": "int32"
+          }
+        }
+      },
+      "RefreshBody": {
+        "required": [
+          "refreshToken"
+        ],
+        "type": "object",
+        "properties": {
+          "refreshToken": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "RequestPasswordResetCommand": {
+        "required": [
+          "email"
+        ],
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string"
+          }
+        },
+        "description": "Anonymous. Always succeeds, so nobody can learn which emails have accounts."
+      },
+      "ResetPasswordCommand": {
+        "required": [
+          "token",
+          "password"
+        ],
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string"
+          }
+        },
+        "description": "Anonymous: sets a new password from a reset link, ends every other sign-in and signs in."
+      },
+      "RoleBody": {
+        "required": [
+          "role"
+        ],
+        "type": "object",
+        "properties": {
+          "role": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
+      "SaveBillingProfileCommand": {
+        "required": [
+          "legalName",
+          "address",
+          "taxId",
+          "iban",
+          "bankName",
+          "email",
+          "phone",
+          "currency",
+          "defaultVatRatePercent",
+          "defaultPaymentTermsDays",
+          "invoicePrefix"
+        ],
+        "type": "object",
+        "properties": {
+          "legalName": {
+            "type": "string"
+          },
+          "address": {
+            "type": "string"
+          },
+          "taxId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "iban": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "bankName": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "email": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "phone": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "currency": {
+            "type": "string"
+          },
+          "defaultVatRatePercent": {
+            "type": "number",
+            "format": "double"
+          },
+          "defaultPaymentTermsDays": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "invoicePrefix": {
+            "type": "string"
+          },
+          "freeWaitingMinutes": {
+            "type": "integer",
+            "format": "int32",
+            "default": 120
+          },
+          "waitingRatePerHour": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "timeZone": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        },
+        "description": "The company's invoice details, terms, numbering and waiting-time terms."
+      },
+      "SendBody": {
+        "required": [
+          "email"
+        ],
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "boolean"
+          }
+        }
+      },
+      "SessionDto": {
+        "required": [
+          "accessToken",
+          "refreshToken",
+          "expiresIn",
+          "account"
+        ],
+        "type": "object",
+        "properties": {
+          "accessToken": {
+            "type": "string"
+          },
+          "refreshToken": {
+            "type": "string"
+          },
+          "expiresIn": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "account": {
+            "$ref": "#/components/schemas/AccountDto"
+          }
+        }
+      },
+      "SignInCommand": {
+        "required": [
+          "email",
+          "password"
+        ],
+        "type": "object",
+        "properties": {
+          "email": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string"
+          }
+        },
+        "description": "Anonymous: office sign-in with email and password. Five wrong passwords lock the account for 15 minutes."
+      },
+      "SignInOptionsDto": {
+        "required": [
+          "demo",
+          "passwordResetByEmail"
+        ],
+        "type": "object",
+        "properties": {
+          "demo": {
+            "type": "boolean"
+          },
+          "passwordResetByEmail": {
+            "type": "boolean"
+          }
+        },
+        "description": "What the sign-in screen may offer."
+      },
+      "SignUpCommand": {
+        "required": [
+          "companyName",
+          "name",
+          "email",
+          "password"
+        ],
+        "type": "object",
+        "properties": {
+          "companyName": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string"
+          },
+          "password": {
+            "type": "string"
+          }
+        },
+        "description": "Anonymous: creates a company account and its first owner."
+      },
+      "StartBody": {
+        "required": [
+          "startedAt"
+        ],
+        "type": "object",
+        "properties": {
+          "startedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "SuggestedLineDto": {
+        "required": [
+          "description",
+          "quantity",
+          "unitPrice"
+        ],
+        "type": "object",
+        "properties": {
+          "description": {
+            "type": "string"
+          },
+          "quantity": {
+            "type": "number",
+            "format": "double"
+          },
+          "unitPrice": {
+            "type": "number",
+            "format": "double"
+          }
+        },
+        "description": "An extra invoice line the office can add with one tap (e.g. waiting time), already priced."
+      },
+      "TeamDto": {
+        "required": [
+          "members",
+          "invitations",
+          "emailConfigured"
+        ],
+        "type": "object",
+        "properties": {
+          "members": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TeamMemberDto"
+            }
+          },
+          "invitations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TeamInvitationDto"
+            }
+          },
+          "emailConfigured": {
+            "type": "boolean"
+          }
+        }
+      },
+      "TeamInvitationDto": {
+        "required": [
+          "id",
+          "email",
+          "role",
+          "expiresAtUtc",
+          "link",
+          "emailed"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "email": {
+            "type": "string"
+          },
+          "role": {
+            "type": "string"
+          },
+          "expiresAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "link": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "emailed": {
+            "type": "boolean"
+          }
+        },
+        "description": "An invitation not yet accepted. The link is only known when it is created."
+      },
+      "TeamMemberDto": {
+        "required": [
+          "userId",
+          "displayName",
+          "email",
+          "role",
+          "isActive",
+          "lastSignInAtUtc",
+          "isYou"
+        ],
+        "type": "object",
+        "properties": {
+          "userId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "displayName": {
+            "type": "string"
+          },
+          "email": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "role": {
+            "type": "string"
+          },
+          "isActive": {
+            "type": "boolean"
+          },
+          "lastSignInAtUtc": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "isYou": {
+            "type": "boolean"
+          }
+        }
+      },
+      "UninvoicedJobDto": {
+        "required": [
+          "job",
+          "suggestedDescription",
+          "customerEmail",
+          "customerAddress",
+          "customerTaxId",
+          "customerPaymentTermsDays",
+          "waits",
+          "suggestedLines"
+        ],
+        "type": "object",
+        "properties": {
+          "job": {
+            "$ref": "#/components/schemas/JobDto"
+          },
+          "suggestedDescription": {
+            "type": "string"
+          },
+          "customerEmail": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "customerAddress": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "customerTaxId": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "customerPaymentTermsDays": {
+            "type": [
+              "null",
+              "integer"
+            ],
+            "format": "int32"
+          },
+          "waits": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/WaitDto"
+            }
+          },
+          "suggestedLines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SuggestedLineDto"
+            }
+          }
+        },
+        "description": "A delivered job waiting for its invoice, with what we remember about the customer."
+      },
+      "UpdateCompanyCommand": {
+        "required": [
+          "name"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          }
+        }
+      },
+      "UpdateProfileCommand": {
+        "required": [
+          "displayName"
+        ],
+        "type": "object",
+        "properties": {
+          "displayName": {
+            "type": "string"
+          }
+        }
+      },
+      "UploadForm": {
+        "type": "object",
+        "properties": {
+          "file": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/IFormFile"
+              }
+            ]
+          },
+          "kind": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "latitude": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "longitude": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "temperatureCelsius": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "note": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "clientId": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "uuid"
+          },
+          "capturedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          }
+        }
+      },
+      "VehicleDto": {
+        "required": [
+          "id",
+          "name",
+          "registration",
+          "isActive"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "registration": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "isActive": {
+            "type": "boolean"
+          }
+        }
+      },
+      "WaitDto": {
+        "required": [
+          "stop",
+          "arrivedAtUtc",
+          "releasedAtUtc",
+          "source",
+          "distanceFromStopMeters",
+          "verified",
+          "running",
+          "waitedMinutes",
+          "freeMinutes",
+          "chargedFromUtc",
+          "chargedMinutes",
+          "amount",
+          "ratePerHour",
+          "currency"
+        ],
+        "type": "object",
+        "properties": {
+          "stop": {
+            "type": "string"
+          },
+          "arrivedAtUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "releasedAtUtc": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "format": "date-time"
+          },
+          "source": {
+            "type": "string"
+          },
+          "distanceFromStopMeters": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "verified": {
+            "type": "boolean"
+          },
+          "running": {
+            "type": "boolean"
+          },
+          "waitedMinutes": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "freeMinutes": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "chargedFromUtc": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "chargedMinutes": {
+            "type": "integer",
+            "format": "int32"
+          },
+          "amount": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "ratePerHour": {
+            "type": [
+              "null",
+              "number"
+            ],
+            "format": "double"
+          },
+          "currency": {
+            "type": "string"
+          }
+        },
+        "description": "Waiting at a stop: when the truck arrived and how (GPS, or the driver's tap and how far from the address),\nhow long it waited, and what is chargeable under the company's terms."
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "Audit"
+    },
+    {
+      "name": "Account"
+    },
+    {
+      "name": "Fleet"
+    },
+    {
+      "name": "Jobs"
+    },
+    {
+      "name": "Driver"
+    },
+    {
+      "name": "Billing"
+    },
+    {
+      "name": "Demo"
+    },
+    {
+      "name": "Public"
+    }
+  ]
+}

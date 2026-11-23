@@ -52,7 +52,7 @@ public sealed class RecordLocationsValidator : AbstractValidator<RecordLocations
     }
 }
 
-public sealed class RecordLocationsHandler(IAppDbContext db, ITenantContext tenant) : ICommandHandler<RecordLocationsCommand, RecordLocationsResultDto>
+public sealed class RecordLocationsHandler(IAppDbContext db, ITenantContext tenant, IRealtimeNotifier notifier) : ICommandHandler<RecordLocationsCommand, RecordLocationsResultDto>
 {
     /// <summary>Readings the phone buffered just before delivery may arrive after it; accepted for this long.</summary>
     private static readonly TimeSpan LateArrivalAllowance = TimeSpan.FromMinutes(5);
@@ -103,6 +103,11 @@ public sealed class RecordLocationsHandler(IAppDbContext db, ITenantContext tena
         }
 
         await db.SaveChangesAsync(cancellationToken);
+        if (fresh.Count > 0)
+        {
+            await notifier.JobChangedAsync(job.OrganizationId, job.Id, cancellationToken);
+        }
+
         return new RecordLocationsResultDto(fresh.Count, command.Points.Count - fresh.Count);
     }
 

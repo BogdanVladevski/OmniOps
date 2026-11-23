@@ -1,10 +1,10 @@
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
+using OmniOps.Api.Realtime;
 using OmniOps.Application.Common.Interfaces;
 using OmniOps.Application.Common.Security;
 using OmniOps.Domain.Accounts;
-using OmniOps.Infrastructure.Realtime;
 
 namespace OmniOps.Api.Authentication;
 

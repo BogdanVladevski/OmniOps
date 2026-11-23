@@ -50,6 +50,12 @@ public interface IPublicLinks
 public interface IRealtimeNotifier
 {
     Task AlertAsync(Guid organizationId, string kind, string title, string message, Guid? jobId = null, CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Tells open office screens that a job changed (position, status, paperwork) so they refetch. Best effort: never
+    /// throws, and is only called after the change is committed.
+    /// </summary>
+    Task JobChangedAsync(Guid organizationId, Guid jobId, CancellationToken cancellationToken = default);
 }
 
 /// <summary>Ends sign-ins: refresh tokens are revoked and access tokens issued earlier stop working.</summary>
