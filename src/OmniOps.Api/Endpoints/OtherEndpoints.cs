@@ -1,4 +1,5 @@
 using Mediator;
+using Microsoft.AspNetCore.Http.HttpResults;
 using OmniOps.Api.Infrastructure;
 using OmniOps.Application.Common.Security;
 using OmniOps.Application.Features.Audit;
@@ -32,10 +33,10 @@ internal static class PublicEndpoints
     {
         var pub = app.MapGroup("").AllowAnonymous().RequireRateLimiting(RateLimits.Public).WithTags("Public");
 
-        pub.MapGet("/api/public/track/{token}", async (string token, IMediator m, CancellationToken ct) =>
-            await m.Send(new GetPublicTrackingQuery(token), ct) is { } tracking ? Results.Ok(tracking) : Results.NotFound());
-        pub.MapGet("/api/public/invoices/{token}", async (string token, IMediator m, CancellationToken ct) =>
-            await m.Send(new GetPublicInvoiceQuery(token), ct) is { } invoice ? Results.Ok(invoice) : Results.NotFound());
+        pub.MapGet("/api/public/track/{token}", async Task<Results<Ok<PublicTrackingDto>, NotFound>> (string token, IMediator m, CancellationToken ct) =>
+            await m.Send(new GetPublicTrackingQuery(token), ct) is { } tracking ? TypedResults.Ok(tracking) : TypedResults.NotFound());
+        pub.MapGet("/api/public/invoices/{token}", async Task<Results<Ok<PublicInvoiceDto>, NotFound>> (string token, IMediator m, CancellationToken ct) =>
+            await m.Send(new GetPublicInvoiceQuery(token), ct) is { } invoice ? TypedResults.Ok(invoice) : TypedResults.NotFound());
         pub.MapGet("/api/public/invoices/{token}/documents/{documentId:guid}", async (string token, Guid documentId, IMediator m, CancellationToken ct) =>
             await m.Send(new GetPublicInvoiceDocumentQuery(token, documentId), ct) is { } file
                 ? Results.Stream(file.Content, file.ContentType)

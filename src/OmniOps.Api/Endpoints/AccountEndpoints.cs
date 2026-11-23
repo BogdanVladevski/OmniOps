@@ -1,4 +1,5 @@
 using Mediator;
+using Microsoft.AspNetCore.Http.HttpResults;
 using OmniOps.Api.Authentication;
 using OmniOps.Api.Infrastructure;
 using OmniOps.Application.Common.Interfaces;
@@ -48,23 +49,24 @@ internal static class AccountEndpoints
 
         // What the sign-in screen may offer. The demo company is for development servers only.
         account.MapGet("/options", (IWebHostEnvironment env, IEmailSender email) =>
-            TypedResults.Ok(new { demo = env.IsDevelopment(), passwordResetByEmail = email.IsConfigured })).AllowAnonymous();
-        account.MapPost("/demo", async (IWebHostEnvironment env, IMediator m, TokenService tokens, CancellationToken ct) =>
+            TypedResults.Ok(new SignInOptionsDto(env.IsDevelopment(), email.IsConfigured))).AllowAnonymous();
+        account.MapPost("/demo", async Task<Results<Ok<SessionDto>, NotFound>> (IWebHostEnvironment env, IMediator m, TokenService tokens, CancellationToken ct) =>
             {
                 if (!env.IsDevelopment())
                 {
-                    return Results.NotFound();
+                    return TypedResults.NotFound();
                 }
 
                 var ownerId = await m.Send(new EnsureDemoCompanyCommand(), ct);
                 var session = await m.Send(new GetAccountQuery(ownerId), ct) ?? throw new InvalidOperationException("Demo owner missing.");
-                return Results.Ok(await tokens.IssueAsync(session, ct));
+                return TypedResults.Ok(await tokens.IssueAsync(session, ct));
             })
-            .AllowAnonymous().ExcludeFromDescription();
+            .AllowAnonymous()
+            .WithSummary("Signs in to the demo company (development servers only; 404 elsewhere).");
 
         // Signed in.
-        account.MapGet("/me", async (ITenantContext tenant, IMediator m, CancellationToken ct) =>
-                tenant.UserId is { } id && await m.Send(new GetAccountQuery(id), ct) is { } me ? Results.Ok(me) : Results.Unauthorized())
+        account.MapGet("/me", async Task<Results<Ok<AccountDto>, UnauthorizedHttpResult>> (ITenantContext tenant, IMediator m, CancellationToken ct) =>
+                tenant.UserId is { } id && await m.Send(new GetAccountQuery(id), ct) is { } me ? TypedResults.Ok(me) : TypedResults.Unauthorized())
             .RequireAuthorization(Policies.JobWork);
         account.MapPut("/me", async (UpdateProfileCommand command, IMediator m, CancellationToken ct) => TypedResults.Ok(await m.Send(command, ct)))
             .RequireAuthorization(Policies.Office);
@@ -104,17 +106,20 @@ internal static class AccountEndpoints
     }
 
     /// <summary>Refresh tokens are single use; the new session reflects the account's current role.</summary>
-    private static async Task<IResult> Refresh(RefreshBody body, TokenService tokens, IMediator m, CancellationToken ct)
+    private static async Task<Results<Ok<SessionDto>, UnauthorizedHttpResult>> Refresh(RefreshBody body, TokenService tokens, IMediator m, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(body.RefreshToken)
             || await tokens.RedeemRefreshTokenAsync(body.RefreshToken, ct) is not { } userId
             || await m.Send(new GetAccountQuery(userId), ct) is not { } account)
         {
-            return Results.Unauthorized();
+            return TypedResults.Unauthorized();
         }
 
-        return Results.Ok(await tokens.IssueAsync(account, ct));
+        return TypedResults.Ok(await tokens.IssueAsync(account, ct));
     }
+
+    /// <summary>What the sign-in screen may offer.</summary>
+    internal sealed record SignInOptionsDto(bool Demo, bool PasswordResetByEmail);
 
     internal sealed record RefreshBody(string? RefreshToken);
 

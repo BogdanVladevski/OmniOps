@@ -26,6 +26,10 @@ builder.Services.AddMediator(options =>
     ];
 });
 
+// Numbers are numbers: no "12.5" strings accepted, so the OpenAPI contract (and the app's types) say number.
+builder.Services.ConfigureHttpJsonOptions(options =>
+    options.SerializerOptions.NumberHandling = System.Text.Json.Serialization.JsonNumberHandling.Strict);
+
 builder.Services.AddOmniAuthentication();
 builder.Services.AddOmniRateLimits();
 builder.Services.AddProblemDetails();
@@ -69,7 +73,7 @@ app.MapAuditEndpoints();
 app.MapDemoEndpoints();
 app.MapPublicEndpoints();
 
-if (app.Configuration.GetValue("Database:MigrateOnStartup", true))
+if (!BuildContext.IsGeneratingOpenApiDocument && app.Configuration.GetValue("Database:MigrateOnStartup", true))
 {
     await using var scope = app.Services.CreateAsyncScope();
     await scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.MigrateAsync();
