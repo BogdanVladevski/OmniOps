@@ -21,6 +21,12 @@ Aspire starts PostgreSQL (with a persistent volume), the API (<http://localhost:
 (<http://localhost:8081>), and prints a link to its dashboard: logs, traces and metrics for every resource. The JWT
 signing key for development is generated once and stored in the AppHost's user secrets.
 
+If the dashboard shows `postgres` stuck in *Starting* and the API waiting, Docker isn't reachable from your terminal:
+your account was added to the `docker` group after you logged in. Log out and back in once, or start with
+`sg docker -c "dotnet run --project src/OmniOps.AppHost"`. If Docker reports a port "already in use" after Docker itself
+was restarted, a stale port forwarder is left behind: `sudo snap restart docker` (or `sudo systemctl restart docker`)
+clears it.
+
 Useful addresses:
 
 | What | Where |

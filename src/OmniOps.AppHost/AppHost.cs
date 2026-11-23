@@ -2,8 +2,11 @@
 // showing logs, traces and health for all of them.
 var builder = DistributedApplication.CreateBuilder(args);
 
+// The same major version as production (deploy/compose.yaml) and the integration tests; Aspire's default is newer.
+// The volume name carries the version: a data directory can't be opened by a different major version.
 var postgres = builder.AddPostgres("postgres")
-    .WithDataVolume("omniops-postgres")
+    .WithImageTag("17-alpine")
+    .WithDataVolume("omniops-postgres-17")
     .WithLifetime(ContainerLifetime.Persistent);
 var database = postgres.AddDatabase("omniops");
 
