@@ -46,7 +46,7 @@ jobs:
         run: dotnet test --project tests/OmniOps.UnitTests --configuration Release --no-build
 
       - name: Integration tests
-        run: dotnet test --project tests/OmniOps.IntegrationTests --configuration Release --no-build --report-trx --results-directory TestResults
+        run: dotnet test --project tests/OmniOps.IntegrationTests --configuration Release --no-build --report-xunit-trx --results-directory TestResults
 
       - name: Upload test results
         if: failure()
