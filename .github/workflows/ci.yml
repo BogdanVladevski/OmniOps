@@ -2,15 +2,16 @@ name: CI
 
 on:
   push:
-    branches:
-      - main
+    branches: [main]
   pull_request:
-    branches:
-      - main
   workflow_dispatch:
 
 permissions:
   contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 env:
   DOTNET_CLI_TELEMETRY_OPTOUT: true
@@ -18,56 +19,75 @@ env:
 
 jobs:
   backend:
-    name: Backend build and tests
+    name: Backend
     runs-on: ubuntu-latest
     timeout-minutes: 25
-
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
-      - name: Set up .NET 9
-        uses: actions/setup-dotnet@v4
+      - uses: actions/setup-dotnet@v5
         with:
-          dotnet-version: 9.0.x
+          global-json-file: global.json
+          cache: true
+          cache-dependency-path: '**/packages.lock.json'
 
-      - name: Cache NuGet packages
-        uses: actions/cache@v4
-        with:
-          path: ~/.nuget/packages
-          key: nuget-${{ runner.os }}-${{ hashFiles('backend/**/*.csproj', 'backend/OmniOps.sln') }}
-          restore-keys: |
-            nuget-${{ runner.os }}-
+      - name: Restore
+        run: dotnet restore OmniOps.slnx
 
-      - name: Restore backend solution
-        run: dotnet restore backend/OmniOps.sln
+      - name: Build (warnings are errors)
+        run: dotnet build OmniOps.slnx --configuration Release --no-restore
 
-      - name: Build backend solution
-        run: dotnet build backend/OmniOps.sln --configuration Release --no-restore
-
-      - name: Verify Docker is available for Testcontainers
-        run: docker version
-
-      - name: Run backend tests
-        run: dotnet test backend/OmniOps.sln --configuration Release --no-build --logger trx --results-directory TestResults
-
-      - name: Set up Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: npm
-          cache-dependency-path: frontend/package-lock.json
-
-      - name: Run frontend unit tests
-        working-directory: frontend
+      - name: API contract is up to date
         run: |
-          npm ci
-          npm test -- --ci
+          git diff --exit-code -- docs/api \
+            || { echo "::error::docs/api/omniops-api.json is out of date. Build OmniOps.Api and commit it."; exit 1; }
+
+      - name: Unit tests
+        run: dotnet test --project tests/OmniOps.UnitTests --configuration Release --no-build
+
+      - name: Integration tests
+        run: dotnet test --project tests/OmniOps.IntegrationTests --configuration Release --no-build --report-trx --results-directory TestResults
 
       - name: Upload test results
-        if: always()
+        if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: dotnet-test-results
-          path: TestResults/**/*.trx
+          name: test-results
+          path: TestResults
           if-no-files-found: ignore
+
+  app:
+    name: App
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - run: npm ci
+
+      - name: API client matches the contract
+        run: |
+          npm run api:types
+          git diff --exit-code -- src/api/schema.d.ts \
+            || { echo "::error::src/api/schema.d.ts is out of date. Run npm run api:types and commit it."; exit 1; }
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type check
+        run: npm run typecheck
+
+      - name: Formatting
+        run: npm run format:check
+
+      - name: Tests
+        run: npm test -- --ci

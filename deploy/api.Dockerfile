@@ -6,7 +6,7 @@ WORKDIR /repo
 COPY global.json Directory.Build.props Directory.Packages.props .editorconfig ./
 COPY src/ src/
 RUN --mount=type=cache,target=/root/.nuget/packages \
-    dotnet publish src/OmniOps.Api/OmniOps.Api.csproj -c Release -o /app/publish -p:UseAppHost=false
+    dotnet publish src/OmniOps.Api/OmniOps.Api.csproj -c Release -o /app/publish -p:UseAppHost=false -p:OpenApiGenerateDocuments=false
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0-alpine AS runtime
 # tzdata: invoices state times (e.g. a truck's arrival) in each company's time zone.
